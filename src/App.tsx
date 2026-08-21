@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { ArrowLeft, BookOpenText, Check, ChevronRight, CircleAlert, Clock3, FilePlus2, FileText, History, Home, LibraryBig, PanelRightClose, PanelRightOpen, PenLine, Plus, RotateCcw, Search, Settings, Sparkles, Target, TimerReset } from "lucide-react";
+import { gradingService } from "./grading";
 import { buildMockReview, questions as builtinQuestions } from "./mockData";
 import { persistence } from "./storage";
 import type { AppView, Difficulty, LocalQuestionInput, MockReview, Question, QuestionType, TrainingRecord } from "./types";
@@ -100,6 +101,7 @@ function Practice({ question, onExit, onSubmitted }: { question: Question; onExi
   const [rightOpen, setRightOpen] = useState(true);
   const [draftLoaded, setDraftLoaded] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const chars = answer.replace(/\s/g, "").length;
 
   useEffect(() => {
@@ -108,6 +110,7 @@ function Practice({ question, onExit, onSubmitted }: { question: Question; onExi
     setAnswer("");
     setReview(null);
     setSubmitting(false);
+    setSubmitError(null);
     persistence.getDraft(question.id)
       .then(draft => {
         if (cancelled) return;
@@ -132,22 +135,25 @@ function Practice({ question, onExit, onSubmitted }: { question: Question; onExi
 
   async function submit() {
     if (submitting) return;
-    const result = buildMockReview(question, answer);
-    setReview(result);
-    const now = new Date();
-    const record: TrainingRecord = { id: crypto.randomUUID(), questionId: question.id, title: question.title, score: result.score, maxScore: result.maxScore, submittedAt: now.toLocaleString("zh-CN"), submittedAtIso: now.toISOString(), answer, review: result };
     setSubmitting(true);
+    setSubmitError(null);
     try {
+      const result = await gradingService.grade({ question, answer });
+      setReview(result);
+      const now = new Date();
+      const record: TrainingRecord = { id: crypto.randomUUID(), questionId: question.id, title: question.title, score: result.score, maxScore: result.maxScore, submittedAt: now.toLocaleString("zh-CN"), submittedAtIso: now.toISOString(), answer, review: result };
       await persistence.addHistory(record);
       onSubmitted(record);
     } catch (error) {
-      console.error("Failed to save training record.", error);
+      console.error("Failed to grade or save training record.", error);
+      setSubmitError("批改未完成，请重试");
     } finally {
       setSubmitting(false);
     }
   }
 
-  return <div className="practice-shell"><header className="practice-header"><button className="text-button" onClick={onExit}>← 返回题库</button><div><strong>{question.title}</strong><span>{question.type} · {question.score} 分</span></div><button className="icon-button" onClick={() => setRightOpen(v => !v)}>{rightOpen ? <PanelRightClose size={19}/> : <PanelRightOpen size={19}/>}</button></header><div className={rightOpen ? "practice-grid" : "practice-grid right-hidden"}><section className="materials-pane"><div className="pane-title"><BookOpenText size={18}/><strong>给定资料</strong><span>{question.materials.length} 则</span></div><div className="material-scroll">{question.materials.map(block => <article className="material" key={block.id}><span>{block.label}</span><p>{block.content}</p></article>)}</div></section><section className="answer-pane"><div className="prompt-box"><span>作答任务</span><p>{question.prompt}</p></div><textarea value={answer} onChange={e => setAnswer(e.target.value)} placeholder="在这里独立作答。草稿会自动保存在本机……"/><div className="answer-footer"><span className={chars > question.wordLimit ? "over-limit" : ""}>{chars} / {question.wordLimit} 字</span><span>{draftLoaded ? "已自动保存" : "正在读取草稿…"}</span><button className="primary" disabled={chars < 10 || !draftLoaded || submitting} onClick={submit}><Sparkles size={16}/>{submitting ? "保存中…" : "提交批改"}</button></div></section>{rightOpen && <aside className="review-pane">{review ? <ReviewPanel review={review}/> : <BeforeReview question={question}/>}</aside>}</div></div>;
+  const persistenceStatus = submitError ?? (draftLoaded ? "已自动保存" : "正在读取草稿…");
+  return <div className="practice-shell"><header className="practice-header"><button className="text-button" onClick={onExit}>← 返回题库</button><div><strong>{question.title}</strong><span>{question.type} · {question.score} 分</span></div><button className="icon-button" onClick={() => setRightOpen(v => !v)}>{rightOpen ? <PanelRightClose size={19}/> : <PanelRightOpen size={19}/>}</button></header><div className={rightOpen ? "practice-grid" : "practice-grid right-hidden"}><section className="materials-pane"><div className="pane-title"><BookOpenText size={18}/><strong>给定资料</strong><span>{question.materials.length} 则</span></div><div className="material-scroll">{question.materials.map(block => <article className="material" key={block.id}><span>{block.label}</span><p>{block.content}</p></article>)}</div></section><section className="answer-pane"><div className="prompt-box"><span>作答任务</span><p>{question.prompt}</p></div><textarea value={answer} onChange={e => setAnswer(e.target.value)} placeholder="在这里独立作答。草稿会自动保存在本机……"/><div className="answer-footer"><span className={chars > question.wordLimit ? "over-limit" : ""}>{chars} / {question.wordLimit} 字</span><span className={submitError ? "over-limit" : ""}>{persistenceStatus}</span><button className="primary" disabled={chars < 10 || !draftLoaded || submitting} onClick={submit}><Sparkles size={16}/>{submitting ? "批改中…" : "提交批改"}</button></div></section>{rightOpen && <aside className="review-pane">{review ? <ReviewPanel review={review}/> : <BeforeReview question={question}/>}</aside>}</div></div>;
 }
 
 function HistoryPage({ records, onOpen }: { records: TrainingRecord[]; onOpen: (record: TrainingRecord) => void }) {
