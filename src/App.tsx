@@ -25,6 +25,15 @@ function Sidebar({ view, onChange }: { view: AppView; onChange: (view: AppView) 
   </aside>;
 }
 
+function mergeUniqueById<T extends { id: string }>(current: T[], loaded: T[]): T[] {
+  const seen = new Set<string>();
+  return [...current, ...loaded].filter(item => {
+    if (seen.has(item.id)) return false;
+    seen.add(item.id);
+    return true;
+  });
+}
+
 function getRecordReview(record: TrainingRecord, allQuestions: Question[]): MockReview | null {
   if (record.review) return record.review;
   const question = allQuestions.find(item => item.id === record.questionId);
@@ -179,8 +188,8 @@ export default function App() {
           persistence.listHistory()
         ]);
         if (cancelled) return;
-        setImportedQuestions(questions);
-        setHistory(records);
+        setImportedQuestions(current => mergeUniqueById(current, questions));
+        setHistory(current => mergeUniqueById(current, records));
       } catch (error) {
         console.error("Failed to initialize persistence.", error);
       }
@@ -191,9 +200,9 @@ export default function App() {
 
   function start(question: Question) { setActiveQuestion(question); setView("practice"); }
   function openRecord(record: TrainingRecord, from: AppView) { setSelectedRecord(record); setReturnView(from); setView("record"); }
-  function saveImported(question: Question) { setImportedQuestions(current => [question, ...current]); start(question); }
+  function saveImported(question: Question) { setImportedQuestions(current => mergeUniqueById([question], current)); start(question); }
 
-  if (view === "practice") return <Practice question={activeQuestion} onExit={() => setView("library")} onSubmitted={record => setHistory(current => [record, ...current])}/>;
+  if (view === "practice") return <Practice question={activeQuestion} onExit={() => setView("library")} onSubmitted={record => setHistory(current => mergeUniqueById([record], current))}/>;
 
   let content: React.ReactNode;
   if (view === "today") content = <Today onStart={start} history={history} allQuestions={allQuestions}/>;
