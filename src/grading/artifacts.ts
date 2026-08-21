@@ -60,6 +60,26 @@ export interface ReferenceCrossCheckArtifact {
   notes: string[];
 }
 
+export interface MaterialExtractionOutput {
+  materialCandidates: MaterialCandidate[];
+}
+
+export interface RubricConstructionOutput {
+  rubric: RubricPointArtifact[];
+}
+
+export interface AnswerMappingOutput {
+  mappings: AnswerMappingArtifact[];
+}
+
+export interface WordBudgetOutput {
+  wordBudget: WordBudgetArtifact;
+}
+
+export interface ReferenceCrossCheckOutput {
+  referenceCrossCheck: ReferenceCrossCheckArtifact;
+}
+
 export interface GradingWorkflowArtifacts {
   schemaVersion: "0.1.0";
   materialCandidates: MaterialCandidate[];
