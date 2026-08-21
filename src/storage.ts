@@ -14,10 +14,14 @@ const DATABASE_URL = "sqlite:shenlun-trainer.db";
 const DRAFT_KEY = "shenlun:drafts:v1";
 const HISTORY_KEY = "shenlun:history:v1";
 const QUESTIONS_KEY = "shenlun:questions:v1";
-const SQLITE_MIGRATED_KEY = "shenlun:sqlite-migrated:v1";
+const LEGACY_MIGRATION_KEY = "legacy_localstorage_migrated_v1";
 
 let databasePromise: Promise<Database> | null = null;
 let sqliteUnavailable = false;
+
+interface MetaRow {
+  value: string;
+}
 
 interface QuestionRow {
   id: string;
@@ -133,7 +137,11 @@ async function upsertQuestion(db: Database, question: Question) {
 }
 
 async function migrateLegacyLocalStorage(db: Database) {
-  if (localStorage.getItem(SQLITE_MIGRATED_KEY) === "1") return;
+  const migrationRows = await db.select<MetaRow[]>(
+    "SELECT value FROM app_meta WHERE key = $1 LIMIT 1",
+    [LEGACY_MIGRATION_KEY]
+  );
+  if (migrationRows[0]?.value === "1") return;
 
   const localQuestions = readJson<Question[]>(QUESTIONS_KEY, []);
   const localDrafts = readJson<Record<string, Draft>>(DRAFT_KEY, {});
@@ -166,7 +174,11 @@ async function migrateLegacyLocalStorage(db: Database) {
     );
   }
 
-  localStorage.setItem(SQLITE_MIGRATED_KEY, "1");
+  await db.execute(
+    `INSERT INTO app_meta (key, value) VALUES ($1, '1')
+     ON CONFLICT(key) DO UPDATE SET value=excluded.value`,
+    [LEGACY_MIGRATION_KEY]
+  );
 }
 
 function createQuestion(input: LocalQuestionInput): Question {
