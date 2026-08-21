@@ -1,4 +1,4 @@
-export type AppView = "today" | "library" | "practice" | "review" | "history" | "settings";
+export type AppView = "today" | "library" | "import" | "practice" | "review" | "history" | "record" | "settings";
 
 export interface MaterialBlock {
   id: string;
@@ -6,18 +6,23 @@ export interface MaterialBlock {
   content: string;
 }
 
+export type QuestionType = "概括归纳" | "提出对策" | "综合分析" | "贯彻执行" | "文章写作";
+export type Difficulty = "基础" | "进阶" | "挑战";
+
 export interface Question {
   id: string;
   title: string;
   year: number;
   region: string;
-  type: "概括归纳" | "提出对策" | "综合分析" | "贯彻执行" | "文章写作";
-  difficulty: "基础" | "进阶" | "挑战";
+  type: QuestionType;
+  difficulty: Difficulty;
   score: number;
   wordLimit: number;
   prompt: string;
   materials: MaterialBlock[];
   tags: string[];
+  source?: "builtin" | "local";
+  createdAt?: string;
 }
 
 export interface Draft {
@@ -42,6 +47,7 @@ export interface MockReview {
   redundancy: string;
   summary: string;
   points: ReviewPoint[];
+  engine?: "mock-v0.1" | string;
 }
 
 export interface TrainingRecord {
@@ -51,5 +57,20 @@ export interface TrainingRecord {
   score: number;
   maxScore: number;
   submittedAt: string;
+  submittedAtIso?: string;
   answer: string;
+  review?: MockReview;
+}
+
+export interface LocalQuestionInput {
+  title: string;
+  year: number;
+  region: string;
+  type: QuestionType;
+  difficulty: Difficulty;
+  score: number;
+  wordLimit: number;
+  prompt: string;
+  materialText: string;
+  tags: string[];
 }
