@@ -58,15 +58,23 @@ function ImportQuestion({ onCancel, onSaved }: { onCancel: () => void; onSaved: 
   const [prompt, setPrompt] = useState("");
   const [materialText, setMaterialText] = useState("");
   const [tags, setTags] = useState("");
+  const [saving, setSaving] = useState(false);
 
-  function submit(event: FormEvent) {
+  async function submit(event: FormEvent) {
     event.preventDefault();
-    if (!title.trim() || !prompt.trim() || !materialText.trim()) return;
+    if (!title.trim() || !prompt.trim() || !materialText.trim() || saving) return;
     const input: LocalQuestionInput = { title, year, region, type, difficulty, score, wordLimit, prompt, materialText, tags: tags.split(/[，,]/).map(item => item.trim()).filter(Boolean) };
-    onSaved(persistence.addImportedQuestion(input));
+    setSaving(true);
+    try {
+      const question = await persistence.addImportedQuestion(input);
+      onSaved(question);
+    } catch (error) {
+      console.error("Failed to save imported question.", error);
+      setSaving(false);
+    }
   }
 
-  return <main className="page page-wide import-page"><header className="page-header compact"><div><p className="eyebrow">本地题库</p><h1>导入一道申论题</h1><p>先支持手工粘贴。材料之间空一行会自动拆成“材料 1、材料 2……”</p></div><button className="secondary" onClick={onCancel}><ArrowLeft size={16}/>返回题库</button></header><form className="import-form" onSubmit={submit}><section className="form-card"><h3>题目信息</h3><label className="field field-wide"><span>题目名称</span><input value={title} onChange={e => setTitle(e.target.value)} placeholder="例如：概括某地基层治理的主要做法" required/></label><div className="form-grid"><label className="field"><span>题型</span><select value={type} onChange={e => setType(e.target.value as QuestionType)}>{["概括归纳","提出对策","综合分析","贯彻执行","文章写作"].map(item => <option key={item}>{item}</option>)}</select></label><label className="field"><span>难度</span><select value={difficulty} onChange={e => setDifficulty(e.target.value as Difficulty)}>{["基础","进阶","挑战"].map(item => <option key={item}>{item}</option>)}</select></label><label className="field"><span>分值</span><input type="number" min="1" max="100" value={score} onChange={e => setScore(Number(e.target.value))}/></label><label className="field"><span>字数上限</span><input type="number" min="50" max="2000" value={wordLimit} onChange={e => setWordLimit(Number(e.target.value))}/></label><label className="field"><span>年份</span><input type="number" min="2000" max="2100" value={year} onChange={e => setYear(Number(e.target.value))}/></label><label className="field"><span>来源/地区</span><input value={region} onChange={e => setRegion(e.target.value)}/></label></div><label className="field field-wide"><span>标签（逗号分隔）</span><input value={tags} onChange={e => setTags(e.target.value)} placeholder="基层治理，概括做法，要点分类"/></label></section><section className="form-card"><h3>题干与材料</h3><label className="field field-wide"><span>作答要求</span><textarea className="form-textarea prompt-input" value={prompt} onChange={e => setPrompt(e.target.value)} placeholder="粘贴题干与作答要求" required/></label><label className="field field-wide"><span>给定资料</span><textarea className="form-textarea material-input" value={materialText} onChange={e => setMaterialText(e.target.value)} placeholder="粘贴材料。不同材料之间空一行。" required/></label><div className="import-note"><CircleAlert size={16}/><span>本地导入题目前没有人工标准要点，因此只提供通用模拟反馈；真实 AI 评分引擎接入后再做材料级要点识别。</span></div></section><footer className="form-actions"><button type="button" className="secondary" onClick={onCancel}>取消</button><button className="primary" type="submit"><FilePlus2 size={16}/>保存并开始作答</button></footer></form></main>;
+  return <main className="page page-wide import-page"><header className="page-header compact"><div><p className="eyebrow">本地题库</p><h1>导入一道申论题</h1><p>先支持手工粘贴。材料之间空一行会自动拆成“材料 1、材料 2……”</p></div><button className="secondary" onClick={onCancel}><ArrowLeft size={16}/>返回题库</button></header><form className="import-form" onSubmit={submit}><section className="form-card"><h3>题目信息</h3><label className="field field-wide"><span>题目名称</span><input value={title} onChange={e => setTitle(e.target.value)} placeholder="例如：概括某地基层治理的主要做法" required/></label><div className="form-grid"><label className="field"><span>题型</span><select value={type} onChange={e => setType(e.target.value as QuestionType)}>{["概括归纳","提出对策","综合分析","贯彻执行","文章写作"].map(item => <option key={item}>{item}</option>)}</select></label><label className="field"><span>难度</span><select value={difficulty} onChange={e => setDifficulty(e.target.value as Difficulty)}>{["基础","进阶","挑战"].map(item => <option key={item}>{item}</option>)}</select></label><label className="field"><span>分值</span><input type="number" min="1" max="100" value={score} onChange={e => setScore(Number(e.target.value))}/></label><label className="field"><span>字数上限</span><input type="number" min="50" max="2000" value={wordLimit} onChange={e => setWordLimit(Number(e.target.value))}/></label><label className="field"><span>年份</span><input type="number" min="2000" max="2100" value={year} onChange={e => setYear(Number(e.target.value))}/></label><label className="field"><span>来源/地区</span><input value={region} onChange={e => setRegion(e.target.value)}/></label></div><label className="field field-wide"><span>标签（逗号分隔）</span><input value={tags} onChange={e => setTags(e.target.value)} placeholder="基层治理，概括做法，要点分类"/></label></section><section className="form-card"><h3>题干与材料</h3><label className="field field-wide"><span>作答要求</span><textarea className="form-textarea prompt-input" value={prompt} onChange={e => setPrompt(e.target.value)} placeholder="粘贴题干与作答要求" required/></label><label className="field field-wide"><span>给定资料</span><textarea className="form-textarea material-input" value={materialText} onChange={e => setMaterialText(e.target.value)} placeholder="粘贴材料。不同材料之间空一行。" required/></label><div className="import-note"><CircleAlert size={16}/><span>本地导入题目前没有人工标准要点，因此只提供通用模拟反馈；真实 AI 评分引擎接入后再做材料级要点识别。</span></div></section><footer className="form-actions"><button type="button" className="secondary" onClick={onCancel}>取消</button><button className="primary" type="submit" disabled={saving}><FilePlus2 size={16}/>{saving ? "保存中…" : "保存并开始作答"}</button></footer></form></main>;
 }
 
 function BeforeReview({ question }: { question: Question }) {
@@ -78,20 +86,59 @@ function ReviewPanel({ review }: { review: MockReview }) {
 }
 
 function Practice({ question, onExit, onSubmitted }: { question: Question; onExit: () => void; onSubmitted: (record: TrainingRecord) => void }) {
-  const [answer, setAnswer] = useState(() => persistence.getDraft(question.id)?.answer ?? "");
+  const [answer, setAnswer] = useState("");
   const [review, setReview] = useState<MockReview | null>(null);
   const [rightOpen, setRightOpen] = useState(true);
+  const [draftLoaded, setDraftLoaded] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const chars = answer.replace(/\s/g, "").length;
-  useEffect(() => { const timer = window.setTimeout(() => persistence.saveDraft({ questionId: question.id, answer, updatedAt: new Date().toISOString() }), 350); return () => window.clearTimeout(timer); }, [answer, question.id]);
-  function submit() {
+
+  useEffect(() => {
+    let cancelled = false;
+    setDraftLoaded(false);
+    setAnswer("");
+    setReview(null);
+    setSubmitting(false);
+    persistence.getDraft(question.id)
+      .then(draft => {
+        if (cancelled) return;
+        setAnswer(draft?.answer ?? "");
+        setDraftLoaded(true);
+      })
+      .catch(error => {
+        console.error("Failed to load draft.", error);
+        if (!cancelled) setDraftLoaded(true);
+      });
+    return () => { cancelled = true; };
+  }, [question.id]);
+
+  useEffect(() => {
+    if (!draftLoaded) return;
+    const timer = window.setTimeout(() => {
+      void persistence.saveDraft({ questionId: question.id, answer, updatedAt: new Date().toISOString() })
+        .catch(error => console.error("Failed to save draft.", error));
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [answer, draftLoaded, question.id]);
+
+  async function submit() {
+    if (submitting) return;
     const result = buildMockReview(question, answer);
     setReview(result);
     const now = new Date();
     const record: TrainingRecord = { id: crypto.randomUUID(), questionId: question.id, title: question.title, score: result.score, maxScore: result.maxScore, submittedAt: now.toLocaleString("zh-CN"), submittedAtIso: now.toISOString(), answer, review: result };
-    persistence.addHistory(record);
-    onSubmitted(record);
+    setSubmitting(true);
+    try {
+      await persistence.addHistory(record);
+      onSubmitted(record);
+    } catch (error) {
+      console.error("Failed to save training record.", error);
+    } finally {
+      setSubmitting(false);
+    }
   }
-  return <div className="practice-shell"><header className="practice-header"><button className="text-button" onClick={onExit}>← 返回题库</button><div><strong>{question.title}</strong><span>{question.type} · {question.score} 分</span></div><button className="icon-button" onClick={() => setRightOpen(v => !v)}>{rightOpen ? <PanelRightClose size={19}/> : <PanelRightOpen size={19}/>}</button></header><div className={rightOpen ? "practice-grid" : "practice-grid right-hidden"}><section className="materials-pane"><div className="pane-title"><BookOpenText size={18}/><strong>给定资料</strong><span>{question.materials.length} 则</span></div><div className="material-scroll">{question.materials.map(block => <article className="material" key={block.id}><span>{block.label}</span><p>{block.content}</p></article>)}</div></section><section className="answer-pane"><div className="prompt-box"><span>作答任务</span><p>{question.prompt}</p></div><textarea value={answer} onChange={e => setAnswer(e.target.value)} placeholder="在这里独立作答。草稿会自动保存在本机……"/><div className="answer-footer"><span className={chars > question.wordLimit ? "over-limit" : ""}>{chars} / {question.wordLimit} 字</span><span>已自动保存</span><button className="primary" disabled={chars < 10} onClick={submit}><Sparkles size={16}/>提交批改</button></div></section>{rightOpen && <aside className="review-pane">{review ? <ReviewPanel review={review}/> : <BeforeReview question={question}/>}</aside>}</div></div>;
+
+  return <div className="practice-shell"><header className="practice-header"><button className="text-button" onClick={onExit}>← 返回题库</button><div><strong>{question.title}</strong><span>{question.type} · {question.score} 分</span></div><button className="icon-button" onClick={() => setRightOpen(v => !v)}>{rightOpen ? <PanelRightClose size={19}/> : <PanelRightOpen size={19}/>}</button></header><div className={rightOpen ? "practice-grid" : "practice-grid right-hidden"}><section className="materials-pane"><div className="pane-title"><BookOpenText size={18}/><strong>给定资料</strong><span>{question.materials.length} 则</span></div><div className="material-scroll">{question.materials.map(block => <article className="material" key={block.id}><span>{block.label}</span><p>{block.content}</p></article>)}</div></section><section className="answer-pane"><div className="prompt-box"><span>作答任务</span><p>{question.prompt}</p></div><textarea value={answer} onChange={e => setAnswer(e.target.value)} placeholder="在这里独立作答。草稿会自动保存在本机……"/><div className="answer-footer"><span className={chars > question.wordLimit ? "over-limit" : ""}>{chars} / {question.wordLimit} 字</span><span>{draftLoaded ? "已自动保存" : "正在读取草稿…"}</span><button className="primary" disabled={chars < 10 || !draftLoaded || submitting} onClick={submit}><Sparkles size={16}/>{submitting ? "保存中…" : "提交批改"}</button></div></section>{rightOpen && <aside className="review-pane">{review ? <ReviewPanel review={review}/> : <BeforeReview question={question}/>}</aside>}</div></div>;
 }
 
 function HistoryPage({ records, onOpen }: { records: TrainingRecord[]; onOpen: (record: TrainingRecord) => void }) {
@@ -115,12 +162,32 @@ function SettingsPage() {
 
 export default function App() {
   const [view, setView] = useState<AppView>("today");
-  const [importedQuestions, setImportedQuestions] = useState<Question[]>(() => persistence.listImportedQuestions());
+  const [importedQuestions, setImportedQuestions] = useState<Question[]>([]);
   const allQuestions = useMemo(() => [...builtinQuestions, ...importedQuestions], [importedQuestions]);
   const [activeQuestion, setActiveQuestion] = useState<Question>(builtinQuestions[0]);
-  const [history, setHistory] = useState<TrainingRecord[]>(() => persistence.listHistory());
+  const [history, setHistory] = useState<TrainingRecord[]>([]);
   const [selectedRecord, setSelectedRecord] = useState<TrainingRecord | null>(null);
   const [returnView, setReturnView] = useState<AppView>("history");
+
+  useEffect(() => {
+    let cancelled = false;
+    async function hydrate() {
+      try {
+        await persistence.initialize();
+        const [questions, records] = await Promise.all([
+          persistence.listImportedQuestions(),
+          persistence.listHistory()
+        ]);
+        if (cancelled) return;
+        setImportedQuestions(questions);
+        setHistory(records);
+      } catch (error) {
+        console.error("Failed to initialize persistence.", error);
+      }
+    }
+    void hydrate();
+    return () => { cancelled = true; };
+  }, []);
 
   function start(question: Question) { setActiveQuestion(question); setView("practice"); }
   function openRecord(record: TrainingRecord, from: AppView) { setSelectedRecord(record); setReturnView(from); setView("record"); }
