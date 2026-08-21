@@ -1,7 +1,6 @@
 export const STORAGE_SCHEMA_VERSION = 1;
 
-// SQLite 接入时以此 DDL 为起点。当前 localStorage adapter 与这些实体保持同构，
-// 因此切换持久化实现时不要求页面重写。
+// 运行时数据库的结构镜像。正式迁移文件位于 src-tauri/migrations/0001_init.sql。
 export const SQLITE_SCHEMA_V1 = `
 PRAGMA foreign_keys = ON;
 
@@ -21,15 +20,16 @@ CREATE TABLE IF NOT EXISTS questions (
 );
 
 CREATE TABLE IF NOT EXISTS materials (
-  id TEXT PRIMARY KEY,
+  id TEXT NOT NULL,
   question_id TEXT NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
   label TEXT NOT NULL,
   content TEXT NOT NULL,
-  sort_order INTEGER NOT NULL
+  sort_order INTEGER NOT NULL,
+  PRIMARY KEY (question_id, id)
 );
 
 CREATE TABLE IF NOT EXISTS drafts (
-  question_id TEXT PRIMARY KEY REFERENCES questions(id) ON DELETE CASCADE,
+  question_id TEXT PRIMARY KEY,
   answer TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -42,7 +42,8 @@ CREATE TABLE IF NOT EXISTS training_records (
   max_score REAL NOT NULL,
   answer TEXT NOT NULL,
   review_json TEXT,
-  submitted_at TEXT NOT NULL
+  submitted_at TEXT NOT NULL,
+  submitted_at_display TEXT NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_training_question ON training_records(question_id);
