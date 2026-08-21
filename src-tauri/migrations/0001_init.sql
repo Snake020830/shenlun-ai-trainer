@@ -16,11 +16,12 @@ CREATE TABLE IF NOT EXISTS questions (
 );
 
 CREATE TABLE IF NOT EXISTS materials (
-  id TEXT PRIMARY KEY,
+  id TEXT NOT NULL,
   question_id TEXT NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
   label TEXT NOT NULL,
   content TEXT NOT NULL,
-  sort_order INTEGER NOT NULL
+  sort_order INTEGER NOT NULL,
+  PRIMARY KEY (question_id, id)
 );
 
 CREATE TABLE IF NOT EXISTS drafts (
