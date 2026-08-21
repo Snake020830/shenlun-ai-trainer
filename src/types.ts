@@ -36,9 +36,10 @@ export interface ReviewPoint {
   status: "hit" | "partial" | "missed";
   evidence: string;
   suggestion?: string;
+  errorCodes?: string[];
 }
 
-export interface MockReview {
+export interface StructuredReview {
   score: number;
   maxScore: number;
   coverage: string;
@@ -47,8 +48,15 @@ export interface MockReview {
   redundancy: string;
   summary: string;
   points: ReviewPoint[];
-  engine?: "mock-v0.1" | string;
+  engine?: string;
+  providerId?: string;
+  rulesetVersion?: string;
+  generatedAt?: string;
 }
+
+// Backward-compatible alias for V0.1 files and historical review snapshots.
+// New provider code should use StructuredReview.
+export type MockReview = StructuredReview;
 
 export interface TrainingRecord {
   id: string;
@@ -59,7 +67,7 @@ export interface TrainingRecord {
   submittedAt: string;
   submittedAtIso?: string;
   answer: string;
-  review?: MockReview;
+  review?: StructuredReview;
 }
 
 export interface LocalQuestionInput {
