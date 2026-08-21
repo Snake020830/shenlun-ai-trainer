@@ -1,4 +1,4 @@
-import type { MockReview, Question } from "./types";
+import type { MockReview, Question, ReviewPoint } from "./types";
 
 export const questions: Question[] = [
   {
@@ -13,16 +13,8 @@ export const questions: Question[] = [
     prompt: "根据给定资料，概括 S 市推进“局区合一”改革的主要做法。要求：全面、准确、有条理，不超过 250 字。",
     tags: ["机构改革", "概括做法", "要点分类"],
     materials: [
-      {
-        id: "m1",
-        label: "材料 1",
-        content: "S 市围绕产业功能区建设推进“局区合一”改革。芯谷产业功能区实行一个班子、一套人员，推动管理力量向产业一线集中。发改、航空经济等主体局与功能区合署办公，审批、自然资源、住建交通、生态环境等职能局下沉力量，文旅、国资金融、人社、教育等事项局将服务延伸至功能区。"
-      },
-      {
-        id: "m2",
-        label: "材料 2",
-        content: "改革后，原有 21 个内设机构整合为 6 个，174 项涉企审批事项下沉。当地建立“首席服务员+项目专员”机制，为重点项目提供一对一全流程服务，减少企业在部门之间往返，提升项目落地效率。"
-      }
+      { id: "m1", label: "材料 1", content: "S 市围绕产业功能区建设推进“局区合一”改革。芯谷产业功能区实行一个班子、一套人员，推动管理力量向产业一线集中。发改、航空经济等主体局与功能区合署办公，审批、自然资源、住建交通、生态环境等职能局下沉力量，文旅、国资金融、人社、教育等事项局将服务延伸至功能区。" },
+      { id: "m2", label: "材料 2", content: "改革后，原有 21 个内设机构整合为 6 个，174 项涉企审批事项下沉。当地建立“首席服务员+项目专员”机制，为重点项目提供一对一全流程服务，减少企业在部门之间往返，提升项目落地效率。" }
     ]
   },
   {
@@ -58,41 +50,47 @@ export const questions: Question[] = [
   }
 ];
 
-export function buildMockReview(answer: string): MockReview {
-  const normalized = answer.replace(/\s/g, "");
-  const hasDown = /下沉|审批/.test(normalized);
-  const hasMerge = /合署|一个班子|机构|整合/.test(normalized);
-  const hasService = /首席|专员|一对一|服务/.test(normalized);
-  const hitCount = [hasDown, hasMerge, hasService].filter(Boolean).length;
-  const score = Math.min(10, 5.5 + hitCount * 1.3 + (normalized.length >= 90 ? 0.6 : 0));
+function point(title: string, hit: boolean, evidence: string, suggestion: string): ReviewPoint {
+  return { title, status: hit ? "hit" : "missed", evidence, suggestion: hit ? undefined : suggestion };
+}
+
+export function buildMockReview(question: Question, answer: string): MockReview {
+  const text = answer.replace(/\s/g, "");
+  let points: ReviewPoint[];
+
+  if (question.id === "q-nmy-002") {
+    points = [
+      point("传播价值与文化影响", /传播|舞台|海外|国际|当代|走红/.test(text), "新表达扩大传播舞台并推动民乐走向海外。", "补充支持方关于传播扩展、国际传播或贴近时代审美的观点。"),
+      point("从业者专业素养", /年轻|从业者|专业|素养|审美/.test(text), "青年从业者带来活力，同时需要提高专业与审美修养。", "把“青年加入带来活力”和“仍需提升专业素养”作为一组争议写出。"),
+      point("创新与守本的张力", /创新|传统|守|特色|市场|迎合/.test(text), "创新表达与守住民族音乐特色之间存在张力。", "明确概括“创新还是守本”的核心争议，并写出市场迎合风险。")
+    ];
+  } else if (question.id === "q-fp-003") {
+    points = [
+      point("系统识别致贫因素", /系统|产业|就业|教育|医疗|致贫/.test(text), "基层需要从产业、就业、教育、医疗等维度系统分析致贫因素。", "对策应从“解决个别困难”上升到系统识别致贫原因。"),
+      point("打通部门数据", /数据|共享|信息|平台/.test(text), "材料反映部门数据分散。", "提出数据共享、信息归集或统一台账等对应措施。"),
+      point("强化部门协同", /协同|联动|统筹|机制/.test(text), "材料反映帮扶措施之间缺乏协同。", "补充跨部门统筹、协同推进或闭环落实机制。")
+    ];
+  } else {
+    points = [
+      point("机构与人员整合", /合署|一个班子|机构|整合/.test(text), "一个班子、一套人员；原 21 个机构整合为 6 个。", "建议明确写出“机构整合/合署办公”，避免只写“优化组织架构”。"),
+      point("审批和职能力量下沉", /下沉|审批/.test(text), "174 项涉企审批事项下沉，多个职能局力量下沉。", "这是高密度得分点，应直接写“审批权限和职能力量下沉”。"),
+      point("项目服务机制", /首席|专员|一对一|服务/.test(text), "建立“首席服务员+项目专员”机制，一对一全流程服务。", "补充“首席+专员”服务机制及其全流程服务功能。")
+    ];
+  }
+
+  const hitCount = points.filter(item => item.status === "hit").length;
+  const completion = hitCount / points.length;
+  const lengthBonus = text.length >= Math.min(80, question.wordLimit * 0.35) ? 0.08 : 0;
+  const ratio = Math.min(0.96, 0.48 + completion * 0.4 + lengthBonus);
 
   return {
-    score: Number(score.toFixed(1)),
-    maxScore: 10,
-    coverage: `${Math.min(9, 5 + hitCount)}/9`,
+    score: Number((question.score * ratio).toFixed(1)),
+    maxScore: question.score,
+    coverage: `${hitCount}/${points.length}`,
     classification: hitCount >= 2 ? "良好" : "需加强",
-    expression: normalized.length > 60 ? "良好" : "偏简略",
-    redundancy: normalized.length <= 250 ? "较低" : "偏高",
-    summary: "结构已经形成，但应把抽象概括进一步落到材料中的制度动作和关键数量信息上。",
-    points: [
-      {
-        title: "机构与人员整合",
-        status: hasMerge ? "hit" : "partial",
-        evidence: "一个班子、一套人员；原 21 个机构整合为 6 个。",
-        suggestion: hasMerge ? undefined : "建议明确写出“机构整合/合署办公”，避免只写“优化组织架构”。"
-      },
-      {
-        title: "审批和职能力量下沉",
-        status: hasDown ? "hit" : "missed",
-        evidence: "174 项涉企审批事项下沉，多个职能局力量下沉。",
-        suggestion: hasDown ? undefined : "这是高密度得分点，应直接写“审批权限和职能力量下沉”。"
-      },
-      {
-        title: "项目服务机制",
-        status: hasService ? "hit" : "missed",
-        evidence: "建立“首席服务员+项目专员”机制，一对一全流程服务。",
-        suggestion: hasService ? undefined : "补充“首席+专员”服务机制及其全流程服务功能。"
-      }
-    ]
+    expression: text.length > 60 ? "良好" : "偏简略",
+    redundancy: text.length <= question.wordLimit ? "较低" : "偏高",
+    summary: "这是用于验证产品交互的模拟批改。重点观察要点是否落到材料中的具体动作，而不是把该分数当作真实评分。",
+    points
   };
 }
