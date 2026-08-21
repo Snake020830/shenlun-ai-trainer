@@ -4,6 +4,11 @@ export const STORAGE_SCHEMA_VERSION = 1;
 export const SQLITE_SCHEMA_V1 = `
 PRAGMA foreign_keys = ON;
 
+CREATE TABLE IF NOT EXISTS app_meta (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS questions (
   id TEXT PRIMARY KEY,
   title TEXT NOT NULL,
