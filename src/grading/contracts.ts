@@ -1,4 +1,5 @@
 import type { Question, ReviewPoint, StructuredReview } from "../types";
+import type { GradingWorkflowArtifacts } from "./artifacts";
 
 export const GRADING_RULESET_VERSION = "shenlun-grading@0.1.0";
 
@@ -15,11 +16,16 @@ export interface GradingRequest {
 
 export type GradingProviderKind = "mock" | "remote" | "local";
 
+export interface GradingProviderOutput {
+  review: StructuredReview;
+  artifacts?: GradingWorkflowArtifacts;
+}
+
 export interface GradingProvider {
   id: string;
   kind: GradingProviderKind;
   rulesetVersion: string;
-  grade(request: GradingRequest): Promise<StructuredReview>;
+  grade(request: GradingRequest): Promise<GradingProviderOutput>;
 }
 
 const REVIEW_STATUSES = new Set<ReviewPoint["status"]>(["hit", "partial", "missed"]);
@@ -64,19 +70,27 @@ export function validateReview(review: StructuredReview, expectedMaxScore: numbe
 }
 
 export function createGradingService(provider: GradingProvider) {
-  return {
-    provider,
-    async grade(request: GradingRequest): Promise<StructuredReview> {
-      if (!request.answer.trim()) throw new Error("Cannot grade an empty answer.");
-      const review = await provider.grade(request);
-      const validated = validateReview(review, request.question.score);
-      return {
+  async function gradeDetailed(request: GradingRequest): Promise<GradingProviderOutput> {
+    if (!request.answer.trim()) throw new Error("Cannot grade an empty answer.");
+    const output = await provider.grade(request);
+    const validated = validateReview(output.review, request.question.score);
+    return {
+      ...output,
+      review: {
         ...validated,
         engine: validated.engine ?? `${provider.id}:${provider.rulesetVersion}`,
         providerId: validated.providerId ?? provider.id,
         rulesetVersion: validated.rulesetVersion ?? provider.rulesetVersion,
         generatedAt: validated.generatedAt ?? new Date().toISOString()
-      };
+      }
+    };
+  }
+
+  return {
+    provider,
+    gradeDetailed,
+    async grade(request: GradingRequest): Promise<StructuredReview> {
+      return (await gradeDetailed(request)).review;
     }
   };
 }
