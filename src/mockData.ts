@@ -54,7 +54,9 @@ function point(title: string, hit: boolean, evidence: string, suggestion: string
   return { title, status: hit ? "hit" : "missed", evidence, suggestion: hit ? undefined : suggestion };
 }
 
-export function buildMockReview(question: Question, answer: string): MockReview {
+export function buildMockReview(questionOrAnswer: Question | string, maybeAnswer?: string): MockReview {
+  const question = typeof questionOrAnswer === "string" ? questions[0] : questionOrAnswer;
+  const answer = typeof questionOrAnswer === "string" ? questionOrAnswer : (maybeAnswer ?? "");
   const text = answer.replace(/\s/g, "");
   let points: ReviewPoint[];
 
