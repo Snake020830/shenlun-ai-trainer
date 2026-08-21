@@ -9,8 +9,10 @@ export const mockGradingProvider: GradingProvider = {
   async grade({ question, answer }) {
     const review = buildMockReview(question, answer);
     return {
-      ...review,
-      engine: `mock-v0.1:${GRADING_RULESET_VERSION}`
+      review: {
+        ...review,
+        engine: `mock-v0.1:${GRADING_RULESET_VERSION}`
+      }
     };
   }
 };
