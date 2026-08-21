@@ -1,4 +1,4 @@
-import type { MockReview, Question, ReviewPoint } from "../types";
+import type { Question, ReviewPoint, StructuredReview } from "../types";
 
 export const GRADING_RULESET_VERSION = "shenlun-grading@0.1.0";
 
@@ -19,7 +19,7 @@ export interface GradingProvider {
   id: string;
   kind: GradingProviderKind;
   rulesetVersion: string;
-  grade(request: GradingRequest): Promise<MockReview>;
+  grade(request: GradingRequest): Promise<StructuredReview>;
 }
 
 const REVIEW_STATUSES = new Set<ReviewPoint["status"]>(["hit", "partial", "missed"]);
@@ -28,7 +28,7 @@ function assertString(value: unknown, field: string): asserts value is string {
   if (typeof value !== "string") throw new Error(`Invalid grading result: ${field} must be a string.`);
 }
 
-export function validateReview(review: MockReview, expectedMaxScore: number): MockReview {
+export function validateReview(review: StructuredReview, expectedMaxScore: number): StructuredReview {
   if (!Number.isFinite(review.score) || !Number.isFinite(review.maxScore)) {
     throw new Error("Invalid grading result: score fields must be finite numbers.");
   }
@@ -55,6 +55,9 @@ export function validateReview(review: MockReview, expectedMaxScore: number): Mo
       throw new Error(`Invalid grading result: points[${index}].status is unsupported.`);
     }
     if (point.suggestion !== undefined) assertString(point.suggestion, `points[${index}].suggestion`);
+    if (point.errorCodes !== undefined && !point.errorCodes.every(code => typeof code === "string")) {
+      throw new Error(`Invalid grading result: points[${index}].errorCodes must contain strings only.`);
+    }
   }
 
   return review;
@@ -63,13 +66,16 @@ export function validateReview(review: MockReview, expectedMaxScore: number): Mo
 export function createGradingService(provider: GradingProvider) {
   return {
     provider,
-    async grade(request: GradingRequest): Promise<MockReview> {
+    async grade(request: GradingRequest): Promise<StructuredReview> {
       if (!request.answer.trim()) throw new Error("Cannot grade an empty answer.");
       const review = await provider.grade(request);
       const validated = validateReview(review, request.question.score);
       return {
         ...validated,
-        engine: validated.engine ?? `${provider.id}:${provider.rulesetVersion}`
+        engine: validated.engine ?? `${provider.id}:${provider.rulesetVersion}`,
+        providerId: validated.providerId ?? provider.id,
+        rulesetVersion: validated.rulesetVersion ?? provider.rulesetVersion,
+        generatedAt: validated.generatedAt ?? new Date().toISOString()
       };
     }
   };
