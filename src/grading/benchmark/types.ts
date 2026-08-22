@@ -124,13 +124,14 @@ export interface AlignedPredictionMapping {
   goldRubricPointId: string;
   predictedStatus: ReviewPoint["status"];
   predictedErrorCodes: string[];
-  predictedRubricPointId?: string;
+  predictedRubricPointIds: string[];
   alignmentConfidence?: "high" | "medium" | "low";
   alignmentNotes?: string;
 }
 
 export interface AlignedBenchmarkPrediction {
   caseId: string;
+  runId: string;
   predictedScore: number;
   predictedRubricPointIds: string[];
   rubricAlignments: RubricAlignmentGroup[];
