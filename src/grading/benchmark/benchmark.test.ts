@@ -7,7 +7,8 @@ const testCase: GradingBenchmarkCase = {
   schemaVersion: "0.1.0",
   id: "case-1",
   tags: ["概括归纳", "基层治理"],
-  split: "debug",
+  annotationStatus: "adjudicated",
+  split: "calibration",
   question: {
     id: "q-1",
     title: "测试题",
@@ -35,7 +36,8 @@ const testCase: GradingBenchmarkCase = {
       { assessorId: "a1", score: 10 },
       { assessorId: "a2", score: 12 }
     ]
-  }
+  },
+  provenance: { annotatedAt: "2026-08-22", source: "unit-test fixture" }
 };
 
 const prediction: AlignedBenchmarkPrediction = {
@@ -96,6 +98,18 @@ describe("grading benchmark", () => {
     expect(metrics.rootMeanSquaredError).toBe(1);
     expect(metrics.meanSignedError).toBe(1);
     expect(metrics.normalizedMeanAbsoluteError).toBe(0.05);
+  });
+
+  it("fails closed on draft cases", () => {
+    const draft = { ...testCase, annotationStatus: "draft" as const };
+    expect(() => calculateMappingQuality(draft, prediction)).toThrow("not adjudicated");
+    expect(() => calculateTaxonomyQuality(draft, prediction)).toThrow("not adjudicated");
+    expect(() => calculateScoreCalibration([draft], [prediction])).toThrow("not adjudicated");
+  });
+
+  it("fails closed when score calibration tries to use debug cases", () => {
+    const debug = { ...testCase, split: "debug" as const };
+    expect(() => calculateScoreCalibration([debug], [prediction])).toThrow("not in calibration/holdout split");
   });
 
   it("fails closed on duplicate rubric alignment rows", () => {
