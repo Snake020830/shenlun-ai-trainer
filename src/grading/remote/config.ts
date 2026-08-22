@@ -11,10 +11,6 @@ export interface RemoteProviderPublicConfig {
   timeoutMs: number;
 }
 
-export interface SecretResolver {
-  resolve(secretRef: string): Promise<string | null>;
-}
-
 export interface RemoteJsonRequest {
   instructions: string;
   input: string;
@@ -38,7 +34,7 @@ export const DEFAULT_REMOTE_PROVIDER_CONFIG: RemoteProviderPublicConfig = {
   id: "remote-default",
   label: "Remote provider",
   enabled: false,
-  protocol: "openai-chat-completions",
+  protocol: "openai-responses",
   baseUrl: "",
   model: "",
   secretRef: "grading-provider-api-key",
@@ -49,9 +45,11 @@ export function validatePublicProviderConfig(config: RemoteProviderPublicConfig)
   if (!config.enabled) return;
   if (!config.id.trim()) throw new Error("Remote provider id is required.");
   if (!config.model.trim()) throw new Error("Remote provider model is required.");
-  if (!config.secretRef.trim()) throw new Error("Remote provider secretRef is required.");
-  if (!Number.isFinite(config.timeoutMs) || config.timeoutMs < 1_000) {
-    throw new Error("Remote provider timeoutMs must be at least 1000ms.");
+  if (!/^[A-Za-z0-9._-]{1,96}$/.test(config.secretRef)) {
+    throw new Error("Remote provider secretRef is invalid.");
+  }
+  if (!Number.isFinite(config.timeoutMs) || config.timeoutMs < 1_000 || config.timeoutMs > 300_000) {
+    throw new Error("Remote provider timeoutMs must be between 1000ms and 300000ms.");
   }
 
   let url: URL;
@@ -60,8 +58,11 @@ export function validatePublicProviderConfig(config: RemoteProviderPublicConfig)
   } catch {
     throw new Error("Remote provider baseUrl must be a valid absolute URL.");
   }
+  if (url.username || url.password) {
+    throw new Error("Remote provider baseUrl must not contain embedded credentials.");
+  }
 
-  const localDevelopment = url.hostname === "localhost" || url.hostname === "127.0.0.1";
+  const localDevelopment = ["localhost", "127.0.0.1", "[::1]", "::1"].includes(url.hostname);
   if (url.protocol !== "https:" && !(localDevelopment && url.protocol === "http:")) {
     throw new Error("Remote provider must use HTTPS except for localhost development.");
   }
