@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { isTauri } from "@tauri-apps/api/core";
 import { CircleAlert, KeyRound, RotateCcw, Save, ShieldCheck, TestTube2 } from "lucide-react";
+import BenchmarkLabSection from "./BenchmarkLabSection";
 import {
   loadRemoteProviderConfig,
   resetRemoteProviderConfig,
@@ -187,5 +188,7 @@ export default function ProviderSettingsPage() {
       <div><h2>连通性检查</h2><p>发送一个极小的结构化 JSON 请求，只验证凭据、URL、模型和 JSON 输出链路。</p></div>
       <button className="secondary" disabled={!desktop || !readyForRemote || busy !== null} onClick={testConnection}><TestTube2 size={16}/>{busy === "test" ? "测试中…" : "测试连接"}</button>
     </section>
+
+    <BenchmarkLabSection />
   </main>;
 }
