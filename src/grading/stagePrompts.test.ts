@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { Question } from "../types";
+import type { Question, QuestionType } from "../types";
+import { QUESTION_TYPE_SKILL_VERSION } from "./questionTypeSkill";
 import {
   buildAnswerMappingRequest,
   buildMaterialExtractionRequest,
@@ -76,5 +77,51 @@ describe("grading stage prompt isolation", () => {
     expect(stageFive.referenceAnswer).toEqual(question.referenceAnswer);
     expect(JSON.stringify(stageFive)).toContain("REF_ONLY_SOURCE");
     expect(JSON.stringify(stageFive)).toContain("REF_ONLY_DIMENSION");
+  });
+
+  it("injects question-type skill guidance into every remote grading stage", () => {
+    const candidates = [{
+      id: "c1",
+      materialId: "m1",
+      elementType: "measure" as const,
+      claim: "事项下沉",
+      evidence: "推进事项下沉",
+      independentDimension: true
+    }];
+    const rubric = [{
+      id: "r1",
+      title: "事项下沉",
+      elementType: "measure" as const,
+      candidateIds: ["c1"],
+      evidence: ["推进事项下沉"]
+    }];
+    const requests = [
+      buildMaterialExtractionRequest(question),
+      buildRubricConstructionRequest(question, candidates),
+      buildAnswerMappingRequest(question, rubric, "推进事项下沉。"),
+      buildWordBudgetRequest(question, "推进事项下沉。"),
+      buildReferenceCrossCheckRequest(question, rubric, question.referenceAnswer!)
+    ];
+
+    for (const request of requests) {
+      expect(request.instructions).toContain(QUESTION_TYPE_SKILL_VERSION);
+      expect(request.instructions).toContain("题型专用批改约束（概括归纳");
+      expect(request.instructions).toContain("多个主体或多个对象必须先分别归属");
+    }
+  });
+
+  it("uses distinct practical guidance for all five supported question types", () => {
+    const expected: Record<QuestionType, string> = {
+      "概括归纳": "多个主体或多个对象必须先分别归属",
+      "提出对策": "推导型对策必须能回指材料中的具体问题",
+      "综合分析": "保留材料支持的逻辑关系、作用机制和必要结论",
+      "贯彻执行": "身份、受众、目的、文种/场景和内容任务",
+      "文章写作": "作文不能按小题关键词清单机械评分"
+    };
+
+    for (const [type, marker] of Object.entries(expected) as Array<[QuestionType, string]>) {
+      const request = buildMaterialExtractionRequest({ ...question, type });
+      expect(request.instructions).toContain(marker);
+    }
   });
 });
