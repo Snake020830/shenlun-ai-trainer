@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   BookOpenText,
   Check,
@@ -6,11 +6,13 @@ import {
   ChevronRight,
   CircleAlert,
   Clock3,
+  Eraser,
   Highlighter,
   Minus,
   PanelRightClose,
   PanelRightOpen,
   Pause,
+  PenLine,
   Play,
   Plus,
   RotateCcw,
@@ -20,11 +22,15 @@ import {
   Undo2
 } from "lucide-react";
 import { gradingService } from "./grading";
+import { anchorInkPoint, distanceToInkStroke, resolveInkPolyline } from "./practiceInkAnchors";
 import {
   getPracticeAnnotations,
+  getPracticeInkStrokes,
   savePracticeAnnotations,
+  savePracticeInkStrokes,
   saveTrainingPracticeMeta,
   type PracticeHighlightColor,
+  type PracticeInkStroke,
   type PracticeTextAnnotation
 } from "./practiceSessionStore";
 import ReferenceCrossCheckPanel from "./ReferenceCrossCheckPanel";
@@ -33,6 +39,7 @@ import type { MockReview, Question, TrainingRecord } from "./types";
 import "./practiceExam.css";
 
 type AnnotationMode = PracticeTextAnnotation["type"] | null;
+type InkMode = "pen" | "eraser" | null;
 type MaterialView = "single" | "all";
 
 const MATERIAL_FONT_KEY = "shenlun:material-font-size:v2";
@@ -111,6 +118,175 @@ function renderAnnotatedText(
   });
 }
 
+function AnchoredInkLayer({
+  textRef,
+  strokes,
+  layoutKey
+}: {
+  textRef: React.RefObject<HTMLParagraphElement | null>;
+  strokes: PracticeInkStroke[];
+  layoutKey: string;
+}) {
+  const [paths, setPaths] = useState<Array<{ id: string; points: string; width: number; color: PracticeInkStroke["color"] }>>([]);
+
+  useLayoutEffect(() => {
+    const root = textRef.current;
+    if (!root) {
+      setPaths([]);
+      return;
+    }
+    let disposed = false;
+    const recompute = () => {
+      if (disposed) return;
+      setPaths(strokes.map(stroke => ({
+        id: stroke.id,
+        points: resolveInkPolyline(root, stroke),
+        width: stroke.width,
+        color: stroke.color
+      })).filter(item => item.points.length > 0));
+    };
+    recompute();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(recompute);
+    observer?.observe(root);
+    window.addEventListener("resize", recompute);
+    void document.fonts?.ready.then(recompute).catch(() => undefined);
+    return () => {
+      disposed = true;
+      observer?.disconnect();
+      window.removeEventListener("resize", recompute);
+    };
+  }, [layoutKey, strokes, textRef]);
+
+  return <svg className="material-ink-layer" aria-hidden="true">
+    {paths.map(path => <polyline
+      key={path.id}
+      className={`material-ink-stroke ink-${path.color}`}
+      points={path.points}
+      fill="none"
+      strokeWidth={path.width}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      vectorEffect="non-scaling-stroke"
+    />)}
+  </svg>;
+}
+
+function MaterialTextStage({
+  materialId,
+  content,
+  fontSize,
+  annotations,
+  selectedAnnotationId,
+  annotationMode,
+  inkMode,
+  strokes,
+  onAnnotateSelection,
+  onSelectAnnotation,
+  onClearAnnotationSelection,
+  onCommitStroke,
+  onEraseStroke
+}: {
+  materialId: string;
+  content: string;
+  fontSize: number;
+  annotations: PracticeTextAnnotation[];
+  selectedAnnotationId: string | null;
+  annotationMode: AnnotationMode;
+  inkMode: InkMode;
+  strokes: PracticeInkStroke[];
+  onAnnotateSelection: (materialId: string, event: React.MouseEvent<HTMLElement>) => void;
+  onSelectAnnotation: (id: string) => void;
+  onClearAnnotationSelection: () => void;
+  onCommitStroke: (stroke: PracticeInkStroke) => void;
+  onEraseStroke: (strokeId: string) => void;
+}) {
+  const textRef = useRef<HTMLParagraphElement>(null);
+  const draftRef = useRef<PracticeInkStroke | null>(null);
+  const lastClientPoint = useRef<{ x: number; y: number } | null>(null);
+  const [draftStroke, setDraftStroke] = useState<PracticeInkStroke | null>(null);
+
+  useEffect(() => {
+    draftRef.current = null;
+    lastClientPoint.current = null;
+    setDraftStroke(null);
+  }, [inkMode, materialId]);
+
+  function beginInk(event: React.PointerEvent<HTMLDivElement>) {
+    if (!inkMode) return;
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    const root = textRef.current;
+    if (!root) return;
+    event.preventDefault();
+
+    if (inkMode === "eraser") {
+      let nearest: { id: string; distance: number } | null = null;
+      for (const stroke of strokes) {
+        const distance = distanceToInkStroke(root, stroke, event.clientX, event.clientY);
+        if (!nearest || distance < nearest.distance) nearest = { id: stroke.id, distance };
+      }
+      if (nearest && nearest.distance <= 14) onEraseStroke(nearest.id);
+      return;
+    }
+
+    const point = anchorInkPoint(root, event.clientX, event.clientY);
+    if (!point) return;
+    const stroke: PracticeInkStroke = {
+      id: crypto.randomUUID(),
+      materialId,
+      color: "graphite",
+      width: 2.2,
+      points: [point]
+    };
+    draftRef.current = stroke;
+    lastClientPoint.current = { x: event.clientX, y: event.clientY };
+    setDraftStroke(stroke);
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function moveInk(event: React.PointerEvent<HTMLDivElement>) {
+    if (inkMode !== "pen" || !draftRef.current) return;
+    const root = textRef.current;
+    if (!root) return;
+    const previous = lastClientPoint.current;
+    if (previous && Math.hypot(event.clientX - previous.x, event.clientY - previous.y) < 3) return;
+    const point = anchorInkPoint(root, event.clientX, event.clientY);
+    if (!point) return;
+    const next = { ...draftRef.current, points: [...draftRef.current.points, point].slice(-5000) };
+    draftRef.current = next;
+    lastClientPoint.current = { x: event.clientX, y: event.clientY };
+    setDraftStroke(next);
+  }
+
+  function finishInk(event: React.PointerEvent<HTMLDivElement>) {
+    const stroke = draftRef.current;
+    draftRef.current = null;
+    lastClientPoint.current = null;
+    setDraftStroke(null);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    if (stroke && stroke.points.length >= 2) onCommitStroke(stroke);
+  }
+
+  const visibleStrokes = draftStroke ? [...strokes, draftStroke] : strokes;
+  const annotationLayoutKey = annotations.map(item => `${item.id}:${item.start}:${item.end}`).join("|");
+
+  return <div
+    className={`material-text-stage ${inkMode ? "ink-active" : ""} ${inkMode === "eraser" ? "eraser-active" : ""}`}
+    onPointerDown={beginInk}
+    onPointerMove={moveInk}
+    onPointerUp={finishInk}
+    onPointerCancel={finishInk}
+  >
+    <p
+      ref={textRef}
+      className="exam-material-text"
+      style={{ fontSize: `${fontSize}px` }}
+      onMouseUp={event => onAnnotateSelection(materialId, event)}
+      onClick={() => { if (!inkMode) onClearAnnotationSelection(); }}
+    >{renderAnnotatedText(content, annotations, selectedAnnotationId, onSelectAnnotation)}</p>
+    <AnchoredInkLayer textRef={textRef} strokes={visibleStrokes} layoutKey={`${fontSize}:${content.length}:${annotationLayoutKey}`}/>
+  </div>;
+}
+
 function BeforeReview({ question }: { question: Question }) {
   return <div className="before-review"><div className="review-icon"><Sparkles size={22}/></div><h3>批改面板</h3><p>提交前不展示要点，避免提示效应。提交后这里会显示结构化反馈。</p><div className="review-rule"><Check size={16}/><span>要点覆盖</span></div><div className="review-rule"><Check size={16}/><span>要素分类</span></div><div className="review-rule"><Check size={16}/><span>表达与冗余</span></div><small>提交后按当前设置的评分引擎运行；远程 AI 若启用，其数值分仍属于未校准实验评分。</small><div className="question-facts"><span>题型</span><strong>{question.type}</strong><span>字数</span><strong>≤ {question.wordLimit}</strong></div></div>;
 }
@@ -133,9 +309,12 @@ export default function PracticeWorkspace({ question, onExit, onSubmitted }: { q
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [timerRunning, setTimerRunning] = useState(false);
   const [annotationMode, setAnnotationMode] = useState<AnnotationMode>(null);
+  const [inkMode, setInkMode] = useState<InkMode>(null);
   const [highlightColor, setHighlightColor] = useState<PracticeHighlightColor>("yellow");
   const [annotations, setAnnotations] = useState<PracticeTextAnnotation[]>([]);
   const [annotationsLoaded, setAnnotationsLoaded] = useState(false);
+  const [inkStrokes, setInkStrokes] = useState<PracticeInkStroke[]>([]);
+  const [inkLoaded, setInkLoaded] = useState(false);
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
   const [activeMaterialId, setActiveMaterialId] = useState(question.materials[0]?.id ?? "");
   const [materialView, setMaterialView] = useState<MaterialView>("single");
@@ -150,23 +329,32 @@ export default function PracticeWorkspace({ question, onExit, onSubmitted }: { q
   useEffect(() => {
     let cancelled = false;
     setAnnotationsLoaded(false);
+    setInkLoaded(false);
     setAnnotations([]);
+    setInkStrokes([]);
     setAnnotationMode(null);
+    setInkMode(null);
     setSelectedAnnotationId(null);
     setActiveMaterialId(question.materials[0]?.id ?? "");
     setMaterialView("single");
     setElapsedSeconds(0);
     setTimerRunning(false);
-    getPracticeAnnotations(question.id)
-      .then(stored => {
-        if (cancelled) return;
-        setAnnotations(stored);
-        setAnnotationsLoaded(true);
-      })
-      .catch(error => {
+    Promise.all([
+      getPracticeAnnotations(question.id).catch(error => {
         console.error("Failed to load practice annotations.", error);
-        if (!cancelled) setAnnotationsLoaded(true);
-      });
+        return [] as PracticeTextAnnotation[];
+      }),
+      getPracticeInkStrokes(question.id).catch(error => {
+        console.error("Failed to load practice ink strokes.", error);
+        return [] as PracticeInkStroke[];
+      })
+    ]).then(([storedAnnotations, storedInk]) => {
+      if (cancelled) return;
+      setAnnotations(storedAnnotations);
+      setInkStrokes(storedInk);
+      setAnnotationsLoaded(true);
+      setInkLoaded(true);
+    });
     return () => { cancelled = true; };
   }, [question.id, question.materials]);
 
@@ -188,6 +376,15 @@ export default function PracticeWorkspace({ question, onExit, onSubmitted }: { q
     }, 200);
     return () => window.clearTimeout(timer);
   }, [annotations, annotationsLoaded, question.id]);
+
+  useEffect(() => {
+    if (!inkLoaded) return;
+    const timer = window.setTimeout(() => {
+      void savePracticeInkStrokes(question.id, inkStrokes)
+        .catch(error => console.error("Failed to persist anchored ink strokes.", error));
+    }, 200);
+    return () => window.clearTimeout(timer);
+  }, [inkLoaded, inkStrokes, question.id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -231,7 +428,7 @@ export default function PracticeWorkspace({ question, onExit, onSubmitted }: { q
       const record: TrainingRecord = { id: crypto.randomUUID(), questionId: question.id, title: question.title, score: result.score, maxScore: result.maxScore, submittedAt: now.toLocaleString("zh-CN"), submittedAtIso: now.toISOString(), answer, review: result };
       await persistence.addHistory(record);
       try {
-        await saveTrainingPracticeMeta(record.id, elapsedSeconds, annotations.length, now.toISOString());
+        await saveTrainingPracticeMeta(record.id, elapsedSeconds, annotations.length + inkStrokes.length, now.toISOString());
       } catch (error) {
         console.error("Training record was saved, but practice timing metadata failed.", error);
       }
@@ -245,7 +442,7 @@ export default function PracticeWorkspace({ question, onExit, onSubmitted }: { q
   }
 
   function annotateSelection(materialId: string, event: React.MouseEvent<HTMLElement>) {
-    if (!annotationMode || !annotationsLoaded) return;
+    if (!annotationMode || !annotationsLoaded || inkMode) return;
     const root = event.currentTarget;
     const selection = window.getSelection();
     if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return;
@@ -280,6 +477,18 @@ export default function PracticeWorkspace({ question, onExit, onSubmitted }: { q
     if (!selectedAnnotationId) return;
     setAnnotations(current => current.filter(item => item.id !== selectedAnnotationId));
     setSelectedAnnotationId(null);
+  }
+
+  function commitInkStroke(stroke: PracticeInkStroke) {
+    setInkStrokes(current => [...current, stroke].slice(-500));
+  }
+
+  function eraseInkStroke(strokeId: string) {
+    setInkStrokes(current => current.filter(item => item.id !== strokeId));
+  }
+
+  function undoLastInkStroke() {
+    setInkStrokes(current => current.length ? current.slice(0, -1) : current);
   }
 
   function changeMaterial(step: -1 | 1) {
@@ -327,13 +536,16 @@ export default function PracticeWorkspace({ question, onExit, onSubmitted }: { q
         </div>
         <div className="annotation-toolbar" aria-label="材料标注工具">
           <div className="annotation-tool-group"><BookOpenText size={15}/><strong>给定资料</strong></div>
-          <button disabled={!annotationsLoaded} className={annotationMode === "highlight" ? "active" : ""} onClick={() => setAnnotationMode(mode => mode === "highlight" ? null : "highlight")}><Highlighter size={15}/><span>记号笔</span></button>
+          <button disabled={!annotationsLoaded} className={annotationMode === "highlight" ? "active" : ""} onClick={() => { setInkMode(null); setAnnotationMode(mode => mode === "highlight" ? null : "highlight"); }}><Highlighter size={15}/><span>记号笔</span></button>
           {annotationMode === "highlight" && <div className="highlight-color-palette" aria-label="记号笔颜色">
             {HIGHLIGHT_COLORS.map(item => <button type="button" key={item.value} className={`highlight-color-dot color-${item.value} ${highlightColor === item.value ? "selected" : ""}`} title={`${item.label}记号笔`} aria-label={`${item.label}记号笔`} onClick={() => setHighlightColor(item.value)}/>) }
           </div>}
-          <button disabled={!annotationsLoaded} className={annotationMode === "underline" ? "active" : ""} onClick={() => setAnnotationMode(mode => mode === "underline" ? null : "underline")}><Underline size={15}/><span>下划线</span></button>
-          <button disabled={!annotations.length} onClick={undoLastAnnotation}><Undo2 size={15}/><span>撤销</span></button>
+          <button disabled={!annotationsLoaded} className={annotationMode === "underline" ? "active" : ""} onClick={() => { setInkMode(null); setAnnotationMode(mode => mode === "underline" ? null : "underline"); }}><Underline size={15}/><span>下划线</span></button>
+          <button disabled={!inkLoaded} className={inkMode === "pen" ? "active" : ""} onClick={() => { setAnnotationMode(null); setInkMode(mode => mode === "pen" ? null : "pen"); }}><PenLine size={15}/><span>画笔</span></button>
+          <button disabled={!inkLoaded || !inkStrokes.length} className={inkMode === "eraser" ? "active" : ""} onClick={() => { setAnnotationMode(null); setInkMode(mode => mode === "eraser" ? null : "eraser"); }}><Eraser size={15}/><span>橡皮</span></button>
+          <button disabled={!annotations.length} onClick={undoLastAnnotation}><Undo2 size={15}/><span>撤销标记</span></button>
           <button disabled={!selectedAnnotationId} onClick={deleteSelectedAnnotation}><Trash2 size={15}/><span>删除当前</span></button>
+          <button disabled={!inkStrokes.length} onClick={undoLastInkStroke}><Undo2 size={15}/><span>撤销笔迹</span></button>
           <div className="material-font-controls">
             <button type="button" disabled={materialFontSize <= MATERIAL_FONT_MIN} onClick={() => changeMaterialFontSize(-1)} aria-label="减小材料字号"><Minus size={13}/><span>A</span></button>
             <span className="material-font-value" aria-live="polite">{materialFontSize}px</span>
@@ -344,10 +556,25 @@ export default function PracticeWorkspace({ question, onExit, onSubmitted }: { q
         <div key={`${materialView}:${activeMaterialId}`} className="material-scroll exam-paper-scroll">
           {visibleMaterials.map((block, visibleIndex) => {
             const blockAnnotations = annotations.filter(item => item.materialId === block.id);
+            const blockInk = inkStrokes.filter(item => item.materialId === block.id);
             const trueIndex = question.materials.findIndex(item => item.id === block.id);
             return <article className="material exam-material" key={block.id}>
               <div className="material-label"><span>材料{trueIndex + 1}</span>{materialView === "all" && visibleIndex > 0 ? <i/> : null}</div>
-              <p style={{ fontSize: `${materialFontSize}px` }} onMouseUp={event => annotateSelection(block.id, event)} onClick={() => setSelectedAnnotationId(null)}>{renderAnnotatedText(block.content, blockAnnotations, selectedAnnotationId, setSelectedAnnotationId)}</p>
+              <MaterialTextStage
+                materialId={block.id}
+                content={block.content}
+                fontSize={materialFontSize}
+                annotations={blockAnnotations}
+                selectedAnnotationId={selectedAnnotationId}
+                annotationMode={annotationMode}
+                inkMode={inkMode}
+                strokes={blockInk}
+                onAnnotateSelection={annotateSelection}
+                onSelectAnnotation={setSelectedAnnotationId}
+                onClearAnnotationSelection={() => setSelectedAnnotationId(null)}
+                onCommitStroke={commitInkStroke}
+                onEraseStroke={eraseInkStroke}
+              />
             </article>;
           })}
         </div>
