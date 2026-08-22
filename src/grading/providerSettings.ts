@@ -57,7 +57,9 @@ export async function saveRemoteProviderConfig(config: RemoteProviderPublicConfi
 }
 
 export async function resetRemoteProviderConfig(): Promise<void> {
-  await persistence.removePublicSetting(PROVIDER_CONFIG_KEY);
+  // Persist the canonical default rather than depending on a separate delete API.
+  // This keeps reset behavior identical across SQLite and localStorage backends.
+  await persistence.setPublicSetting(PROVIDER_CONFIG_KEY, DEFAULT_REMOTE_PROVIDER_CONFIG);
 }
 
 export { sanitizePublicConfig };
