@@ -19,6 +19,12 @@ pub fn run() {
             sql: include_str!("../migrations/0002_reference_answers.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 3,
+            description: "add_benchmark_draft_snapshots",
+            sql: include_str!("../migrations/0003_benchmark_drafts.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     tauri::Builder::default()
