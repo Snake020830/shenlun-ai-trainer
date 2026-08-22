@@ -156,7 +156,6 @@ export function buildMaterialExtractionRequest(question: Question): RemoteJsonRe
   return {
     schemaName: "shenlun_material_extraction_v01",
     jsonSchema: materialExtractionSchema,
-    temperature: 0,
     instructions: `${COMMON_INSTRUCTIONS}\n本阶段是材料盲抽。不得读取、猜测或重建机构参考答案，也不要分析考生答案。尽量展开可能独立得分的材料信息，再标记其要素类型。`,
     input: JSON.stringify({ question: questionPayload(question) })
   };
@@ -166,7 +165,6 @@ export function buildRubricConstructionRequest(question: Question, candidates: M
   return {
     schemaName: "shenlun_rubric_construction_v01",
     jsonSchema: rubricSchema,
-    temperature: 0,
     instructions: `${COMMON_INSTRUCTIONS}\n本阶段根据盲抽候选点构造 rubric。先保证独立信息维度完整，再合并真正同类的信息。前置概括最多提高一个抽象层级；机制层和多对象归属不得因追求条目少而丢失。`,
     input: JSON.stringify({ question: questionPayload(question), materialCandidates: candidates })
   };
@@ -176,7 +174,6 @@ export function buildAnswerMappingRequest(question: Question, rubric: RubricPoin
   return {
     schemaName: "shenlun_answer_mapping_v01",
     jsonSchema: mappingSchema,
-    temperature: 0,
     instructions: `${COMMON_INSTRUCTIONS}\n本阶段只做考生答案与 rubric 的逐点映射。不能因为出现关键词就判 hit，也不能因为措辞不同就判 missed。partial 用于方向正确但缺关键主体、对象、机制、限定或分类的情况。errorCodes 应使用系统 error taxonomy 中最贴切的代码。`,
     input: JSON.stringify({ question: questionPayload(question), rubric, answer })
   };
@@ -186,7 +183,6 @@ export function buildWordBudgetRequest(question: Question, answer: string): Remo
   return {
     schemaName: "shenlun_word_budget_v01",
     jsonSchema: wordBudgetSchema,
-    temperature: 0,
     instructions: `${COMMON_INSTRUCTIONS}\n本阶段审计字数与表达效率。优先识别重复、例证噪声和可压缩表达；不得为了缩短答案直接建议删除独立得分维度。`,
     input: JSON.stringify({ question: questionPayload(question), answer })
   };
@@ -200,7 +196,6 @@ export function buildReferenceCrossCheckRequest(
   return {
     schemaName: "shenlun_reference_crosscheck_v01",
     jsonSchema: referenceSchema,
-    temperature: 0,
     instructions: `${COMMON_INSTRUCTIONS}\n本阶段是参考答案交叉验证。盲抽 rubric 已经完成，参考答案只能用于发现遗漏维度、比较合并粒度和记录差异，不能被当成唯一真值。`,
     input: JSON.stringify({ question: questionPayload(question), blindRubric: rubric, referenceAnswer })
   };
