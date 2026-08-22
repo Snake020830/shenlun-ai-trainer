@@ -50,6 +50,12 @@ pub fn run() {
             sql: include_str!("../migrations/0007_public_source_question_links.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 8,
+            description: "add_anchored_practice_ink_strokes",
+            sql: include_str!("../migrations/0008_practice_ink_strokes.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     tauri::Builder::default()
