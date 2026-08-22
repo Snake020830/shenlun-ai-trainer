@@ -53,7 +53,7 @@
 - `questionPayload()` 不包含 `referenceAnswer`。
 - Stage 1–4 完全看不到已保存参考答案。
 - Stage 5 才显式收到 reference answer。
-- 新增回归测试，使用唯一标记验证 Stage 1–4 不泄漏、Stage 5 明确注入。
+- 回归测试使用唯一标记验证 Stage 1–4 不泄漏、Stage 5 明确注入。
 - Stage 5 输出进入 StructuredReview snapshot，可在当前批改与历史复盘中查看。
 - Reference cross-check 不回写盲抽 rubric，也不自动改变本次 score。
 
@@ -69,11 +69,11 @@
 - 支持 OpenAI-compatible Responses API 与 Chat Completions。
 - 默认使用 Responses API，remote provider 默认关闭。
 - Responses 请求显式 `store: false`。
-- 五阶段不再强制 `temperature`。
-- 新增 `reasoningEffort` 公开配置：Provider 默认 / Low / Medium / High / XHigh。
-- `provider-default` 表示请求中完全不发送 reasoning effort。
+- 五阶段不强制 `temperature`。
+- `reasoningEffort` 支持 Provider 默认 / Low / Medium / High / XHigh。
+- `provider-default` 表示不发送 reasoning effort。
 - Responses 模式发送 `reasoning: { effort }`；Chat compatibility 暂不发送 reasoning 字段。
-- 设置页会在 Chat 模式禁用推理强度控件，避免假配置。
+- 设置页在 Chat 模式禁用推理强度控件，避免假配置。
 
 ### 凭据与网络安全
 
@@ -87,9 +87,21 @@
 - provider HTTP 错误不回显原始 body。
 - provider public config 采用字段 allow-list，`apiKey/bearerToken` 等额外字段无法混入普通持久化。
 
+### Benchmark / calibration harness
+
+已建立开发期人工 benchmark 基础设施：
+
+- `src/grading/benchmark/types.ts`：gold case、human score observation、aligned prediction 等结构；
+- `validateCase.ts`：检查 material/rubric/mapping 引用、taxonomy code、人类分数范围等；
+- `metrics.ts`：mapping confusion / exact status accuracy、taxonomy micro precision/recall/F1、score MAE/RMSE/signed error/normalized MAE；
+- `benchmark.test.ts`：validator 与指标回归测试；
+- `docs/BENCHMARK_PLAN.md`：标注、alignment、calibration/holdout 和 validation report 纪律。
+
+重要约束：模型生成 rubric 与人工 gold rubric 必须先显式对齐，再计算 mapping/taxonomy 指标；不能把标题字符串差异直接当成评分错误。
+
 ### 设置页
 
-已启用真正的评分引擎控制页：
+已启用评分引擎控制页：
 
 - remote 开关；
 - Responses / Chat protocol；
@@ -109,20 +121,21 @@
 - Desktop CI：Windows + Node 24 + stable Rust + frontend build + `cargo check`。
 - keyring + reqwest + Tauri secure commands 已有 Windows `cargo check` 成功记录。
 - concurrency 自动取消同分支过时 run。
-- 单测覆盖 remote protocol、provider config、public config sanitizer、workflow validation、review assembler、score policy、参考答案隔离等关键边界。
+- 单测覆盖 remote protocol、reasoning config、public config sanitizer、workflow validation、review assembler、score policy、参考答案隔离、benchmark validator/metrics 等关键边界。
 
 ### 当前边界
 
 - Remote workflow 已具备真实模型调用能力，但当前 score policy 未校准，因此不是正式 AI 阅卷分。
-- 未在用户真实桌面环境完成 API key 写入/连接测试/一次完整五阶段真实 provider 人工验收。
-- 未建立人工批改 benchmark。
+- Benchmark **框架**已建立，但尚未填充足够的真实人工 gold cases，也未形成 validation report。
+- 尚未在用户真实桌面环境完成 API key 写入/连接测试/一次完整五阶段真实 provider 人工验收。
 - 未做 PDF/图片/OCR 真题导入、能力画像、自适应推荐、整卷模考。
 
 ### 下一阶段
 
 1. 跑最终 Frontend/Desktop CI，冻结这一版工程基线；
 2. 使用真实桌面环境完成凭据与 provider 端到端验收；
-3. 建立人工标注 benchmark：材料候选点、rubric、答案映射、错误 taxonomy、人工分数；
-4. 比较模型输出与人工 gold set，优先评估遗漏率/错误归类，再校准 score policy；
-5. 只有达到门槛后才把 `calibrationStatus` 从 `uncalibrated` 提升为 `validated`；
-6. 再进入 PDF/OCR、能力画像、自适应推荐等扩展能力。
+3. 先用少量高质量真实题目跑通人工 gold 标注与 rubric alignment 流程；
+4. 扩大 calibration / holdout cases，比较模型与 reasoning effort；
+5. 优先评估材料遗漏、rubric 归并和 mapping/taxonomy，再校准 score policy；
+6. 只有达到验证门槛后才把 `calibrationStatus` 从 `uncalibrated` 提升为 `validated`；
+7. 再进入 PDF/OCR、能力画像、自适应推荐等扩展能力。
