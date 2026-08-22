@@ -83,7 +83,9 @@ describe("grading benchmark", () => {
     expect(metrics.truePositive).toBe(0);
     expect(metrics.falsePositive).toBe(1);
     expect(metrics.falseNegative).toBe(1);
-    expect(metrics.microF1).toBeNull();
+    expect(metrics.microPrecision).toBe(0);
+    expect(metrics.microRecall).toBe(0);
+    expect(metrics.microF1).toBe(0);
   });
 
   it("compares predicted scores with the mean human score", () => {
