@@ -15,8 +15,8 @@ const REGION_NAMES = [
 ];
 
 const VARIANT_PATTERNS = [
-  "副省级", "省部级", "省级", "地市级", "市地级", "行政执法", "公安", "县乡", "县镇", "县级", "乡镇",
-  "省市", "A卷", "B卷", "C卷", "通用卷", "普通选调", "选调"
+  "副省级", "副省卷", "省部级", "省级", "地市级", "地市卷", "市地级", "行政执法卷", "行政执法", "公安",
+  "县乡", "县镇", "县级", "乡镇", "省市", "A卷", "B卷", "C卷", "一卷", "二卷", "三卷", "通用卷", "普通选调", "选调"
 ];
 
 function normalizeWhitespace(value: string): string {
@@ -47,7 +47,7 @@ function inferRegion(title: string): string | undefined {
 
 function inferPaperVariant(title: string): string | undefined {
   const matched = VARIANT_PATTERNS.filter(pattern => title.includes(pattern));
-  return matched.length ? matched.join("/") : undefined;
+  return matched.length ? [...new Set(matched)].join("/") : undefined;
 }
 
 function looksLikeShenlunTitle(title: string): boolean {
@@ -76,7 +76,7 @@ function dedupeCandidates(candidates: PublicSourceCandidate[]): PublicSourceCand
 }
 
 function delay(milliseconds: number): Promise<void> {
-  return new Promise(resolve => window.setTimeout(resolve, milliseconds));
+  return new Promise(resolve => globalThis.setTimeout(resolve, milliseconds));
 }
 
 export async function fetchPublicSourceText(url: string): Promise<PublicSourceFetchResponse> {
@@ -193,7 +193,7 @@ export async function discoverProviderCandidates(provider: PublicSourceProvider)
 
   for (const [index, indexUrl] of secondaryUrls.entries()) {
     try {
-      if (index > 0) await delay(80);
+      if (index > 0) await delay(200);
       const response = await fetchPublicSourceText(indexUrl);
       allCandidates.push(...discoverShenlunCandidatesFromHtml(provider, response.body, response.url));
     } catch (error) {
