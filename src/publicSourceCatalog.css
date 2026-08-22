@@ -1,0 +1,172 @@
+.public-source-section {
+  display: grid;
+  gap: 14px;
+}
+
+.public-source-security {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #48645a;
+  font-size: 12px;
+}
+
+.public-source-status {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid #e0e5e2;
+  border-radius: 10px;
+  background: #f8faf9;
+  color: #5d6561;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.source-provider-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.source-provider-card {
+  border: 1px solid #e1e5e3;
+  border-radius: 12px;
+  padding: 12px;
+  background: #fff;
+  display: grid;
+  gap: 9px;
+}
+
+.source-provider-card header {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.source-provider-card header > div {
+  display: grid;
+  gap: 3px;
+}
+
+.source-provider-card header span,
+.source-provider-card p,
+.source-provider-card footer > span {
+  color: #747b77;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.source-provider-card p {
+  margin: 0;
+}
+
+.source-provider-card footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.public-source-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.public-source-toolbar .search-box {
+  flex: 1;
+  max-width: 520px;
+}
+
+.public-source-toolbar > span {
+  color: #7c827f;
+  font-size: 11px;
+}
+
+.public-source-list {
+  border: 1px solid #e1e5e3;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.public-source-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border-bottom: 1px solid #edf0ee;
+}
+
+.public-source-row:last-child {
+  border-bottom: 0;
+}
+
+.public-source-main {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.public-source-main > strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #353a37;
+  font-size: 12px;
+}
+
+.public-source-main > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.public-source-main span {
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #f1f4f2;
+  color: #707873;
+  font-size: 10px;
+}
+
+.public-source-main span.recall {
+  background: #fff3df;
+  color: #94652b;
+}
+
+.public-source-row > a {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  color: #5d6c66;
+}
+
+.public-source-row > a:hover {
+  background: #f1f4f2;
+  color: #315a49;
+}
+
+.public-source-empty,
+.public-source-more {
+  padding: 18px;
+  color: #818783;
+  font-size: 12px;
+  text-align: center;
+}
+
+.public-source-more {
+  border-top: 1px solid #edf0ee;
+}
+
+@media (max-width: 980px) {
+  .source-provider-grid {
+    grid-template-columns: 1fr;
+  }
+}
