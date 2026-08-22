@@ -1,0 +1,52 @@
+.material-text-stage {
+  position: relative;
+  min-width: 0;
+}
+
+.material-text-stage .exam-material-text {
+  position: relative;
+  z-index: 1;
+}
+
+.material-ink-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.material-ink-stroke {
+  opacity: .88;
+}
+
+.material-ink-stroke.ink-graphite {
+  stroke: #3f4850;
+}
+
+.material-ink-stroke.ink-blue {
+  stroke: #315f9f;
+}
+
+.material-ink-stroke.ink-red {
+  stroke: #a74e4e;
+}
+
+.material-text-stage.ink-active {
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.material-text-stage.ink-active .exam-material-text,
+.material-text-stage.ink-active .exam-material-text * {
+  user-select: none;
+  cursor: crosshair;
+}
+
+.material-text-stage.eraser-active,
+.material-text-stage.eraser-active .exam-material-text,
+.material-text-stage.eraser-active .exam-material-text * {
+  cursor: cell;
+}
