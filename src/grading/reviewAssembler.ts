@@ -45,6 +45,9 @@ export function assembleReview(
 
   let summary = `当前 rubric 共 ${artifacts.rubric.length} 个独立信息维度：${hit} 个完整覆盖，${partial} 个部分覆盖，${missed} 个遗漏。`;
   if (artifacts.wordBudget.overLimit) summary += " 当前答案超过字数上限，应优先压缩重复和低价值表达。";
+  if (artifacts.referenceCrossCheck) {
+    summary += " 已完成参考答案交叉验证；差异仅用于审计与复盘，不自动改变本次得分。";
+  }
   if (scoreResult.calibrationStatus === "uncalibrated") {
     summary += " 当前得分由未校准诊断 policy 计算，只用于开发与一致性验证，不代表正式阅卷分。";
   }
@@ -58,6 +61,7 @@ export function assembleReview(
     redundancy,
     summary,
     points,
+    referenceCrossCheck: artifacts.referenceCrossCheck,
     scoringPolicy: scoreResult.policyId,
     calibrationStatus: scoreResult.calibrationStatus
   };
