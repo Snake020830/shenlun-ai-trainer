@@ -33,17 +33,15 @@ describe("visual grid occupancy", () => {
   });
 
   it("packs common list enumerators into one simulated cell", () => {
-    expect(countExamGridCells("1.建议"))
-      .toBe(3);
-    expect(countExamGridCells("2、治理"))
-      .toBe(3);
+    expect(countExamGridCells("1.建议")).toBe(3);
+    expect(countExamGridCells("2、治理")).toBe(3);
+    expect(countExamGridCells("(3)协同")).toBe(3);
+    expect(countExamGridCells("（4）监管")).toBe(3);
   });
 
   it("packs consecutive Arabic digits two per simulated cell", () => {
-    expect(countExamGridCells("2026年"))
-      .toBe(3);
-    expect(countExamGridCells("12345"))
-      .toBe(3);
+    expect(countExamGridCells("2026年")).toBe(3);
+    expect(countExamGridCells("12345")).toBe(3);
   });
 
   it("advances an explicit newline to the next answer-sheet row", () => {
