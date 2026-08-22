@@ -5,12 +5,15 @@ const DATABASE_URL = "sqlite:shenlun-trainer.db";
 const ANNOTATION_KEY_PREFIX = "shenlun:practice-annotations:v1:";
 const META_KEY = "shenlun:training-practice-meta:v1";
 
+export type PracticeHighlightColor = "yellow" | "blue" | "green" | "pink";
+
 export interface PracticeTextAnnotation {
   id: string;
   materialId: string;
   start: number;
   end: number;
   type: "highlight" | "underline";
+  color?: PracticeHighlightColor;
 }
 
 export interface TrainingPracticeMeta {
@@ -46,6 +49,7 @@ function readJson<T>(key: string, fallback: T): T {
 
 function validateAnnotations(annotations: PracticeTextAnnotation[]): void {
   const seen = new Set<string>();
+  const highlightColors = new Set<PracticeHighlightColor>(["yellow", "blue", "green", "pink"]);
   for (const item of annotations) {
     if (!item.id.trim()) throw new Error("Practice annotation id is required.");
     if (seen.has(item.id)) throw new Error(`Duplicate practice annotation id: ${item.id}.`);
@@ -56,6 +60,12 @@ function validateAnnotations(annotations: PracticeTextAnnotation[]): void {
     }
     if (item.type !== "highlight" && item.type !== "underline") {
       throw new Error(`Practice annotation ${item.id} has an unsupported type.`);
+    }
+    if (item.color !== undefined && !highlightColors.has(item.color)) {
+      throw new Error(`Practice annotation ${item.id} has an unsupported highlight color.`);
+    }
+    if (item.type === "underline" && item.color !== undefined) {
+      throw new Error(`Practice annotation ${item.id} cannot attach a highlight color to an underline.`);
     }
   }
 }
