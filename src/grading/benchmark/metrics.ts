@@ -3,6 +3,7 @@ import type {
   GradingBenchmarkCase,
   MappingConfusionCounts,
   MappingQualityMetrics,
+  RubricQualityMetrics,
   ScoreCalibrationMetrics,
   TaxonomyQualityMetrics
 } from "./types";
@@ -31,37 +32,112 @@ function assertAdjudicated(testCase: GradingBenchmarkCase): void {
   }
 }
 
-function assertUniqueAlignedMappings(prediction: AlignedBenchmarkPrediction): void {
+function assertUniqueStrings(values: string[], label: string): void {
   const seen = new Set<string>();
-  for (const mapping of prediction.mappings) {
-    if (seen.has(mapping.goldRubricPointId)) {
-      throw new Error(`Duplicate aligned prediction for ${mapping.goldRubricPointId}.`);
-    }
-    seen.add(mapping.goldRubricPointId);
+  for (const value of values) {
+    if (seen.has(value)) throw new Error(`Duplicate ${label}: ${value}.`);
+    seen.add(value);
   }
+}
+
+function assertUniqueAlignedMappings(prediction: AlignedBenchmarkPrediction): void {
+  assertUniqueStrings(prediction.mappings.map(item => item.goldRubricPointId), "aligned prediction");
+}
+
+function validateRubricAlignment(
+  testCase: GradingBenchmarkCase,
+  prediction: AlignedBenchmarkPrediction
+): { coveredGold: Set<string>; supportedPredicted: Set<string> } {
+  assertAdjudicated(testCase);
+  if (prediction.caseId !== testCase.id) throw new Error("Prediction caseId does not match benchmark case.");
+  assertUniqueStrings(prediction.predictedRubricPointIds, "predicted rubric point id");
+
+  const goldIds = new Set(testCase.gold.rubric.map(item => item.id));
+  const predictedIds = new Set(prediction.predictedRubricPointIds);
+  const coveredGold = new Set<string>();
+  const supportedPredicted = new Set<string>();
+
+  for (const [index, group] of prediction.rubricAlignments.entries()) {
+    if (!group.goldRubricPointIds.length || !group.predictedRubricPointIds.length) {
+      throw new Error(`Rubric alignment group ${index} must include both gold and predicted ids.`);
+    }
+    if (group.relation === "match" && (group.goldRubricPointIds.length !== 1 || group.predictedRubricPointIds.length !== 1)) {
+      throw new Error(`Rubric alignment group ${index} relation=match must be 1:1.`);
+    }
+    if (group.relation === "acceptable-merge" && (group.goldRubricPointIds.length < 2 || group.predictedRubricPointIds.length !== 1)) {
+      throw new Error(`Rubric alignment group ${index} acceptable-merge must be many gold to one predicted.`);
+    }
+    if (group.relation === "acceptable-split" && (group.goldRubricPointIds.length !== 1 || group.predictedRubricPointIds.length < 2)) {
+      throw new Error(`Rubric alignment group ${index} acceptable-split must be one gold to many predicted.`);
+    }
+
+    for (const goldId of group.goldRubricPointIds) {
+      if (!goldIds.has(goldId)) throw new Error(`Rubric alignment references unknown gold rubric ${goldId}.`);
+      if (coveredGold.has(goldId)) throw new Error(`Gold rubric ${goldId} appears in multiple alignment groups.`);
+      coveredGold.add(goldId);
+    }
+    for (const predictedId of group.predictedRubricPointIds) {
+      if (!predictedIds.has(predictedId)) throw new Error(`Rubric alignment references undeclared predicted rubric ${predictedId}.`);
+      if (supportedPredicted.has(predictedId)) throw new Error(`Predicted rubric ${predictedId} appears in multiple alignment groups.`);
+      supportedPredicted.add(predictedId);
+    }
+  }
+
+  return { coveredGold, supportedPredicted };
+}
+
+export function calculateRubricQuality(
+  testCase: GradingBenchmarkCase,
+  prediction: AlignedBenchmarkPrediction
+): RubricQualityMetrics {
+  const { coveredGold, supportedPredicted } = validateRubricAlignment(testCase, prediction);
+  const goldIds = testCase.gold.rubric.map(item => item.id);
+  const predictedIds = prediction.predictedRubricPointIds;
+  const recall = safeRatio(coveredGold.size, goldIds.length);
+  const precision = safeRatio(supportedPredicted.size, predictedIds.length);
+
+  return {
+    goldPointCount: goldIds.length,
+    predictedPointCount: predictedIds.length,
+    coveredGoldPointCount: coveredGold.size,
+    supportedPredictedPointCount: supportedPredicted.size,
+    recall,
+    precision,
+    f1: harmonicMean(precision, recall),
+    unmatchedGoldRubricPointIds: goldIds.filter(id => !coveredGold.has(id)),
+    unmatchedPredictedRubricPointIds: predictedIds.filter(id => !supportedPredicted.has(id))
+  };
 }
 
 export function calculateMappingQuality(
   testCase: GradingBenchmarkCase,
   prediction: AlignedBenchmarkPrediction
 ): MappingQualityMetrics {
-  assertAdjudicated(testCase);
-  if (prediction.caseId !== testCase.id) throw new Error("Prediction caseId does not match benchmark case.");
+  const { coveredGold } = validateRubricAlignment(testCase, prediction);
   assertUniqueAlignedMappings(prediction);
 
   const goldById = new Map(testCase.gold.mappings.map(item => [item.rubricPointId, item]));
+  const predictedIds = new Set(prediction.predictedRubricPointIds);
   const confusion = emptyConfusion();
   let correct = 0;
 
   for (const mapping of prediction.mappings) {
     const gold = goldById.get(mapping.goldRubricPointId);
     if (!gold) throw new Error(`Aligned prediction references unknown gold rubric ${mapping.goldRubricPointId}.`);
+    if (!coveredGold.has(mapping.goldRubricPointId)) {
+      throw new Error(`Answer mapping references gold rubric ${mapping.goldRubricPointId} that is not covered by rubric alignment.`);
+    }
+    if (mapping.predictedRubricPointId && !predictedIds.has(mapping.predictedRubricPointId)) {
+      throw new Error(`Answer mapping references undeclared predicted rubric ${mapping.predictedRubricPointId}.`);
+    }
     confusion[gold.status][mapping.predictedStatus] += 1;
     if (gold.status === mapping.predictedStatus) correct += 1;
   }
 
   return {
     alignedPointCount: prediction.mappings.length,
+    goldPointCount: testCase.gold.rubric.length,
+    mappingCoverage: safeRatio(prediction.mappings.length, testCase.gold.rubric.length),
     exactStatusAccuracy: safeRatio(correct, prediction.mappings.length),
     confusion
   };
@@ -71,8 +147,7 @@ export function calculateTaxonomyQuality(
   testCase: GradingBenchmarkCase,
   prediction: AlignedBenchmarkPrediction
 ): TaxonomyQualityMetrics {
-  assertAdjudicated(testCase);
-  if (prediction.caseId !== testCase.id) throw new Error("Prediction caseId does not match benchmark case.");
+  const { coveredGold } = validateRubricAlignment(testCase, prediction);
   assertUniqueAlignedMappings(prediction);
 
   const goldById = new Map(testCase.gold.mappings.map(item => [item.rubricPointId, item]));
@@ -84,6 +159,9 @@ export function calculateTaxonomyQuality(
   for (const mapping of prediction.mappings) {
     const gold = goldById.get(mapping.goldRubricPointId);
     if (!gold) throw new Error(`Aligned prediction references unknown gold rubric ${mapping.goldRubricPointId}.`);
+    if (!coveredGold.has(mapping.goldRubricPointId)) {
+      throw new Error(`Taxonomy mapping references gold rubric ${mapping.goldRubricPointId} that is not covered by rubric alignment.`);
+    }
     const expected = new Set(gold.expectedErrorCodes);
     const predicted = new Set(mapping.predictedErrorCodes);
     const universe = new Set([...expected, ...predicted]);
@@ -162,11 +240,20 @@ export function calculateScoreCalibration(
   };
 }
 
+export function hasCompleteRubricAlignment(testCase: GradingBenchmarkCase, prediction: AlignedBenchmarkPrediction): boolean {
+  try {
+    const metrics = calculateRubricQuality(testCase, prediction);
+    return metrics.unmatchedGoldRubricPointIds.length === 0 && metrics.unmatchedPredictedRubricPointIds.length === 0;
+  } catch {
+    return false;
+  }
+}
+
 export function hasCompleteAlignment(testCase: GradingBenchmarkCase, prediction: AlignedBenchmarkPrediction): boolean {
+  if (!hasCompleteRubricAlignment(testCase, prediction)) return false;
   const goldIds = new Set(testCase.gold.rubric.map(item => item.id));
-  const alignedIds = new Set(prediction.mappings.map(item => item.goldRubricPointId));
-  if (prediction.mappings.length !== alignedIds.size) return false;
-  if (goldIds.size !== alignedIds.size) return false;
-  for (const id of goldIds) if (!alignedIds.has(id)) return false;
+  const mappedIds = new Set(prediction.mappings.map(item => item.goldRubricPointId));
+  if (prediction.mappings.length !== mappedIds.size || goldIds.size !== mappedIds.size) return false;
+  for (const id of goldIds) if (!mappedIds.has(id)) return false;
   return true;
 }
