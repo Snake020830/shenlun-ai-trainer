@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { AlignedBenchmarkPrediction, GradingBenchmarkCase } from "./types";
-import { calculateMappingQuality, calculateScoreCalibration, calculateTaxonomyQuality, hasCompleteAlignment } from "./metrics";
+import {
+  calculateMappingQuality,
+  calculateRubricQuality,
+  calculateScoreCalibration,
+  calculateTaxonomyQuality,
+  hasCompleteAlignment,
+  hasCompleteRubricAlignment
+} from "./metrics";
 import { validateBenchmarkCase } from "./validateCase";
 
 const testCase: GradingBenchmarkCase = {
@@ -43,9 +50,14 @@ const testCase: GradingBenchmarkCase = {
 const prediction: AlignedBenchmarkPrediction = {
   caseId: "case-1",
   predictedScore: 12,
+  predictedRubricPointIds: ["p1", "p2"],
+  rubricAlignments: [
+    { goldRubricPointIds: ["r1"], predictedRubricPointIds: ["p1"], relation: "match" },
+    { goldRubricPointIds: ["r2"], predictedRubricPointIds: ["p2"], relation: "match" }
+  ],
   mappings: [
-    { goldRubricPointId: "r1", predictedStatus: "hit", predictedErrorCodes: [] },
-    { goldRubricPointId: "r2", predictedStatus: "partial", predictedErrorCodes: ["PARTIAL_COVERAGE"] }
+    { goldRubricPointId: "r1", predictedRubricPointId: "p1", predictedStatus: "hit", predictedErrorCodes: [] },
+    { goldRubricPointId: "r2", predictedRubricPointId: "p2", predictedStatus: "partial", predictedErrorCodes: ["PARTIAL_COVERAGE"] }
   ]
 };
 
@@ -71,9 +83,40 @@ describe("grading benchmark", () => {
     expect(result.errors.join(" ")).toContain("unknown error code");
   });
 
+  it("computes rubric recall and precision independently from answer mapping", () => {
+    const metrics = calculateRubricQuality(testCase, prediction);
+    expect(metrics.recall).toBe(1);
+    expect(metrics.precision).toBe(1);
+    expect(metrics.f1).toBe(1);
+    expect(hasCompleteRubricAlignment(testCase, prediction)).toBe(true);
+  });
+
+  it("detects a gold rubric point omitted by the model", () => {
+    const incomplete: AlignedBenchmarkPrediction = {
+      ...prediction,
+      predictedRubricPointIds: ["p1"],
+      rubricAlignments: [
+        { goldRubricPointIds: ["r1"], predictedRubricPointIds: ["p1"], relation: "match" }
+      ],
+      mappings: [
+        { goldRubricPointId: "r1", predictedRubricPointId: "p1", predictedStatus: "hit", predictedErrorCodes: [] }
+      ]
+    };
+    const rubric = calculateRubricQuality(testCase, incomplete);
+    const mapping = calculateMappingQuality(testCase, incomplete);
+    expect(rubric.recall).toBe(0.5);
+    expect(rubric.precision).toBe(1);
+    expect(rubric.unmatchedGoldRubricPointIds).toEqual(["r2"]);
+    expect(mapping.mappingCoverage).toBe(0.5);
+    expect(mapping.exactStatusAccuracy).toBe(1);
+    expect(hasCompleteAlignment(testCase, incomplete)).toBe(false);
+  });
+
   it("computes status confusion after explicit gold alignment", () => {
     const metrics = calculateMappingQuality(testCase, prediction);
     expect(metrics.alignedPointCount).toBe(2);
+    expect(metrics.goldPointCount).toBe(2);
+    expect(metrics.mappingCoverage).toBe(1);
     expect(metrics.exactStatusAccuracy).toBe(0.5);
     expect(metrics.confusion.hit.hit).toBe(1);
     expect(metrics.confusion.missed.partial).toBe(1);
@@ -102,6 +145,7 @@ describe("grading benchmark", () => {
 
   it("fails closed on draft cases", () => {
     const draft = { ...testCase, annotationStatus: "draft" as const };
+    expect(() => calculateRubricQuality(draft, prediction)).toThrow("not adjudicated");
     expect(() => calculateMappingQuality(draft, prediction)).toThrow("not adjudicated");
     expect(() => calculateTaxonomyQuality(draft, prediction)).toThrow("not adjudicated");
     expect(() => calculateScoreCalibration([draft], [prediction])).toThrow("not adjudicated");
