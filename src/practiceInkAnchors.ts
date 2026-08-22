@@ -145,7 +145,17 @@ export function distanceToInkStroke(root: HTMLElement, stroke: PracticeInkStroke
   if (points.length === 1) return Math.hypot(targetX - points[0].x, targetY - points[0].y);
   let nearest = Number.POSITIVE_INFINITY;
   for (let index = 1; index < points.length; index += 1) {
-    nearest = Math.min(nearest, distanceToSegment(targetX, targetY, points[index - 1].x, points[index - 1].y));
+    nearest = Math.min(
+      nearest,
+      distanceToSegment(
+        targetX,
+        targetY,
+        points[index - 1].x,
+        points[index - 1].y,
+        points[index].x,
+        points[index].y
+      )
+    );
   }
   return nearest;
 }
