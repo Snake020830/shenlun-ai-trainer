@@ -199,7 +199,7 @@ export function inferPublicQuestionType(prompt: string): QuestionType {
   if (/(写一篇文章|撰写一篇|自拟题目|自选角度.*写|议论性文章|议论文|文章)/u.test(prompt)) return "文章写作";
   if (/(拟写|撰写|提案|讲话稿|发言稿|发言|通知|建议书|工作方案|简报|公开信|倡议书|回复|汇报|调查报告|短评|感谢信|新闻稿|宣传稿|编者按|导言)/u.test(prompt)) return "贯彻执行";
   if (/(提出.*(?:建议|对策|措施)|给出.*(?:建议|对策)|怎么办|如何解决|进一步.*建议|改进建议)/u.test(prompt)) return "提出对策";
-  if (/(分析|理解|谈谈.*(?:含义|关系|认识)|解释|评价|评析|评述|为什么|观点)/u.test(prompt)) return "综合分析";
+  if (/(分析|理解|看法|你怎么看|谈谈.*(?:含义|关系|认识|看法)|解释|评价|评析|评述|为什么|观点)/u.test(prompt)) return "综合分析";
   return "概括归纳";
 }
 
