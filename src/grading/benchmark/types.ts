@@ -130,11 +130,19 @@ export interface AnswerMappingLink {
   alignmentNotes?: string;
 }
 
+export type BenchmarkAlignmentStatus = "draft" | "adjudicated";
+
 export interface BenchmarkAlignment {
   caseId: string;
   runId: string;
+  alignmentStatus?: BenchmarkAlignmentStatus;
   rubricAlignments: RubricAlignmentGroup[];
   mappingLinks: AnswerMappingLink[];
+  provenance?: {
+    alignedBy?: string;
+    alignedAt?: string;
+    notes?: string;
+  };
 }
 
 export interface RubricQualityMetrics {
