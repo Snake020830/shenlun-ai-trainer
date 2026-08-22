@@ -64,6 +64,7 @@ const run: BenchmarkModelRun = {
 const alignment: BenchmarkAlignment = {
   caseId: testCase.id,
   runId: run.runId,
+  alignmentStatus: "adjudicated",
   rubricAlignments: [
     { goldRubricPointIds: ["r1"], predictedRubricPointIds: ["p1"], relation: "match" },
     { goldRubricPointIds: ["r2"], predictedRubricPointIds: ["p2"], relation: "match" }
@@ -71,7 +72,8 @@ const alignment: BenchmarkAlignment = {
   mappingLinks: [
     { goldRubricPointId: "r1", predictedRubricPointIds: ["p1"] },
     { goldRubricPointId: "r2", predictedRubricPointIds: ["p2"] }
-  ]
+  ],
+  provenance: { alignedBy: "human-aligner-1", alignedAt: "2026-08-22T10:00:00+08:00" }
 };
 
 describe("benchmark validation report", () => {
@@ -85,6 +87,27 @@ describe("benchmark validation report", () => {
     expect(report.aggregate.mapping.exactStatusAccuracy).toBe(1);
     expect(report.aggregate.taxonomy.microF1).toBe(1);
     expect(report.aggregate.score.meanAbsoluteError).toBe(1);
+  });
+
+  it("rejects draft human alignments", () => {
+    expect(() => buildValidationReport(
+      [testCase],
+      [run],
+      [{ ...alignment, alignmentStatus: "draft" }]
+    )).toThrow("is not adjudicated");
+  });
+
+  it("requires alignment provenance for final reports", () => {
+    expect(() => buildValidationReport(
+      [testCase],
+      [run],
+      [{ ...alignment, provenance: { alignedAt: "2026-08-22T10:00:00+08:00" } }]
+    )).toThrow("missing provenance.alignedBy");
+    expect(() => buildValidationReport(
+      [testCase],
+      [run],
+      [{ ...alignment, provenance: { alignedBy: "human-aligner-1" } }]
+    )).toThrow("missing provenance.alignedAt");
   });
 
   it("rejects mixed experiment signatures", () => {
@@ -118,5 +141,13 @@ describe("benchmark validation report", () => {
   it("rejects mixed benchmark splits", () => {
     const holdoutCase: GradingBenchmarkCase = { ...testCase, id: "holdout-case", split: "holdout" };
     expect(() => buildValidationReport([testCase, holdoutCase], [run], [alignment])).toThrow("cannot mix benchmark splits");
+  });
+
+  it("rejects an alignment tied to a different run", () => {
+    expect(() => buildValidationReport(
+      [testCase],
+      [run],
+      [{ ...alignment, runId: "other-run" }]
+    )).toThrow("alignment runId does not match model run");
   });
 });
