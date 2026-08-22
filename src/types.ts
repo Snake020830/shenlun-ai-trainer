@@ -6,6 +6,11 @@ export interface MaterialBlock {
   content: string;
 }
 
+export interface QuestionReferenceAnswer {
+  content: string;
+  source?: string;
+}
+
 export type QuestionType = "概括归纳" | "提出对策" | "综合分析" | "贯彻执行" | "文章写作";
 export type Difficulty = "基础" | "进阶" | "挑战";
 
@@ -21,6 +26,7 @@ export interface Question {
   prompt: string;
   materials: MaterialBlock[];
   tags: string[];
+  referenceAnswer?: QuestionReferenceAnswer;
   source?: "builtin" | "local";
   createdAt?: string;
 }
@@ -83,4 +89,6 @@ export interface LocalQuestionInput {
   prompt: string;
   materialText: string;
   tags: string[];
+  referenceAnswerContent?: string;
+  referenceAnswerSource?: string;
 }
