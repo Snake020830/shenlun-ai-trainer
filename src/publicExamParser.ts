@@ -175,10 +175,19 @@ function addMaterialRange(result: Set<number>, startToken: string, endToken: str
   for (let value = start; value <= end; value += 1) result.add(value);
 }
 
+function normalizeMaterialReferenceNoise(text: string): string {
+  return text
+    .replace(/给[ \t\u3000]*定[ \t\u3000]*资[ \t\u3000]*料/gu, "给定资料")
+    .replace(/给[ \t\u3000]*定[ \t\u3000]*材[ \t\u3000]*料/gu, "给定材料")
+    .replace(/资[ \t\u3000]+料(?=[ \t\u3000]*[“"']?[ \t\u3000]*[0-9０-９一二三四五六七八九十])/gu, "资料")
+    .replace(/材[ \t\u3000]+料(?=[ \t\u3000]*[“"']?[ \t\u3000]*[0-9０-９一二三四五六七八九十])/gu, "材料");
+}
+
 function extractMaterialNumbers(text: string): number[] {
+  const normalized = normalizeMaterialReferenceNoise(text);
   const result = new Set<number>();
   const rangePattern = new RegExp(`(?:给定)?(?:资料|材料)\\s*[“\"']?\\s*(${NUMBER_TOKEN})\\s*(?:[～~—-]|至)\\s*(${NUMBER_TOKEN})`, "gu");
-  for (const match of text.matchAll(rangePattern)) addMaterialRange(result, match[1], match[2]);
+  for (const match of normalized.matchAll(rangePattern)) addMaterialRange(result, match[1], match[2]);
 
   const patterns = [
     /给定资料\s*[“"']?\s*([0-9０-９一二三四五六七八九十]+)/gu,
@@ -187,7 +196,7 @@ function extractMaterialNumbers(text: string): number[] {
     /材料\s*([0-9０-９一二三四五六七八九十]+)/gu
   ];
   for (const pattern of patterns) {
-    for (const match of text.matchAll(pattern)) {
+    for (const match of normalized.matchAll(pattern)) {
       const number = normalizeNumberToken(match[1]);
       if (number) result.add(number);
     }
