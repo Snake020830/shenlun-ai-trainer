@@ -1,7 +1,7 @@
-export const STORAGE_SCHEMA_VERSION = 1;
+export const STORAGE_SCHEMA_VERSION = 3;
 
-// 运行时数据库的结构镜像。正式迁移文件位于 src-tauri/migrations/0001_init.sql。
-export const SQLITE_SCHEMA_V1 = `
+// 运行时数据库的结构镜像。正式迁移文件位于 src-tauri/migrations/0001..0003。
+export const SQLITE_SCHEMA_V3 = `
 PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS app_meta (
@@ -21,7 +21,9 @@ CREATE TABLE IF NOT EXISTS questions (
   prompt TEXT NOT NULL,
   tags_json TEXT NOT NULL,
   source TEXT NOT NULL DEFAULT 'local',
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL,
+  reference_answer_content TEXT,
+  reference_answer_source TEXT
 );
 
 CREATE TABLE IF NOT EXISTS materials (
@@ -51,6 +53,14 @@ CREATE TABLE IF NOT EXISTS training_records (
   submitted_at_display TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS benchmark_drafts (
+  case_id TEXT PRIMARY KEY,
+  training_record_id TEXT NOT NULL UNIQUE REFERENCES training_records(id) ON DELETE CASCADE,
+  case_json TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_training_question ON training_records(question_id);
 CREATE INDEX IF NOT EXISTS idx_training_submitted ON training_records(submitted_at DESC);
+CREATE INDEX IF NOT EXISTS idx_benchmark_drafts_created ON benchmark_drafts(created_at DESC);
 `;
