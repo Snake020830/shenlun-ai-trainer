@@ -1,5 +1,5 @@
 import { canImportParsedPublicExam, parseGkzhentiExamHtml, type ParsedPublicExam } from "./publicExamParser";
-import { fetchPublicSourceText } from "./publicSourceDiscovery";
+import { fetchPublicSourceText, getPublicExamYearRange, isRecentPublicExamYear } from "./publicSourceDiscovery";
 import { getPublicSourceProvider } from "./publicSourceProviders";
 import { publicSourceStore, type PublicSourceCandidate } from "./publicSourceStore";
 import { persistence } from "./storage";
@@ -21,6 +21,12 @@ export function publicQuestionId(candidateId: string, taskIndex: number): string
   if (!candidateId.trim()) throw new Error("Public source candidate id is required.");
   if (!Number.isInteger(taskIndex) || taskIndex < 0) throw new Error("Public exam task index is invalid.");
   return `publicq:${candidateId}:task:${taskIndex + 1}`;
+}
+
+function assertRecentCandidate(candidate: PublicSourceCandidate, referenceDate = new Date()): void {
+  if (isRecentPublicExamYear(candidate.year, referenceDate)) return;
+  const { minYear, maxYear } = getPublicExamYearRange(referenceDate);
+  throw new Error(`当前正式公开题库只支持最近10年（${minYear}—${maxYear}）整卷。`);
 }
 
 function buildWholeExamMaterialText(exam: ParsedPublicExam): string {
@@ -77,6 +83,7 @@ async function sha256Text(value: string): Promise<string | undefined> {
 }
 
 export async function previewPublicExam(candidate: PublicSourceCandidate): Promise<PublicExamPreview> {
+  assertRecentCandidate(candidate);
   if (candidate.sourceKind !== "public-web") {
     throw new Error("当前整卷自动解析仅支持公开 HTML 页面；PDF 将走独立 PDF 导入流程。");
   }
@@ -91,6 +98,7 @@ export async function previewPublicExam(candidate: PublicSourceCandidate): Promi
 
 export async function importPublicExam(preview: PublicExamPreview): Promise<PublicExamImportResult> {
   const { candidate, exam, retrievedAt } = preview;
+  assertRecentCandidate(candidate);
   if (!canImportParsedPublicExam(exam)) {
     throw new Error("整卷解析仍有结构警告或缺少分值/字数，禁止自动写入正式题库。请先人工核验。");
   }
