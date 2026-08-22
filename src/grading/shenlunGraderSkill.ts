@@ -8,7 +8,7 @@ import {
 } from "./contracts";
 import { resolveGradingService } from "./serviceResolver";
 
-export const SHENLUN_GRADER_SKILL_VERSION = "shenlun-grader-skill@0.3.0";
+export const SHENLUN_GRADER_SKILL_VERSION = "shenlun-grader-skill@0.3.1";
 
 export interface ShenlunGraderPreflight {
   questionId: string;
@@ -106,7 +106,7 @@ async function executeShenlunGraderSkill(
 
   if (preflight.overLimit) warnings.push(`当前答案 ${preflight.answerCharCount} 字，超过 ${preflight.wordLimit} 字上限。`);
   if (service.provider.kind !== "mock" && output.review.calibrationStatus !== "validated") {
-    warnings.push("当前总分属于 AI 诊断评分，尚未经过独立 Human Gold 校准，不应解释为官方阅卷等值分。")
+    warnings.push("当前总分属于 AI 诊断评分，尚未经过独立 Human Gold 校准，不应解释为官方阅卷等值分。");
   }
 
   return {
