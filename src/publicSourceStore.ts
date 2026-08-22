@@ -165,6 +165,22 @@ function questionSourceFromRow(row: QuestionSourceRow): QuestionSourceProvenance
   };
 }
 
+function preserveWorkflowState(existing: PublicSourceCandidate, incoming: PublicSourceCandidate): PublicSourceCandidate {
+  const preserveStatus = existing.status !== "discovered";
+  return {
+    ...incoming,
+    id: existing.id,
+    discoveredAt: existing.discoveredAt,
+    status: preserveStatus ? existing.status : incoming.status,
+    ...(existing.importedQuestionId
+      ? { importedQuestionId: existing.importedQuestionId }
+      : incoming.importedQuestionId
+        ? { importedQuestionId: incoming.importedQuestionId }
+        : {}),
+    metadata: { ...(existing.metadata ?? {}), ...(incoming.metadata ?? {}) }
+  };
+}
+
 export const publicSourceStore = {
   async listCandidates(): Promise<PublicSourceCandidate[]> {
     const db = await getDatabase();
@@ -186,7 +202,9 @@ export const publicSourceStore = {
     const db = await getDatabase();
     if (!db) {
       const existing = readJson<PublicSourceCandidate[]>(CANDIDATES_KEY, []);
-      const next = [candidate, ...existing.filter(item => item.id !== candidate.id && item.sourceUrl !== candidate.sourceUrl)];
+      const previous = existing.find(item => item.id === candidate.id || item.sourceUrl === candidate.sourceUrl);
+      const nextCandidate = previous ? preserveWorkflowState(previous, candidate) : candidate;
+      const next = [nextCandidate, ...existing.filter(item => item.id !== nextCandidate.id && item.sourceUrl !== nextCandidate.sourceUrl)];
       writeJson(CANDIDATES_KEY, next);
       return;
     }
@@ -203,8 +221,12 @@ export const publicSourceStore = {
          paper_variant=excluded.paper_variant,
          source_kind=excluded.source_kind,
          access_note=excluded.access_note,
-         status=excluded.status,
-         imported_question_id=excluded.imported_question_id,
+         status=CASE
+           WHEN public_source_candidates.status IN ('reviewed','imported','rejected')
+             THEN public_source_candidates.status
+           ELSE excluded.status
+         END,
+         imported_question_id=COALESCE(public_source_candidates.imported_question_id, excluded.imported_question_id),
          metadata_json=excluded.metadata_json`,
       [
         candidate.id,
