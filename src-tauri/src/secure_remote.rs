@@ -1,4 +1,4 @@
-use std::{error::Error as StdError, time::Duration};
+use std::{error::Error, time::Duration};
 
 use keyring::Entry;
 use reqwest::redirect::Policy;
@@ -10,6 +10,7 @@ const MAX_RESPONSE_BYTES: usize = 2 * 1024 * 1024;
 const MAX_SECRET_BYTES: usize = 16 * 1024;
 const MAX_PROVIDER_ERROR_CHARS: usize = 600;
 const MAX_TRANSPORT_ERROR_CHARS: usize = 900;
+const DEEPSEEK_MIN_TIMEOUT_MS: u64 = 240_000;
 
 fn validate_secret_ref(secret_ref: &str) -> Result<(), String> {
     let valid_len = !secret_ref.is_empty() && secret_ref.len() <= 96;
@@ -55,6 +56,15 @@ fn is_deepseek_url(url: &reqwest::Url) -> bool {
         .is_some_and(|host| host.eq_ignore_ascii_case("api.deepseek.com"))
 }
 
+fn effective_timeout_ms(requested: u64, deepseek_compat: bool) -> u64 {
+    let clamped = requested.clamp(1_000, 300_000);
+    if deepseek_compat {
+        clamped.max(DEEPSEEK_MIN_TIMEOUT_MS)
+    } else {
+        clamped
+    }
+}
+
 fn provider_error_detail(bytes: &[u8]) -> Option<String> {
     let parsed = serde_json::from_slice::<Value>(bytes).ok();
     let message = parsed
@@ -74,7 +84,7 @@ fn provider_error_detail(bytes: &[u8]) -> Option<String> {
 
 fn reqwest_error_detail(error: &reqwest::Error) -> String {
     let mut parts = vec![error.to_string()];
-    let mut source = StdError::source(error);
+    let mut source = error.source();
     while let Some(item) = source {
         let text = item.to_string();
         if !text.trim().is_empty() && !parts.iter().any(|existing| existing == &text) {
@@ -131,7 +141,7 @@ pub async fn secure_post_json(request: SecurePostRequest) -> Result<SecurePostRe
     let url = validate_remote_url(&request.url)?;
     let deepseek_compat = is_deepseek_url(&url);
     let secret = load_secret(&request.secret_ref)?;
-    let timeout_ms = request.timeout_ms.clamp(1_000, 300_000);
+    let timeout_ms = effective_timeout_ms(request.timeout_ms, deepseek_compat);
 
     let client_builder = reqwest::Client::builder()
         .redirect(Policy::none())
@@ -183,9 +193,10 @@ pub async fn secure_post_json(request: SecurePostRequest) -> Result<SecurePostRe
         .bytes()
         .await
         .map_err(|error| format!(
-            "Could not read remote provider response [{}; content-encoding={}]: {}",
+            "Could not read remote provider response [{}; content-encoding={}; timeout={}ms]: {}",
             response_version,
             content_encoding,
+            timeout_ms,
             reqwest_error_detail(&error)
         ))?;
     if bytes.len() > MAX_RESPONSE_BYTES {
@@ -229,5 +240,12 @@ mod tests {
         let other = reqwest::Url::parse("https://api.example.com/v1/chat/completions").unwrap();
         assert!(is_deepseek_url(&deepseek));
         assert!(!is_deepseek_url(&other));
+    }
+
+    #[test]
+    fn gives_deepseek_real_grading_a_longer_timeout_floor() {
+        assert_eq!(effective_timeout_ms(120_000, true), 240_000);
+        assert_eq!(effective_timeout_ms(280_000, true), 280_000);
+        assert_eq!(effective_timeout_ms(120_000, false), 120_000);
     }
 }
