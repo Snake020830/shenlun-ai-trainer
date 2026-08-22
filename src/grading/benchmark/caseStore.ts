@@ -34,6 +34,26 @@ async function getBenchmarkDatabase(): Promise<Database> {
   return databasePromise;
 }
 
+function parseCase(raw: string): GradingBenchmarkCase | null {
+  try {
+    return JSON.parse(raw) as GradingBenchmarkCase;
+  } catch {
+    return null;
+  }
+}
+
+export async function getBenchmarkCase(caseId: string): Promise<GradingBenchmarkCase | null> {
+  if (!isTauri()) {
+    return readLocalCases().find(item => item.id === caseId) ?? null;
+  }
+  const db = await getBenchmarkDatabase();
+  const rows = await db.select<BenchmarkDraftRow[]>(
+    "SELECT case_id, case_json FROM benchmark_drafts WHERE case_id = $1 LIMIT 1",
+    [caseId]
+  );
+  return rows[0] ? parseCase(rows[0].case_json) : null;
+}
+
 export async function saveBenchmarkCase(testCase: GradingBenchmarkCase): Promise<BenchmarkValidationResult> {
   const validation = validateBenchmarkCase(testCase);
   if (!validation.valid) {
