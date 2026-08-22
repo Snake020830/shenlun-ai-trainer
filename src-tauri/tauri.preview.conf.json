@@ -1,0 +1,8 @@
+{
+  "productName": "申论训练助手 Preview",
+  "identifier": "com.shenlun.trainer.preview",
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"]
+  }
+}
