@@ -14,7 +14,9 @@ const DATABASE_URL = "sqlite:shenlun-trainer.db";
 const DRAFT_KEY = "shenlun:drafts:v1";
 const HISTORY_KEY = "shenlun:history:v1";
 const QUESTIONS_KEY = "shenlun:questions:v1";
+const PUBLIC_SETTINGS_KEY = "shenlun:public-settings:v1";
 const LEGACY_MIGRATION_KEY = "legacy_localstorage_migrated_v1";
+const PUBLIC_SETTING_PREFIX = "public:";
 
 let databasePromise: Promise<Database> | null = null;
 let sqliteUnavailable = false;
@@ -83,6 +85,15 @@ function parseReview(value: string | null): MockReview | undefined {
     return JSON.parse(value) as MockReview;
   } catch {
     return undefined;
+  }
+}
+
+function assertPublicSettingKey(key: string): void {
+  if (!key.startsWith(PUBLIC_SETTING_PREFIX) || !/^public:[A-Za-z0-9._:-]{1,120}$/.test(key)) {
+    throw new Error("Invalid public setting key.");
+  }
+  if (/secret|token|api[_-]?key|password|credential/i.test(key)) {
+    throw new Error("Secret-like values must not use public settings storage.");
   }
 }
 
@@ -210,6 +221,53 @@ export const persistence = {
     if (!db) return "localStorage";
     await migrateLegacyLocalStorage(db);
     return "sqlite";
+  },
+
+  async getPublicSetting<T>(key: string, fallback: T): Promise<T> {
+    assertPublicSettingKey(key);
+    const db = await getDatabase();
+    if (!db) {
+      const settings = readJson<Record<string, unknown>>(PUBLIC_SETTINGS_KEY, {});
+      const value = settings[key];
+      return value === undefined ? fallback : value as T;
+    }
+    const rows = await db.select<MetaRow[]>("SELECT value FROM app_meta WHERE key = $1 LIMIT 1", [key]);
+    const raw = rows[0]?.value;
+    if (!raw) return fallback;
+    try {
+      return JSON.parse(raw) as T;
+    } catch {
+      return fallback;
+    }
+  },
+
+  async setPublicSetting<T>(key: string, value: T): Promise<void> {
+    assertPublicSettingKey(key);
+    const serialized = JSON.stringify(value);
+    const db = await getDatabase();
+    if (!db) {
+      const settings = readJson<Record<string, unknown>>(PUBLIC_SETTINGS_KEY, {});
+      settings[key] = value;
+      writeJson(PUBLIC_SETTINGS_KEY, settings);
+      return;
+    }
+    await db.execute(
+      `INSERT INTO app_meta (key, value) VALUES ($1,$2)
+       ON CONFLICT(key) DO UPDATE SET value=excluded.value`,
+      [key, serialized]
+    );
+  },
+
+  async removePublicSetting(key: string): Promise<void> {
+    assertPublicSettingKey(key);
+    const db = await getDatabase();
+    if (!db) {
+      const settings = readJson<Record<string, unknown>>(PUBLIC_SETTINGS_KEY, {});
+      delete settings[key];
+      writeJson(PUBLIC_SETTINGS_KEY, settings);
+      return;
+    }
+    await db.execute("DELETE FROM app_meta WHERE key = $1", [key]);
   },
 
   async getDraft(questionId: string): Promise<Draft | null> {
