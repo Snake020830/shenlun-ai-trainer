@@ -105,6 +105,18 @@ function requireUniqueBy<T>(items: T[], keyOf: (item: T) => string, label: strin
   return map;
 }
 
+function assertAdjudicatedAlignment(alignment: BenchmarkAlignment): void {
+  if (alignment.alignmentStatus !== "adjudicated") {
+    throw new Error(`Validation report alignment for case ${alignment.caseId} is not adjudicated.`);
+  }
+  if (!alignment.provenance?.alignedBy?.trim()) {
+    throw new Error(`Validation report alignment for case ${alignment.caseId} is missing provenance.alignedBy.`);
+  }
+  if (!alignment.provenance?.alignedAt?.trim()) {
+    throw new Error(`Validation report alignment for case ${alignment.caseId} is missing provenance.alignedAt.`);
+  }
+}
+
 export function buildValidationReport(
   cases: GradingBenchmarkCase[],
   runs: BenchmarkModelRun[],
@@ -121,6 +133,7 @@ export function buildValidationReport(
       throw new Error(`Validation report case ${testCase.id} is not adjudicated.`);
     }
   }
+  for (const alignment of alignments) assertAdjudicatedAlignment(alignment);
 
   const caseById = requireUniqueBy(cases, item => item.id, "benchmark case id");
   const runByCase = requireUniqueBy(runs, item => item.caseId, "model run case id");
@@ -164,6 +177,9 @@ export function buildValidationReport(
   for (const testCase of cases) {
     const run = runByCase.get(testCase.id)!;
     const alignment = alignmentByCase.get(testCase.id)!;
+    if (alignment.runId !== run.runId) {
+      throw new Error(`Validation report alignment runId does not match model run for case ${testCase.id}.`);
+    }
     const rubric = calculateRubricQuality(testCase, run, alignment);
     const mapping = calculateMappingQuality(testCase, run, alignment);
     const taxonomy = calculateTaxonomyQuality(testCase, run, alignment);
