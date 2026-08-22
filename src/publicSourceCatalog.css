@@ -89,6 +89,153 @@
   gap: 8px;
 }
 
+.public-source-batch-panel {
+  display: grid;
+  gap: 11px;
+  padding: 13px;
+  border: 1px solid #dbe4df;
+  border-radius: 12px;
+  background: #fbfcfb;
+}
+
+.public-source-batch-panel > div:first-child {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.public-source-batch-panel > div:first-child > div {
+  display: grid;
+  gap: 2px;
+}
+
+.public-source-batch-panel > div:first-child span {
+  color: #737d77;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.public-source-batch-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.public-source-batch-stats > span {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 8px 9px;
+  border: 1px solid #e2e7e4;
+  border-radius: 9px;
+  background: #fff;
+  color: #69736e;
+  font-size: 10px;
+}
+
+.public-source-batch-stats strong {
+  color: #35433d;
+  font-size: 14px;
+}
+
+.public-source-batch-stats .has-failures {
+  border-color: #ead7bc;
+  background: #fffaf2;
+}
+
+.public-source-batch-stats .has-failures strong {
+  color: #9a6327;
+}
+
+.public-source-batch-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.public-source-batch-progress {
+  display: grid;
+  gap: 5px;
+}
+
+.public-source-batch-progress > div {
+  height: 5px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: #e9eeeb;
+}
+
+.public-source-batch-progress > div > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #688778;
+  transition: width .18s ease;
+}
+
+.public-source-batch-progress small {
+  color: #77807b;
+  font-size: 10px;
+}
+
+.public-source-failure-list {
+  display: grid;
+  gap: 6px;
+  padding-top: 3px;
+}
+
+.public-source-failure-list > div {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #8e642e;
+  font-size: 10px;
+}
+
+.public-source-failure-list > div > span {
+  margin-left: auto;
+  color: #8a918d;
+}
+
+.public-source-failure-list article {
+  display: grid;
+  gap: 3px;
+  padding: 7px 9px;
+  border: 1px solid #eee1cf;
+  border-radius: 8px;
+  background: #fffdfa;
+}
+
+.public-source-failure-list article > div {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.public-source-failure-list article strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #5b554c;
+  font-size: 10px;
+}
+
+.public-source-failure-list article span {
+  margin-left: auto;
+  flex: 0 0 auto;
+  color: #9a6a30;
+  font-size: 9px;
+}
+
+.public-source-failure-list article p {
+  margin: 0;
+  color: #877b6b;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
 .public-source-toolbar {
   display: flex;
   align-items: center;
@@ -425,7 +572,8 @@
 @media (max-width: 980px) {
   .source-provider-grid,
   .public-exam-preview-grid,
-  .public-exam-summary {
+  .public-exam-summary,
+  .public-source-batch-stats {
     grid-template-columns: 1fr;
   }
 
