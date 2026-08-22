@@ -14,6 +14,7 @@ function duplicates(values: string[]): string[] {
 export function validateBenchmarkCase(testCase: GradingBenchmarkCase): BenchmarkValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
+  const adjudicated = testCase.annotationStatus === "adjudicated";
 
   if (!testCase.id.trim()) errors.push("case id is required");
   if (!testCase.question.id.trim()) errors.push("question id is required");
@@ -51,7 +52,9 @@ export function validateBenchmarkCase(testCase: GradingBenchmarkCase): Benchmark
   const rubricIdSet = new Set(rubricIds);
   for (const rubricPoint of testCase.gold.rubric) {
     if (!rubricPoint.canonicalLabel.trim()) errors.push(`gold rubric ${rubricPoint.id} has empty canonicalLabel`);
-    if (!rubricPoint.materialPointIds.length) warnings.push(`gold rubric ${rubricPoint.id} has no material point linkage`);
+    if (!rubricPoint.materialPointIds.length) {
+      (adjudicated ? errors : warnings).push(`gold rubric ${rubricPoint.id} has no material point linkage`);
+    }
     for (const pointId of rubricPoint.materialPointIds) {
       if (!pointIdSet.has(pointId)) errors.push(`gold rubric ${rubricPoint.id} references unknown material point ${pointId}`);
     }
@@ -61,7 +64,9 @@ export function validateBenchmarkCase(testCase: GradingBenchmarkCase): Benchmark
   for (const id of duplicates(mappingIds)) errors.push(`duplicate gold mapping for rubric ${id}`);
   const mappingIdSet = new Set(mappingIds);
   for (const rubricId of rubricIds) {
-    if (!mappingIdSet.has(rubricId)) errors.push(`missing gold mapping for rubric ${rubricId}`);
+    if (!mappingIdSet.has(rubricId)) {
+      (adjudicated ? errors : warnings).push(`missing gold mapping for rubric ${rubricId}`);
+    }
   }
   for (const mapping of testCase.gold.mappings) {
     if (!rubricIdSet.has(mapping.rubricPointId)) {
@@ -72,10 +77,11 @@ export function validateBenchmarkCase(testCase: GradingBenchmarkCase): Benchmark
     }
   }
 
-  if (testCase.annotationStatus === "adjudicated") {
+  if (adjudicated) {
     if (!testCase.gold.materialPoints.length) errors.push("adjudicated case must contain gold material points");
     if (!testCase.gold.rubric.length) errors.push("adjudicated case must contain a gold rubric");
     if (!testCase.gold.mappings.length) errors.push("adjudicated case must contain gold mappings");
+    if (!testCase.split) errors.push("adjudicated case must have an explicit benchmark split");
     if (!testCase.provenance?.annotatedAt?.trim()) {
       warnings.push("adjudicated case should record provenance.annotatedAt");
     }
