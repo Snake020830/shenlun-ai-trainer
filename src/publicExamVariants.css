@@ -3,17 +3,23 @@
   color: #416553;
 }
 
-.variant-toggle {
+.public-exam-card-heading .variant-toggle {
+  min-width: 0;
+  width: auto;
+  height: auto;
   min-height: 20px;
   border: 0;
   border-radius: 999px;
   padding: 2px 7px;
+  display: inline-flex;
+  align-items: center;
   background: #f3f5f4;
   color: #68736d;
   font-size: 9px;
 }
 
-.variant-toggle:hover {
+.public-exam-card-heading .variant-toggle:hover {
+  border: 0;
   background: #e9efeb;
   color: #365d49;
 }
