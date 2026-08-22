@@ -49,6 +49,30 @@ describe("publicSourceStore", () => {
     expect(rows[0].status).toBe("reviewed");
   });
 
+  it("does not demote reviewed workflow state when the same source is rediscovered", async () => {
+    await publicSourceStore.upsertCandidate({ ...candidate, status: "reviewed" });
+    await publicSourceStore.upsertCandidate({
+      ...candidate,
+      title: "重新扫描得到的新标题",
+      status: "discovered",
+      discoveredAt: "2026-08-23T09:00:00+08:00"
+    });
+    const rows = await publicSourceStore.listCandidates();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].title).toBe("重新扫描得到的新标题");
+    expect(rows[0].status).toBe("reviewed");
+    expect(rows[0].discoveredAt).toBe(candidate.discoveredAt);
+  });
+
+  it("does not demote imported sources or lose their question linkage during rescans", async () => {
+    await publicSourceStore.upsertCandidate(candidate);
+    await publicSourceStore.markCandidateImported(candidate.id, "question-1");
+    await publicSourceStore.upsertCandidate({ ...candidate, status: "discovered" });
+    const rows = await publicSourceStore.listCandidates();
+    expect(rows[0].status).toBe("imported");
+    expect(rows[0].importedQuestionId).toBe("question-1");
+  });
+
   it("marks an imported source without losing source metadata", async () => {
     await publicSourceStore.upsertCandidate(candidate);
     await publicSourceStore.markCandidateImported(candidate.id, "question-1");
