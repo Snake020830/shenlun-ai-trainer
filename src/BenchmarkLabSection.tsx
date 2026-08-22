@@ -11,6 +11,19 @@ function formatStatus(testCase: GradingBenchmarkCase): string {
   return "待人工标注";
 }
 
+function blindInspectionJson(testCase: GradingBenchmarkCase): string {
+  const question = testCase.question.referenceAnswer
+    ? {
+        ...testCase.question,
+        referenceAnswer: {
+          content: "[BLINDED_UNTIL_REFERENCE_CROSS_CHECK]",
+          ...(testCase.question.referenceAnswer.source ? { source: testCase.question.referenceAnswer.source } : {})
+        }
+      }
+    : testCase.question;
+  return JSON.stringify({ ...testCase, question }, null, 2);
+}
+
 export default function BenchmarkLabSection() {
   const [cases, setCases] = useState<GradingBenchmarkCase[]>([]);
   const [loading, setLoading] = useState(true);
@@ -96,8 +109,8 @@ export default function BenchmarkLabSection() {
               <div><span>原始作答</span><p>{testCase.answer}</p></div>
             </div>
             <div className="benchmark-material-preview"><span>材料快照</span>{testCase.question.materials.map(material => <div key={material.id}><strong>{material.label}</strong><p>{material.content}</p></div>)}</div>
-            <label className="benchmark-json"><span>冻结 JSON（只读）</span><textarea readOnly value={JSON.stringify(testCase, null, 2)} /></label>
-            <div className="benchmark-readonly-warning">当前 Lab 只负责确认采集快照。Human Gold 编辑器将在下一层单独实现；这里不会根据模型批改结果自动写入 material points、rubric、mapping 或 humanScores。</div>
+            <label className="benchmark-json"><span>盲标检查 JSON（参考答案已隐藏）</span><textarea readOnly value={blindInspectionJson(testCase)} /></label>
+            <div className="benchmark-readonly-warning">原始 case 仍安全保存可选参考答案，但盲标检查界面默认不展示其正文。当前 Lab 只负责确认采集快照；Human Gold 编辑器不会根据模型批改结果自动写入 material points、rubric、mapping 或 humanScores。</div>
           </div>}
         </article>;
       })}
