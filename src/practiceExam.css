@@ -31,7 +31,7 @@
 }
 
 .practice-title-block strong {
-  font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", system-ui, sans-serif;
+  font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
   letter-spacing: 0;
 }
 
@@ -238,13 +238,13 @@
   min-height: 0;
   height: auto;
   overflow: auto;
-  padding: 28px clamp(26px, 4vw, 58px) 80px;
+  padding: 30px clamp(28px, 4vw, 60px) 80px;
   background: var(--reader-bg);
 }
 
 .exam-material {
   position: relative;
-  max-width: 900px;
+  max-width: 920px;
   margin: 0 auto;
   padding: 0;
   border: 0;
@@ -260,14 +260,14 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 18px;
+  margin-bottom: 16px;
 }
 
 .material-label > span {
-  color: #4d535a;
-  font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", system-ui, sans-serif;
-  font-size: 16px;
-  font-weight: 700;
+  color: #373c42;
+  font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+  font-size: 15px;
+  font-weight: 600;
 }
 
 .material-label i {
@@ -278,19 +278,17 @@
 
 .exam-material p {
   margin: 0;
-  color: var(--reader-ink);
-  font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", system-ui, sans-serif;
-  font-size: var(--material-font-size, 19px);
-  font-weight: 400;
-  line-height: 1.92;
-  letter-spacing: .01em;
-  text-align: justify;
-  text-justify: inter-ideograph;
+  color: #30343a;
+  font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+  font-size: var(--material-font-size, 17px);
+  font-weight: 500;
+  line-height: 1.95;
+  letter-spacing: 0;
+  text-align: left;
   white-space: pre-line;
   user-select: text;
   cursor: text;
-  -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
+  text-rendering: auto;
 }
 
 .material-highlight,
@@ -340,6 +338,8 @@
   font-size: 13px;
   font-weight: 500;
   line-height: 1.75;
+  letter-spacing: 0;
+  text-align: left;
 }
 
 .grid-answer-wrap {
@@ -449,7 +449,7 @@
   }
 
   .exam-material p {
-    line-height: 1.86;
+    line-height: 1.9;
   }
 
   .annotation-toolbar button span {
