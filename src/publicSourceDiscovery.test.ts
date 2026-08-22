@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   discoverSecondaryIndexUrlsFromLinks,
-  discoverShenlunCandidatesFromLinks
+  discoverShenlunCandidatesFromLinks,
+  getPublicExamYearRange,
+  isRecentPublicExamYear
 } from "./publicSourceDiscovery";
 import { getPublicSourceProvider } from "./publicSourceProviders";
 
@@ -9,7 +11,15 @@ const provider = getPublicSourceProvider("gkzhenti-public");
 if (!provider) throw new Error("Primary public source provider is missing.");
 
 describe("public source discovery", () => {
-  it("extracts Shenlun exam metadata and ignores unrelated links", () => {
+  it("uses a rolling 10-calendar-year window", () => {
+    expect(getPublicExamYearRange(new Date("2026-08-22T13:00:00+08:00"))).toEqual({ minYear: 2017, maxYear: 2026 });
+    expect(isRecentPublicExamYear(2017, new Date("2026-08-22T13:00:00+08:00"))).toBe(true);
+    expect(isRecentPublicExamYear(2026, new Date("2026-08-22T13:00:00+08:00"))).toBe(true);
+    expect(isRecentPublicExamYear(2016, new Date("2026-08-22T13:00:00+08:00"))).toBe(false);
+    expect(isRecentPublicExamYear(2027, new Date("2026-08-22T13:00:00+08:00"))).toBe(false);
+  });
+
+  it("extracts recent Shenlun exam metadata and ignores unrelated or old links", () => {
     const candidates = discoverShenlunCandidatesFromLinks(provider, [
       {
         href: "/paper/2025-dishi#top",
@@ -22,6 +32,14 @@ describe("public source discovery", () => {
       {
         href: "/paper/2025-guangdong",
         title: "2025年广东省公考《申论》题（行政执法卷）"
+      },
+      {
+        href: "/paper/2016-old",
+        title: "2016年广东省公考《申论》题"
+      },
+      {
+        href: "/paper/no-year",
+        title: "国家公务员考试《申论》真题"
       },
       {
         href: "/paper/line-test",
@@ -68,7 +86,7 @@ describe("public source discovery", () => {
       { href: "/paper/b", title: "2025年公务员多省联考《申论》题（河南县级卷）" },
       { href: "/paper/c", title: "2025年浙江省公考《申论》题（A卷）" },
       { href: "/paper/d", title: "2025年四川省公考《申论》题（县乡、普通选调卷）" }
-    ]);
+    ], provider.indexUrl, "2026-08-22T13:00:00+08:00");
 
     expect(candidates[0].region).toBe("国家");
     expect(candidates[0].paperVariant).toContain("副省级");
