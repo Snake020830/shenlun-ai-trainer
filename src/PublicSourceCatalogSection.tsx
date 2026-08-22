@@ -1,9 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { isTauri } from "@tauri-apps/api/core";
-import { CheckCircle2, Download, ExternalLink, Eye, Globe2, RefreshCw, Search, ShieldCheck, X } from "lucide-react";
+import { CheckCircle2, Download, ExternalLink, Eye, Globe2, ListChecks, RefreshCw, Search, ShieldCheck, X } from "lucide-react";
+import {
+  auditPublicExamCandidates,
+  importAuditedPublicExams,
+  isAuditedImportableCandidate,
+  summarizePublicExamAudit,
+  summarizePublicExamImport
+} from "./publicExamBatch";
 import { canImportParsedPublicExam } from "./publicExamParser";
 import { importPublicExam, previewPublicExam, type PublicExamPreview } from "./publicExamImporter";
-import { discoverProviderCandidates } from "./publicSourceDiscovery";
+import { discoverProviderCandidates, getPublicExamYearRange, isRecentPublicExamYear } from "./publicSourceDiscovery";
 import { getPublicSourceProvider, PUBLIC_SOURCE_PROVIDERS, type PublicSourceRole } from "./publicSourceProviders";
 import { publicSourceStore, type PublicSourceCandidate, type PublicSourceStatus } from "./publicSourceStore";
 import "./publicSourceCatalog.css";
@@ -33,9 +40,13 @@ function providerSupportsStructuredImport(candidate: PublicSourceCandidate): boo
 
 export default function PublicSourceCatalogSection() {
   const desktop = isTauri();
+  const yearRange = getPublicExamYearRange();
+  const primaryProvider = PUBLIC_SOURCE_PROVIDERS.find(item => item.role === "primary-structured");
   const [candidates, setCandidates] = useState<PublicSourceCandidate[]>([]);
   const [busyProvider, setBusyProvider] = useState<string | null>(null);
   const [busyCandidate, setBusyCandidate] = useState<string | null>(null);
+  const [batchMode, setBatchMode] = useState<"audit" | "import" | null>(null);
+  const [batchProgress, setBatchProgress] = useState<{ done: number; total: number; title: string } | null>(null);
   const [query, setQuery] = useState("");
   const [providerFilter, setProviderFilter] = useState("all");
   const [regionFilter, setRegionFilter] = useState("all");
@@ -63,7 +74,7 @@ export default function PublicSourceCatalogSection() {
   }, [query, providerFilter, regionFilter, yearFilter, statusFilter]);
 
   async function scanProvider(providerId: string) {
-    if (busyProvider || !desktop) return;
+    if (busyProvider || batchMode || !desktop) return;
     const provider = PUBLIC_SOURCE_PROVIDERS.find(item => item.id === providerId);
     if (!provider) return;
     setBusyProvider(providerId);
@@ -81,7 +92,7 @@ export default function PublicSourceCatalogSection() {
   }
 
   async function inspectCandidate(candidate: PublicSourceCandidate) {
-    if (!desktop || busyCandidate) return;
+    if (!desktop || busyCandidate || batchMode) return;
     setBusyCandidate(candidate.id);
     setStatus(`正在读取并解析：${candidate.title}`);
     setConfirmed(false);
@@ -103,7 +114,7 @@ export default function PublicSourceCatalogSection() {
   }
 
   async function confirmAndImport() {
-    if (!preview || !confirmed || busyCandidate) return;
+    if (!preview || !confirmed || busyCandidate || batchMode) return;
     setBusyCandidate(preview.candidate.id);
     setStatus("正在把整卷中的作答题写入本机正式题库…");
     try {
@@ -116,6 +127,70 @@ export default function PublicSourceCatalogSection() {
       setStatus(error instanceof Error ? error.message : "整卷导入失败。");
     } finally {
       setBusyCandidate(null);
+    }
+  }
+
+  const primaryRecentCandidates = useMemo(() => candidates.filter(item =>
+    item.providerId === primaryProvider?.id
+    && providerSupportsStructuredImport(item)
+    && isRecentPublicExamYear(item.year)
+  ), [candidates, primaryProvider?.id]);
+  const auditedReadyCount = useMemo(() => primaryRecentCandidates.filter(isAuditedImportableCandidate).length, [primaryRecentCandidates]);
+
+  async function batchAuditRecent() {
+    if (!desktop || batchMode || busyProvider || busyCandidate || !primaryProvider) return;
+    const queue = primaryRecentCandidates.filter(item => item.status !== "imported" && item.status !== "rejected");
+    if (!queue.length) {
+      setStatus("当前近10年主来源没有待校验整卷。先扫描主来源目录，或目录中的卷已经全部处理。");
+      return;
+    }
+    setBatchMode("audit");
+    setBatchProgress({ done: 0, total: queue.length, title: queue[0]?.title ?? "" });
+    setStatus(`开始批量校验 ${queue.length} 套 ${yearRange.minYear}—${yearRange.maxYear} 公开整卷。请求串行限速，只记录解析结果，不保存网页全文。`);
+    try {
+      const results = await auditPublicExamCandidates(queue, {
+        delayMs: 500,
+        onProgress: progress => setBatchProgress({ done: progress.index, total: progress.total, title: progress.current.title })
+      });
+      const summary = summarizePublicExamAudit(results);
+      await reload();
+      setStatus(`批量校验完成：${summary.ready} 套结构完整可导入，${summary.blocked} 套被 parser warning 阻断，${summary.error} 套网络/解析错误，${summary.skipped} 套跳过。`);
+    } catch (error) {
+      console.error("Recent public exam batch audit failed.", error);
+      setStatus(error instanceof Error ? error.message : "批量校验失败。");
+    } finally {
+      setBatchMode(null);
+      setBatchProgress(null);
+    }
+  }
+
+  async function batchImportReviewed() {
+    if (!desktop || batchMode || busyProvider || busyCandidate) return;
+    const queue = primaryRecentCandidates.filter(isAuditedImportableCandidate);
+    if (!queue.length) {
+      setStatus("当前没有已通过批量结构校验、等待导入的近10年整卷。");
+      return;
+    }
+    const confirmedBatch = window.confirm(`将重新读取并导入 ${queue.length} 套已通过结构校验的公开整卷。每套卷会拆成多道训练题并保留完整材料。继续吗？`);
+    if (!confirmedBatch) return;
+
+    setBatchMode("import");
+    setBatchProgress({ done: 0, total: queue.length, title: queue[0]?.title ?? "" });
+    setStatus(`开始导入 ${queue.length} 套已校验整卷。导入前会再次抓取和解析，网页若发生变化将自动跳过。`);
+    try {
+      const results = await importAuditedPublicExams(queue, {
+        delayMs: 500,
+        onProgress: progress => setBatchProgress({ done: progress.index, total: progress.total, title: progress.current.title })
+      });
+      const summary = summarizePublicExamImport(results);
+      await reload();
+      setStatus(`批量导入完成：${summary.imported} 套成功，共形成/复用 ${summary.questionCount} 道训练题；${summary.error} 套失败，${summary.skipped} 套跳过。`);
+    } catch (error) {
+      console.error("Recent public exam batch import failed.", error);
+      setStatus(error instanceof Error ? error.message : "批量导入失败。");
+    } finally {
+      setBatchMode(null);
+      setBatchProgress(null);
     }
   }
 
@@ -149,7 +224,7 @@ export default function PublicSourceCatalogSection() {
     <div className="settings-section-heading">
       <div>
         <h2>公开真题来源</h2>
-        <p>公开索引只负责发现历年申论整卷；正文按需本机读取。当前只有经过真实页面回归验证的主结构化来源允许自动写入题库。</p>
+        <p>公开索引只负责发现历年申论整卷；正文按需本机读取。正式训练范围只准备滚动最近10年，当前为 {yearRange.minYear}—{yearRange.maxYear}。</p>
       </div>
       <div className="public-source-security"><ShieldCheck size={17}/><span>{desktop ? "桌面受限抓取器可用" : "浏览器目录预览"}</span></div>
     </div>
@@ -162,12 +237,21 @@ export default function PublicSourceCatalogSection() {
         <p>{provider.notes}</p>
         <footer>
           <span>候选 {providerCount(candidates, provider.id)} 条</span>
-          <button className="secondary" disabled={!desktop || busyProvider !== null} title={desktop ? "扫描该公开索引" : "真实网络扫描仅在 Tauri 桌面版启用"} onClick={() => void scanProvider(provider.id)}><RefreshCw size={14}/>{busyProvider === provider.id ? "扫描中…" : desktop ? "扫描索引" : "桌面扫描"}</button>
+          <button className="secondary" disabled={!desktop || busyProvider !== null || batchMode !== null} title={desktop ? "扫描该公开索引" : "真实网络扫描仅在 Tauri 桌面版启用"} onClick={() => void scanProvider(provider.id)}><RefreshCw size={14}/>{busyProvider === provider.id ? "扫描中…" : desktop ? "扫描索引" : "桌面扫描"}</button>
         </footer>
       </article>)}
     </div>
 
-    {!desktop && <div className="settings-warning">当前浏览器预览只用于 UI 验收。批量发现和整卷读取需要 Tauri 桌面版，因为第三方页面通常有 CORS 限制；桌面抓取器只允许已登记的公考来源域名。</div>}
+    <div className="public-source-batch-panel">
+      <div><ListChecks size={18}/><div><strong>近10年题库批量准备</strong><span>主来源近10年候选 {primaryRecentCandidates.length} 套 · 已校验可导入 {auditedReadyCount} 套。校验与导入都串行限速。</span></div></div>
+      <div className="public-source-batch-actions">
+        <button className="secondary" disabled={!desktop || batchMode !== null || busyProvider !== null || busyCandidate !== null || !primaryProvider} onClick={() => void batchAuditRecent()}><ListChecks size={14}/>{batchMode === "audit" ? "校验中…" : "批量校验近10年"}</button>
+        <button className="primary" disabled={!desktop || batchMode !== null || busyProvider !== null || busyCandidate !== null || auditedReadyCount === 0} onClick={() => void batchImportReviewed()}><Download size={14}/>{batchMode === "import" ? "导入中…" : `导入已校验整卷 (${auditedReadyCount})`}</button>
+      </div>
+      {batchProgress && <div className="public-source-batch-progress"><div><span style={{ width: `${batchProgress.total ? Math.min(100, (batchProgress.done / batchProgress.total) * 100) : 0}%` }}/></div><small>{batchProgress.done} / {batchProgress.total} · {batchProgress.title}</small></div>}
+    </div>
+
+    {!desktop && <div className="settings-warning">当前浏览器预览只用于 UI 验收。批量发现、校验和整卷导入需要 Tauri 桌面版，因为第三方页面通常有 CORS 限制；桌面抓取器只允许已登记的公考来源域名。</div>}
 
     <div className="public-source-toolbar catalog-filters">
       <div className="search-box"><Search size={16}/><input value={query} onChange={event => setQuery(event.target.value)} placeholder="搜索标题、卷别或地区"/></div>
@@ -183,7 +267,7 @@ export default function PublicSourceCatalogSection() {
         return <article className="public-source-row" key={item.id}>
           <div className="public-source-main"><strong>{item.title}</strong><div>{item.year ? <span>{item.year}</span> : null}{item.region ? <span>{item.region}</span> : null}{item.paperVariant ? <span>{item.paperVariant}</span> : null}<span>{STATUS_LABELS[item.status]}</span>{provider ? <span>{ROLE_LABELS[provider.role]}</span> : null}{item.metadata?.recallVersion ? <span className="recall">回忆版</span> : null}</div></div>
           <div className="public-source-row-actions">
-            {providerSupportsStructuredImport(item) && <button disabled={!desktop || busyCandidate !== null} title={desktop ? "读取正文并显示结构化预览" : "整卷读取仅在 Tauri 桌面版启用"} onClick={() => void inspectCandidate(item)}><Eye size={15}/><span>{busyCandidate === item.id ? "读取中" : "预览"}</span></button>}
+            {providerSupportsStructuredImport(item) && <button disabled={!desktop || busyCandidate !== null || batchMode !== null} title={desktop ? "读取正文并显示结构化预览" : "整卷读取仅在 Tauri 桌面版启用"} onClick={() => void inspectCandidate(item)}><Eye size={15}/><span>{busyCandidate === item.id ? "读取中" : "预览"}</span></button>}
             <a href={item.sourceUrl} target="_blank" rel="noreferrer" title="打开原始公开来源"><ExternalLink size={15}/></a>
           </div>
         </article>;
@@ -211,7 +295,7 @@ export default function PublicSourceCatalogSection() {
         {previewImportable ? <label><input type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)}/><span>我已核对：材料数量、作答题数量、每题分值和字数限制与原始公开卷面一致。</span></label> : <div className="public-exam-blocked">存在未解决的解析警告，本版本不允许绕过校验强行导入。</div>}
         <div>
           {importedCount !== null && <button className="secondary" onClick={() => window.location.reload()}><RefreshCw size={14}/>刷新应用题库</button>}
-          <button className="primary" disabled={!previewImportable || !confirmed || busyCandidate !== null} onClick={() => void confirmAndImport()}><Download size={15}/>{busyCandidate === preview.candidate.id ? "导入中…" : "确认并导入整卷"}</button>
+          <button className="primary" disabled={!previewImportable || !confirmed || busyCandidate !== null || batchMode !== null} onClick={() => void confirmAndImport()}><Download size={15}/>{busyCandidate === preview.candidate.id ? "导入中…" : "确认并导入整卷"}</button>
         </div>
       </footer>
     </section>}
