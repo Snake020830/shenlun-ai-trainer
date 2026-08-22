@@ -18,6 +18,7 @@ const essayQuestion: Question = {
 };
 
 function transport(enabled = true): RemoteModelTransport {
+  const completeJson = vi.fn(async () => ({ data: {} }));
   return {
     config: {
       id: "test-provider",
@@ -30,7 +31,7 @@ function transport(enabled = true): RemoteModelTransport {
       timeoutMs: 10_000,
       reasoningEffort: "provider-default"
     },
-    completeJson: vi.fn(async () => ({ data: {} }))
+    completeJson: completeJson as unknown as RemoteModelTransport["completeJson"]
   };
 }
 
