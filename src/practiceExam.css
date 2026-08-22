@@ -1,0 +1,308 @@
+.exam-practice-shell {
+  --exam-paper: #f7f1e4;
+  --exam-paper-deep: #f2ead9;
+  --exam-ink: #262722;
+  --exam-muted: #737064;
+  --exam-rule: rgba(99, 88, 65, .16);
+  --answer-cell: 30px;
+  background: #eceae3;
+}
+
+.exam-practice-header {
+  background: #f3f0e8;
+  border-bottom-color: #d9d4c8;
+}
+
+.practice-title-block strong {
+  font-family: "Songti SC", "STSong", "SimSun", "Noto Serif SC", serif;
+  letter-spacing: .01em;
+}
+
+.practice-header-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+
+.exam-timer {
+  height: 34px;
+  border: 1px solid #d4d0c5;
+  border-radius: 8px;
+  background: #faf8f2;
+  padding: 0 5px 0 9px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #59584f;
+  font-variant-numeric: tabular-nums;
+}
+
+.exam-timer.running {
+  border-color: #9eb3a3;
+  color: #305b43;
+  background: #f3f7f2;
+}
+
+.exam-timer strong {
+  min-width: 48px;
+  font-size: 12px;
+  letter-spacing: .04em;
+}
+
+.exam-timer button {
+  width: 25px;
+  height: 25px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  display: grid;
+  place-items: center;
+}
+
+.exam-timer button:hover {
+  background: rgba(55, 102, 78, .09);
+}
+
+.demo-question-notice {
+  min-height: 30px;
+  padding: 7px 16px;
+  border-bottom: 1px solid #e0d8c8;
+  background: #fff7df;
+  color: #7a6030;
+  font-size: 11px;
+  text-align: center;
+}
+
+.exam-materials-pane {
+  background: var(--exam-paper);
+}
+
+.exam-pane-title {
+  height: 48px;
+  background: #f0eadc;
+  border-bottom-color: #d9d0bd;
+  color: #46453e;
+}
+
+.annotation-toolbar {
+  min-height: 42px;
+  padding: 6px 12px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  border-bottom: 1px solid #ded4c0;
+  background: #f5efe2;
+}
+
+.annotation-toolbar button {
+  height: 29px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #686458;
+  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+}
+
+.annotation-toolbar button:hover:not(:disabled) {
+  background: rgba(255,255,255,.5);
+  border-color: #d4c8af;
+}
+
+.annotation-toolbar button.active {
+  color: #315b43;
+  background: #e3ece2;
+  border-color: #abc0ad;
+}
+
+.annotation-toolbar button:disabled {
+  opacity: .4;
+  cursor: not-allowed;
+}
+
+.annotation-toolbar small {
+  margin-left: auto;
+  color: #918c7d;
+  font-size: 10px;
+}
+
+.exam-paper-scroll {
+  height: calc(100vh - 178px);
+  padding: 30px 34px 76px;
+  background:
+    radial-gradient(circle at 20% 10%, rgba(117,95,56,.025), transparent 28%),
+    linear-gradient(var(--exam-paper), var(--exam-paper));
+}
+
+.exam-material {
+  position: relative;
+  margin: 0 0 34px;
+  padding: 0 0 30px;
+  border-bottom: 1px solid var(--exam-rule);
+}
+
+.exam-material:last-child {
+  border-bottom: 0;
+}
+
+.material-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 13px;
+}
+
+.material-label > span {
+  color: #315b43;
+  font-family: "Songti SC", "STSong", "SimSun", "Noto Serif SC", serif;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.material-label small {
+  color: #969080;
+  font-size: 10px;
+}
+
+.exam-material p {
+  margin: 0;
+  color: var(--exam-ink);
+  font-family: "Songti SC", "STSong", "SimSun", "Noto Serif SC", serif;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 2.05;
+  letter-spacing: .025em;
+  text-align: justify;
+  text-justify: inter-ideograph;
+  text-indent: 2em;
+  user-select: text;
+}
+
+.material-highlight {
+  background: linear-gradient(transparent 19%, rgba(241, 208, 91, .45) 19%, rgba(241, 208, 91, .45) 86%, transparent 86%);
+  border-radius: 2px;
+}
+
+.material-underline {
+  text-decoration-line: underline;
+  text-decoration-color: rgba(48, 88, 65, .72);
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 4px;
+}
+
+.exam-answer-pane {
+  background: #f0eee8;
+}
+
+.exam-prompt-box {
+  padding: 16px 22px;
+  background: #f6f3ec;
+  border-bottom-color: #dcd7ca;
+}
+
+.exam-prompt-box > span {
+  color: #315b43;
+}
+
+.exam-prompt-box p {
+  color: #44463f;
+  font-family: "Songti SC", "STSong", "SimSun", "Noto Serif SC", serif;
+  font-size: 13px;
+  line-height: 1.75;
+}
+
+.grid-answer-wrap {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: 34px 1fr;
+  padding: 14px 16px 16px;
+  background: #e9e7df;
+}
+
+.answer-paper-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 4px;
+  color: #65645b;
+}
+
+.answer-paper-label span {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.answer-paper-label small {
+  font-size: 10px;
+  color: #99958a;
+}
+
+.answer-pane .grid-answer-input {
+  min-height: 0;
+  resize: none;
+  border: 1px solid #cfc5b2;
+  border-radius: 3px;
+  outline: 0;
+  padding: 16px 17px;
+  color: #242620;
+  font-family: "FangSong", "STFangsong", "SimSun", monospace;
+  font-size: 17px;
+  font-weight: 400;
+  line-height: var(--answer-cell);
+  letter-spacing: 13px;
+  caret-color: #315b43;
+  background-color: #fffdf5;
+  background-image:
+    linear-gradient(to right, rgba(151, 88, 70, .18) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(151, 88, 70, .18) 1px, transparent 1px);
+  background-size: var(--answer-cell) var(--answer-cell);
+  background-position: 16px 16px;
+  box-shadow: inset 0 0 24px rgba(92, 69, 39, .035);
+  overflow: auto;
+}
+
+.answer-pane .grid-answer-input:focus {
+  border-color: #a89576;
+  box-shadow: inset 0 0 24px rgba(92, 69, 39, .035), 0 0 0 2px rgba(83, 105, 82, .08);
+}
+
+.answer-pane .grid-answer-input::placeholder {
+  color: #aaa397;
+  letter-spacing: normal;
+  font-family: "Songti SC", "STSong", "SimSun", serif;
+  font-size: 13px;
+}
+
+.answer-pane .grid-answer-input:disabled {
+  opacity: .72;
+}
+
+.exam-answer-footer {
+  background: #f7f4ed;
+  border-top-color: #d8d2c6;
+}
+
+.exam-answer-footer > span:nth-child(2) {
+  font-variant-numeric: tabular-nums;
+  color: #55584f;
+}
+
+@media (max-width: 1180px) {
+  .exam-paper-scroll {
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+
+  .exam-material p {
+    font-size: 15px;
+  }
+
+  .annotation-toolbar small {
+    display: none;
+  }
+}
