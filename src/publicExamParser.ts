@@ -185,8 +185,8 @@ function extractMaterialNumbers(text: string): number[] {
 }
 
 export function inferPublicQuestionType(prompt: string): QuestionType {
-  if (/(写一篇文章|撰写一篇|自拟题目|自选角度.*写|文章|调查报告)/u.test(prompt)) return "文章写作";
-  if (/(拟写|撰写|提案|讲话稿|发言稿|通知|建议书|工作方案|简报|公开信|倡议书|回复|汇报)/u.test(prompt)) return "贯彻执行";
+  if (/(写一篇文章|撰写一篇|自拟题目|自选角度.*写|文章)/u.test(prompt)) return "文章写作";
+  if (/(拟写|撰写|提案|讲话稿|发言稿|通知|建议书|工作方案|简报|公开信|倡议书|回复|汇报|调查报告)/u.test(prompt)) return "贯彻执行";
   if (/(提出.*(?:建议|对策|措施)|给出.*(?:建议|对策)|怎么办|如何解决|进一步.*建议|改进建议)/u.test(prompt)) return "提出对策";
   if (/(分析|理解|谈谈.*(?:含义|关系|认识)|解释|评价|评述|为什么|观点)/u.test(prompt)) return "综合分析";
   return "概括归纳";
@@ -231,17 +231,17 @@ function parseTasks(text: string): ParsedPublicExamTask[] {
         : ""
     );
     const combined = `${prompt}\n${requirements}`;
-    const score = extractScore(prompt);
+    const score = extractScore(combined);
     const wordLimit = extractWordLimit(combined);
     const materialNumbers = extractMaterialNumbers(prompt);
     const questionType = inferPublicQuestionType(prompt);
     const warnings: string[] = [];
     const hasNestedScoredSubQuestions = /(?:^|\n)\s*\d{1,2}[.．、]\s*[^\n]*[（(]\s*\d{1,3}\s*分\s*[）)]/u.test(body);
-    if (hasNestedScoredSubQuestions) warnings.push("检测到大题内嵌多个计分小问；当前版本不自动拆分，需人工核验。" );
+    if (hasNestedScoredSubQuestions) warnings.push("检测到大题内嵌多个计分小问；当前版本不自动拆分，需人工核验。");
     if (!score) warnings.push("未识别分值，导入前必须人工确认。");
     if (!wordLimit) {
       if (/(?:不少于|至少)\s*\d{2,4}\s*字/u.test(combined)) {
-        warnings.push("仅识别到最低字数要求，没有可靠的答题上限；当前版本不自动导入。" );
+        warnings.push("仅识别到最低字数要求，没有可靠的答题上限；当前版本不自动导入。");
       } else {
         warnings.push("未识别字数限制，导入前必须人工确认。");
       }
