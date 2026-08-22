@@ -29,9 +29,35 @@ function assertRecentCandidate(candidate: PublicSourceCandidate, referenceDate =
   throw new Error(`当前正式公开题库只支持最近10年（${minYear}—${maxYear}）整卷。`);
 }
 
-function buildWholeExamMaterialText(exam: ParsedPublicExam): string {
-  return [...exam.materials]
-    .sort((left, right) => left.sourceNumber - right.sourceNumber)
+function sortedExamMaterials(exam: ParsedPublicExam): ParsedPublicExam["materials"] {
+  return [...exam.materials].sort((left, right) => left.sourceNumber - right.sourceNumber);
+}
+
+/**
+ * Per-question practice should only carry the material scope named by the task.
+ * This keeps the workspace focused and prevents the grader from receiving unrelated
+ * material from the same paper. Essay questions intentionally keep the whole paper.
+ */
+export function selectTaskMaterials(
+  exam: ParsedPublicExam,
+  task: ParsedPublicExam["tasks"][number]
+): ParsedPublicExam["materials"] {
+  const materials = sortedExamMaterials(exam);
+  if (task.questionType === "文章写作" || task.materialNumbers.length === 0) return materials;
+
+  const requestedNumbers = [...new Set(task.materialNumbers)].sort((left, right) => left - right);
+  const requested = new Set(requestedNumbers);
+  const selected = materials.filter(material => requested.has(material.sourceNumber));
+  const selectedNumbers = new Set(selected.map(material => material.sourceNumber));
+  const missingNumbers = requestedNumbers.filter(number => !selectedNumbers.has(number));
+  if (missingNumbers.length) {
+    throw new Error(`第 ${task.taskIndex + 1} 题引用的材料 ${missingNumbers.join("、")} 未在整卷材料中找到，禁止自动导入。`);
+  }
+  return selected;
+}
+
+function buildMaterialText(materials: ParsedPublicExam["materials"]): string {
+  return materials
     .map(material => material.content.replace(/\n\s*\n+/g, "\n").trim())
     .filter(Boolean)
     .join("\n\n");
@@ -50,6 +76,7 @@ function questionInputForTask(candidate: PublicSourceCandidate, exam: ParsedPubl
     throw new Error(`第 ${taskIndex + 1} 题缺少分值或字数限制，禁止自动导入。`);
   }
 
+  const scopedMaterials = selectTaskMaterials(exam, task);
   return {
     id: publicQuestionId(candidate.id, taskIndex),
     title: `${candidate.title} · 第${taskIndex + 1}题`,
@@ -61,10 +88,8 @@ function questionInputForTask(candidate: PublicSourceCandidate, exam: ParsedPubl
     wordLimit: task.wordLimit,
     prompt: taskPrompt(task),
     // Compatibility fallback only. Structured materials below are the authoritative path.
-    materialText: buildWholeExamMaterialText(exam),
-    materials: [...exam.materials]
-      .sort((left, right) => left.sourceNumber - right.sourceNumber)
-      .map(material => ({ label: material.label, content: material.content })),
+    materialText: buildMaterialText(scopedMaterials),
+    materials: scopedMaterials.map(material => ({ label: material.label, content: material.content })),
     tags: [
       ...task.tags,
       ...(candidate.paperVariant ? [candidate.paperVariant] : []),
