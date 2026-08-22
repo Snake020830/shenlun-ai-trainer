@@ -8,6 +8,11 @@ export interface PublicSourceFetchResponse {
   body: string;
 }
 
+export interface PublicSourceLink {
+  href: string;
+  title: string;
+}
+
 const REGION_NAMES = [
   "国家", "北京", "天津", "河北", "山西", "内蒙古", "辽宁", "吉林", "黑龙江", "上海", "江苏", "浙江", "安徽",
   "福建", "江西", "山东", "河南", "湖北", "湖南", "广东", "广西", "海南", "重庆", "四川", "贵州", "云南", "西藏",
@@ -79,6 +84,14 @@ function delay(milliseconds: number): Promise<void> {
   return new Promise(resolve => globalThis.setTimeout(resolve, milliseconds));
 }
 
+function linksFromHtml(html: string): PublicSourceLink[] {
+  const document = new DOMParser().parseFromString(html, "text/html");
+  return Array.from(document.querySelectorAll<HTMLAnchorElement>("a[href]")).map(anchor => ({
+    href: anchor.getAttribute("href") ?? "",
+    title: normalizeWhitespace(anchor.textContent ?? "")
+  }));
+}
+
 export async function fetchPublicSourceText(url: string): Promise<PublicSourceFetchResponse> {
   if (isTauri()) {
     return invoke<PublicSourceFetchResponse>("fetch_public_source_text", {
@@ -107,24 +120,23 @@ export async function fetchPublicSourceText(url: string): Promise<PublicSourceFe
   }
 }
 
-export function discoverShenlunCandidatesFromHtml(
+export function discoverShenlunCandidatesFromLinks(
   provider: PublicSourceProvider,
-  html: string,
+  links: PublicSourceLink[],
   fetchedUrl = provider.indexUrl,
   discoveredAt = new Date().toISOString()
 ): PublicSourceCandidate[] {
-  const document = new DOMParser().parseFromString(html, "text/html");
   const baseUrl = new URL(fetchedUrl);
   const seen = new Set<string>();
   const results: PublicSourceCandidate[] = [];
 
-  for (const anchor of Array.from(document.querySelectorAll<HTMLAnchorElement>("a[href]"))) {
-    const title = normalizeWhitespace(anchor.textContent ?? "");
+  for (const link of links) {
+    const title = normalizeWhitespace(link.title);
     if (!looksLikeShenlunTitle(title)) continue;
 
     let url: URL;
     try {
-      url = new URL(anchor.getAttribute("href") ?? "", baseUrl);
+      url = new URL(link.href, baseUrl);
     } catch {
       continue;
     }
@@ -159,21 +171,29 @@ export function discoverShenlunCandidatesFromHtml(
   return results;
 }
 
-export function discoverSecondaryIndexUrls(
+export function discoverShenlunCandidatesFromHtml(
   provider: PublicSourceProvider,
   html: string,
+  fetchedUrl = provider.indexUrl,
+  discoveredAt = new Date().toISOString()
+): PublicSourceCandidate[] {
+  return discoverShenlunCandidatesFromLinks(provider, linksFromHtml(html), fetchedUrl, discoveredAt);
+}
+
+export function discoverSecondaryIndexUrlsFromLinks(
+  provider: PublicSourceProvider,
+  links: PublicSourceLink[],
   fetchedUrl = provider.indexUrl
 ): string[] {
   if (provider.traversal !== "shenlun-region-pages") return [];
-  const document = new DOMParser().parseFromString(html, "text/html");
   const baseUrl = new URL(fetchedUrl);
   const allowedHost = new URL(provider.indexUrl).host;
   const urls = new Set<string>();
 
-  for (const anchor of Array.from(document.querySelectorAll<HTMLAnchorElement>("a[href]"))) {
+  for (const link of links) {
     let url: URL;
     try {
-      url = new URL(anchor.getAttribute("href") ?? "", baseUrl);
+      url = new URL(link.href, baseUrl);
     } catch {
       continue;
     }
@@ -184,6 +204,14 @@ export function discoverSecondaryIndexUrls(
     if (urls.size >= provider.maxIndexPages - 1) break;
   }
   return [...urls];
+}
+
+export function discoverSecondaryIndexUrls(
+  provider: PublicSourceProvider,
+  html: string,
+  fetchedUrl = provider.indexUrl
+): string[] {
+  return discoverSecondaryIndexUrlsFromLinks(provider, linksFromHtml(html), fetchedUrl);
 }
 
 export async function discoverProviderCandidates(provider: PublicSourceProvider): Promise<PublicSourceCandidate[]> {
