@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { AlignedBenchmarkPrediction, GradingBenchmarkCase } from "./types";
+import type { BenchmarkAlignment, BenchmarkModelRun, GradingBenchmarkCase } from "./types";
 import {
   calculateMappingQuality,
   calculateRubricQuality,
@@ -47,18 +47,35 @@ const testCase: GradingBenchmarkCase = {
   provenance: { annotatedAt: "2026-08-22", source: "unit-test fixture" }
 };
 
-const prediction: AlignedBenchmarkPrediction = {
+const run: BenchmarkModelRun = {
+  schemaVersion: "0.1.0",
   caseId: "case-1",
   runId: "run-1",
   predictedScore: 12,
-  predictedRubricPointIds: ["p1", "p2"],
+  maxScore: 20,
+  rubric: [
+    { id: "p1", title: "事项下沉", elementType: "measure", evidence: ["事项下沉"] },
+    { id: "p2", title: "项目服务", elementType: "measure", evidence: ["项目专员服务"] }
+  ],
+  mappings: [
+    { predictedRubricPointId: "p1", status: "hit", errorCodes: [], diagnosis: "完整覆盖" },
+    { predictedRubricPointId: "p2", status: "partial", errorCodes: ["PARTIAL_COVERAGE"], diagnosis: "覆盖不完整" }
+  ],
+  workflowVersion: "shenlun-workflow@0.1.0",
+  promptsetVersion: "shenlun-stage-prompts@0.1.0",
+  referenceCrossCheckUsed: false
+};
+
+const alignment: BenchmarkAlignment = {
+  caseId: "case-1",
+  runId: "run-1",
   rubricAlignments: [
     { goldRubricPointIds: ["r1"], predictedRubricPointIds: ["p1"], relation: "match" },
     { goldRubricPointIds: ["r2"], predictedRubricPointIds: ["p2"], relation: "match" }
   ],
-  mappings: [
-    { goldRubricPointId: "r1", predictedRubricPointIds: ["p1"], predictedStatus: "hit", predictedErrorCodes: [] },
-    { goldRubricPointId: "r2", predictedRubricPointIds: ["p2"], predictedStatus: "partial", predictedErrorCodes: ["PARTIAL_COVERAGE"] }
+  mappingLinks: [
+    { goldRubricPointId: "r1", predictedRubricPointIds: ["p1"] },
+    { goldRubricPointId: "r2", predictedRubricPointIds: ["p2"] }
   ]
 };
 
@@ -85,66 +102,84 @@ describe("grading benchmark", () => {
   });
 
   it("computes rubric recall and precision independently from answer mapping", () => {
-    const metrics = calculateRubricQuality(testCase, prediction);
+    const metrics = calculateRubricQuality(testCase, run, alignment);
     expect(metrics.recall).toBe(1);
     expect(metrics.precision).toBe(1);
     expect(metrics.f1).toBe(1);
-    expect(hasCompleteRubricAlignment(testCase, prediction)).toBe(true);
+    expect(hasCompleteRubricAlignment(testCase, run, alignment)).toBe(true);
   });
 
-  it("detects a gold rubric point omitted by the model", () => {
-    const incomplete: AlignedBenchmarkPrediction = {
-      ...prediction,
+  it("detects a gold rubric point omitted by the model without hiding it behind mapping accuracy", () => {
+    const incompleteRun: BenchmarkModelRun = {
+      ...run,
       runId: "run-incomplete",
-      predictedRubricPointIds: ["p1"],
+      rubric: [run.rubric[0]],
+      mappings: [run.mappings[0]]
+    };
+    const incompleteAlignment: BenchmarkAlignment = {
+      caseId: testCase.id,
+      runId: incompleteRun.runId,
       rubricAlignments: [
         { goldRubricPointIds: ["r1"], predictedRubricPointIds: ["p1"], relation: "match" }
       ],
-      mappings: [
-        { goldRubricPointId: "r1", predictedRubricPointIds: ["p1"], predictedStatus: "hit", predictedErrorCodes: [] }
-      ]
+      mappingLinks: [{ goldRubricPointId: "r1", predictedRubricPointIds: ["p1"] }]
     };
-    const rubric = calculateRubricQuality(testCase, incomplete);
-    const mapping = calculateMappingQuality(testCase, incomplete);
+    const rubric = calculateRubricQuality(testCase, incompleteRun, incompleteAlignment);
+    const mapping = calculateMappingQuality(testCase, incompleteRun, incompleteAlignment);
     expect(rubric.recall).toBe(0.5);
     expect(rubric.precision).toBe(1);
     expect(rubric.unmatchedGoldRubricPointIds).toEqual(["r2"]);
     expect(mapping.mappingCoverage).toBe(0.5);
     expect(mapping.exactStatusAccuracy).toBe(1);
-    expect(hasCompleteAlignment(testCase, incomplete)).toBe(false);
+    expect(hasCompleteAlignment(testCase, incompleteRun, incompleteAlignment)).toBe(false);
   });
 
-  it("supports an acceptable split without losing mapping provenance", () => {
-    const splitPrediction: AlignedBenchmarkPrediction = {
-      ...prediction,
+  it("derives split-rubric status from the immutable model run", () => {
+    const splitRun: BenchmarkModelRun = {
+      ...run,
       runId: "run-split",
-      predictedRubricPointIds: ["p1a", "p1b", "p2"],
+      rubric: [
+        { id: "p1a", title: "事项权限下沉", elementType: "measure", evidence: ["事项下沉"] },
+        { id: "p1b", title: "服务下沉", elementType: "measure", evidence: ["事项下沉"] },
+        run.rubric[1]
+      ],
+      mappings: [
+        { predictedRubricPointId: "p1a", status: "hit", errorCodes: [], diagnosis: "覆盖" },
+        { predictedRubricPointId: "p1b", status: "missed", errorCodes: ["OMISSION"], diagnosis: "遗漏" },
+        run.mappings[1]
+      ]
+    };
+    const splitAlignment: BenchmarkAlignment = {
+      caseId: testCase.id,
+      runId: splitRun.runId,
       rubricAlignments: [
         { goldRubricPointIds: ["r1"], predictedRubricPointIds: ["p1a", "p1b"], relation: "acceptable-split" },
         { goldRubricPointIds: ["r2"], predictedRubricPointIds: ["p2"], relation: "match" }
       ],
-      mappings: [
-        { goldRubricPointId: "r1", predictedRubricPointIds: ["p1a", "p1b"], predictedStatus: "hit", predictedErrorCodes: [] },
-        { goldRubricPointId: "r2", predictedRubricPointIds: ["p2"], predictedStatus: "partial", predictedErrorCodes: ["PARTIAL_COVERAGE"] }
+      mappingLinks: [
+        { goldRubricPointId: "r1", predictedRubricPointIds: ["p1a", "p1b"] },
+        { goldRubricPointId: "r2", predictedRubricPointIds: ["p2"] }
       ]
     };
-    expect(calculateRubricQuality(testCase, splitPrediction).recall).toBe(1);
-    expect(calculateMappingQuality(testCase, splitPrediction).mappingCoverage).toBe(1);
+    const mapping = calculateMappingQuality(testCase, splitRun, splitAlignment);
+    expect(calculateRubricQuality(testCase, splitRun, splitAlignment).recall).toBe(1);
+    expect(mapping.mappingCoverage).toBe(1);
+    expect(mapping.confusion.hit.partial).toBe(1);
   });
 
-  it("computes status confusion after explicit gold alignment", () => {
-    const metrics = calculateMappingQuality(testCase, prediction);
+  it("computes status confusion from model-run judgments", () => {
+    const metrics = calculateMappingQuality(testCase, run, alignment);
     expect(metrics.alignedPointCount).toBe(2);
     expect(metrics.goldPointCount).toBe(2);
     expect(metrics.mappingCoverage).toBe(1);
     expect(metrics.exactStatusAccuracy).toBe(0.5);
     expect(metrics.confusion.hit.hit).toBe(1);
     expect(metrics.confusion.missed.partial).toBe(1);
-    expect(hasCompleteAlignment(testCase, prediction)).toBe(true);
+    expect(hasCompleteAlignment(testCase, run, alignment)).toBe(true);
   });
 
-  it("computes taxonomy micro metrics on aligned rubric points", () => {
-    const metrics = calculateTaxonomyQuality(testCase, prediction);
+  it("computes taxonomy micro metrics from model-run error codes", () => {
+    const metrics = calculateTaxonomyQuality(testCase, run, alignment);
     expect(metrics.truePositive).toBe(0);
     expect(metrics.falsePositive).toBe(1);
     expect(metrics.falseNegative).toBe(1);
@@ -153,8 +188,8 @@ describe("grading benchmark", () => {
     expect(metrics.microF1).toBe(0);
   });
 
-  it("compares predicted scores with the mean human score", () => {
-    const metrics = calculateScoreCalibration([testCase], [prediction]);
+  it("compares immutable model-run score with the mean human score", () => {
+    const metrics = calculateScoreCalibration([testCase], [run]);
     expect(metrics.caseCount).toBe(1);
     expect(metrics.observationCount).toBe(2);
     expect(metrics.meanAbsoluteError).toBe(1);
@@ -165,42 +200,44 @@ describe("grading benchmark", () => {
 
   it("fails closed on draft cases", () => {
     const draft = { ...testCase, annotationStatus: "draft" as const };
-    expect(() => calculateRubricQuality(draft, prediction)).toThrow("not adjudicated");
-    expect(() => calculateMappingQuality(draft, prediction)).toThrow("not adjudicated");
-    expect(() => calculateTaxonomyQuality(draft, prediction)).toThrow("not adjudicated");
-    expect(() => calculateScoreCalibration([draft], [prediction])).toThrow("not adjudicated");
+    expect(() => calculateRubricQuality(draft, run, alignment)).toThrow("not adjudicated");
+    expect(() => calculateMappingQuality(draft, run, alignment)).toThrow("not adjudicated");
+    expect(() => calculateTaxonomyQuality(draft, run, alignment)).toThrow("not adjudicated");
+    expect(() => calculateScoreCalibration([draft], [run])).toThrow("not adjudicated");
   });
 
   it("fails closed when score calibration tries to use debug cases", () => {
     const debug = { ...testCase, split: "debug" as const };
-    expect(() => calculateScoreCalibration([debug], [prediction])).toThrow("not in calibration/holdout split");
+    expect(() => calculateScoreCalibration([debug], [run])).toThrow("not in calibration/holdout split");
   });
 
-  it("fails closed when answer mapping provenance disagrees with rubric alignment", () => {
-    const wrongLinks: AlignedBenchmarkPrediction = {
-      ...prediction,
-      runId: "run-wrong-links",
-      mappings: [
-        { ...prediction.mappings[0], predictedRubricPointIds: ["p2"] },
-        prediction.mappings[1]
+  it("fails closed when alignment points to a different model run", () => {
+    expect(() => calculateRubricQuality(testCase, run, { ...alignment, runId: "another-run" }))
+      .toThrow("Alignment runId does not match model run");
+  });
+
+  it("fails closed when mapping links disagree with rubric alignment", () => {
+    const wrongLinks: BenchmarkAlignment = {
+      ...alignment,
+      mappingLinks: [
+        { goldRubricPointId: "r1", predictedRubricPointIds: ["p2"] },
+        alignment.mappingLinks[1]
       ]
     };
-    expect(() => calculateMappingQuality(testCase, wrongLinks)).toThrow("does not match its rubric alignment group");
+    expect(() => calculateMappingQuality(testCase, run, wrongLinks)).toThrow("does not match its rubric alignment group");
   });
 
-  it("fails closed on duplicate rubric alignment rows", () => {
-    const duplicate: AlignedBenchmarkPrediction = {
-      ...prediction,
-      runId: "run-duplicate",
-      mappings: [prediction.mappings[0], prediction.mappings[0]]
+  it("fails closed on duplicate mapping links", () => {
+    const duplicateLinks: BenchmarkAlignment = {
+      ...alignment,
+      mappingLinks: [alignment.mappingLinks[0], alignment.mappingLinks[0]]
     };
-    expect(() => calculateMappingQuality(testCase, duplicate)).toThrow("Duplicate aligned prediction");
-    expect(() => calculateTaxonomyQuality(testCase, duplicate)).toThrow("Duplicate aligned prediction");
-    expect(hasCompleteAlignment(testCase, duplicate)).toBe(false);
+    expect(() => calculateMappingQuality(testCase, run, duplicateLinks)).toThrow("Duplicate answer mapping link");
+    expect(hasCompleteAlignment(testCase, run, duplicateLinks)).toBe(false);
   });
 
-  it("fails closed on duplicate score predictions for one case", () => {
-    expect(() => calculateScoreCalibration([testCase], [prediction, { ...prediction, runId: "run-2" }]))
-      .toThrow("Duplicate score prediction");
+  it("fails closed on duplicate score model runs for one case", () => {
+    expect(() => calculateScoreCalibration([testCase], [run, { ...run, runId: "run-2" }]))
+      .toThrow("Duplicate score model run");
   });
 });
