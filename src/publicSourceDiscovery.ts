@@ -51,8 +51,9 @@ function inferRegion(title: string): string | undefined {
 }
 
 function inferPaperVariant(title: string): string | undefined {
-  const matched = VARIANT_PATTERNS.filter(pattern => title.includes(pattern));
-  return matched.length ? [...new Set(matched)].join("/") : undefined;
+  const matched = [...new Set(VARIANT_PATTERNS.filter(pattern => title.includes(pattern)))];
+  const specific = matched.filter(pattern => !matched.some(other => other !== pattern && other.includes(pattern)));
+  return specific.length ? specific.join("/") : undefined;
 }
 
 function looksLikeShenlunTitle(title: string): boolean {
