@@ -64,6 +64,10 @@ export interface GradingBenchmarkCase {
   split?: "debug" | "calibration" | "holdout";
   provenance?: {
     source?: string;
+    /** Present for drafts frozen from a real training record. */
+    trainingRecordId?: string;
+    /** Time at which the immutable benchmark draft snapshot was created. */
+    createdAt?: string;
     goldAnnotatorId?: string;
     annotationProtocolVersion?: string;
     referenceAnswerRevealedAt?: string;
