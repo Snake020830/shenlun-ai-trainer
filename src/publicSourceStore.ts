@@ -4,6 +4,7 @@ import type Database from "@tauri-apps/plugin-sql";
 const DATABASE_URL = "sqlite:shenlun-trainer.db";
 const CANDIDATES_KEY = "shenlun:public-source-candidates:v1";
 const QUESTION_SOURCES_KEY = "shenlun:question-sources:v1";
+const SOURCE_QUESTION_LINKS_KEY = "shenlun:public-source-question-links:v1";
 
 export type PublicSourceKind = "public-web" | "public-pdf" | "source-index";
 export type PublicSourceStatus = "discovered" | "reviewed" | "imported" | "rejected";
@@ -38,6 +39,13 @@ export interface QuestionSourceProvenance {
   isRecallVersion: boolean;
 }
 
+export interface PublicSourceQuestionLink {
+  candidateId: string;
+  questionId: string;
+  taskIndex: number;
+  createdAt: string;
+}
+
 interface CandidateRow {
   id: string;
   provider_id: string;
@@ -65,6 +73,13 @@ interface QuestionSourceRow {
   content_hash: string | null;
   rights_note: string | null;
   is_recall_version: number;
+}
+
+interface PublicSourceQuestionLinkRow {
+  candidate_id: string;
+  question_id: string;
+  task_index: number;
+  created_at: string;
 }
 
 let databasePromise: Promise<Database> | null = null;
@@ -125,6 +140,13 @@ function validateQuestionSource(source: QuestionSourceProvenance): void {
   if (source.sourceUrl) validateHttpUrl(source.sourceUrl);
 }
 
+function validateQuestionLink(link: PublicSourceQuestionLink): void {
+  if (!link.candidateId.trim()) throw new Error("candidateId is required for a public source question link.");
+  if (!link.questionId.trim()) throw new Error("questionId is required for a public source question link.");
+  if (!Number.isInteger(link.taskIndex) || link.taskIndex < 0) throw new Error("taskIndex must be a non-negative integer.");
+  if (!link.createdAt.trim()) throw new Error("createdAt is required for a public source question link.");
+}
+
 function candidateFromRow(row: CandidateRow): PublicSourceCandidate {
   let metadata: Record<string, unknown> = {};
   try {
@@ -162,6 +184,15 @@ function questionSourceFromRow(row: QuestionSourceRow): QuestionSourceProvenance
     ...(row.content_hash ? { contentHash: row.content_hash } : {}),
     ...(row.rights_note ? { rightsNote: row.rights_note } : {}),
     isRecallVersion: row.is_recall_version === 1
+  };
+}
+
+function questionLinkFromRow(row: PublicSourceQuestionLinkRow): PublicSourceQuestionLink {
+  return {
+    candidateId: row.candidate_id,
+    questionId: row.question_id,
+    taskIndex: row.task_index,
+    createdAt: row.created_at
   };
 }
 
@@ -246,21 +277,78 @@ export const publicSourceStore = {
     );
   },
 
-  async markCandidateImported(candidateId: string, questionId: string): Promise<void> {
+  async markCandidateImported(candidateId: string, questionId?: string): Promise<void> {
     const db = await getDatabase();
     if (!db) {
       const existing = readJson<PublicSourceCandidate[]>(CANDIDATES_KEY, []);
       writeJson(CANDIDATES_KEY, existing.map(item => item.id === candidateId
-        ? { ...item, status: "imported", importedQuestionId: questionId }
+        ? { ...item, status: "imported", ...(questionId ? { importedQuestionId: questionId } : {}) }
         : item));
       return;
     }
     await db.execute(
       `UPDATE public_source_candidates
-       SET status='imported', imported_question_id=$2
+       SET status='imported', imported_question_id=COALESCE(imported_question_id, $2)
        WHERE id=$1`,
-      [candidateId, questionId]
+      [candidateId, questionId ?? null]
     );
+  },
+
+  async linkCandidateQuestion(link: PublicSourceQuestionLink): Promise<void> {
+    validateQuestionLink(link);
+    const db = await getDatabase();
+    if (!db) {
+      const existing = readJson<PublicSourceQuestionLink[]>(SOURCE_QUESTION_LINKS_KEY, []);
+      const conflictingTask = existing.find(item => item.candidateId === link.candidateId && item.taskIndex === link.taskIndex && item.questionId !== link.questionId);
+      if (conflictingTask) throw new Error(`Public source task ${link.taskIndex} is already linked to another question.`);
+      const next = [link, ...existing.filter(item => !(item.candidateId === link.candidateId && item.questionId === link.questionId))];
+      writeJson(SOURCE_QUESTION_LINKS_KEY, next);
+      return;
+    }
+    await db.execute(
+      `INSERT INTO public_source_question_links (candidate_id, question_id, task_index, created_at)
+       VALUES ($1,$2,$3,$4)
+       ON CONFLICT(candidate_id, question_id) DO UPDATE SET
+         task_index=excluded.task_index,
+         created_at=excluded.created_at`,
+      [link.candidateId, link.questionId, link.taskIndex, link.createdAt]
+    );
+  },
+
+  async listCandidateQuestionLinks(candidateId: string): Promise<PublicSourceQuestionLink[]> {
+    if (!candidateId.trim()) return [];
+    const db = await getDatabase();
+    if (!db) {
+      return readJson<PublicSourceQuestionLink[]>(SOURCE_QUESTION_LINKS_KEY, [])
+        .filter(item => item.candidateId === candidateId)
+        .sort((left, right) => left.taskIndex - right.taskIndex);
+    }
+    const rows = await db.select<PublicSourceQuestionLinkRow[]>(
+      `SELECT candidate_id, question_id, task_index, created_at
+       FROM public_source_question_links
+       WHERE candidate_id=$1
+       ORDER BY task_index`,
+      [candidateId]
+    );
+    return rows.map(questionLinkFromRow);
+  },
+
+  async listQuestionSourceLinks(questionId: string): Promise<PublicSourceQuestionLink[]> {
+    if (!questionId.trim()) return [];
+    const db = await getDatabase();
+    if (!db) {
+      return readJson<PublicSourceQuestionLink[]>(SOURCE_QUESTION_LINKS_KEY, [])
+        .filter(item => item.questionId === questionId)
+        .sort((left, right) => left.taskIndex - right.taskIndex);
+    }
+    const rows = await db.select<PublicSourceQuestionLinkRow[]>(
+      `SELECT candidate_id, question_id, task_index, created_at
+       FROM public_source_question_links
+       WHERE question_id=$1
+       ORDER BY task_index`,
+      [questionId]
+    );
+    return rows.map(questionLinkFromRow);
   },
 
   async saveQuestionSource(source: QuestionSourceProvenance): Promise<void> {
