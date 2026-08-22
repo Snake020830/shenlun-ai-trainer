@@ -11,17 +11,40 @@
 - 题库初始化统计按唯一试卷分组，不把同卷不同公开来源版本重复计数。
 - 正文仍按需读取并保存在用户本机；GitHub 仓库不打包第三方整卷全文。
 
-### Shenlun Grader Skill v0.2
+### 第一套真实来源验收：2025 国考副省级
 
-- 日常 `gradingService.grade()` 继续统一进入 `shenlunGraderSkill`；Skill 版本升级为 `shenlun-grader-skill@0.2.0`。
-- 新增五类题型专用批改约束：概括归纳、提出对策、综合分析、贯彻执行、文章写作。
+- 固定第一套桌面端到端验收来源为公开真题库的 2025 国考副省级申论卷；仓库只保存来源 URL 与结构预期，不提交第三方整卷正文。
+- 对真实页面结构进行核查后，验收预期固定为：4 则材料、5 道题。
+- 第1题应识别为综合分析；第2题综合分析；第3题贯彻执行；第4题提出对策；第5题文章写作。
+- 真实页面第4题出现“给定 资 料 4”式异常字间空格。parser 已新增材料引用噪声归一化，可处理半角/全角空格，不再把该题错误阻断为“未识别明确材料编号”。
+- 真实国考题型表达补充进分类器：关系/协同机制解释进入综合分析；“草拟…工作指南/指南”等进入贯彻执行。
+- 新增真实来源噪声与真实题型措辞的回归测试，测试只保留必要结构片段，不保存整卷正文。
+
+### Shenlun Grader Skill v0.3
+
+- 日常 `gradingService.grade()` 继续统一进入 `shenlunGraderSkill`；当前 Skill 版本为 `shenlun-grader-skill@0.3.0`。
+- 五类题型专用约束：概括归纳、提出对策、综合分析、贯彻执行、文章写作。
 - 四类小题的题型约束已注入材料盲抽、rubric 构造、答案映射、字数审计和参考答案交叉验证全部五阶段。
-- Prompt 行为发生实质变化，`STAGE_PROMPTSET_VERSION` 同步升级为 `shenlun-stage-prompts@0.2.0`，避免 Benchmark 把不同提示条件混算。
-- 当前远程五阶段 score policy 仍是小题“材料点 → rubric → 逐点映射”逻辑；文章写作不再误用该流程生成数值分，真实 AI 作文评分等待专用论证/结构 workflow。
+- 当前远程 score policy 仍是小题“材料点 → rubric → 逐点映射”逻辑；文章写作不再误用该流程生成数值分，真实 AI 作文评分等待专用论证/结构 workflow。
+
+### Stage 3 error taxonomy 契约
+
+- 发现真实 provider 接口缺口：本地 validator 会拒绝未知 error code，但旧 Prompt 只要求“使用系统 taxonomy”，没有把正式代码集合传给模型。
+- Stage 3 现在把 `rules/error-taxonomy.json` 的正式代码、标签和定义显式写入 Prompt。
+- Stage 3 JSON Schema 同时把 `errorCodes` 约束为正式 taxonomy ID 枚举；模型不得自造代码。
+- `hit` 且没有实质错误时允许返回空 `errorCodes`，避免为了满足结构而制造伪错误。
+- 因 Prompt 行为再次实质改变，`STAGE_PROMPTSET_VERSION` 升级为 `shenlun-stage-prompts@0.3.0`；Benchmark 不同版本禁止混算。
+
+### Provider 真实协议自检
+
+- 设置页已有“快速测试连接”和“完整自检并启用 AI 批改”，无需再造第二套 provider smoke UI。
+- 快速测试只验证网络与简单结构化 JSON。
+- 完整自检使用短内置申论题真实运行 Stage 1—4，不写 TrainingRecord、不进入 Human Gold，全部通过后才自动启用 remote provider。
+- 完整自检成功只说明 provider 可以执行当前 Skill 协议，不代表诊断分已经完成 Human Gold 校准。
 
 ### 回归与工程门禁
 
-- 新增题目材料范围、缺失引用材料、题库初始化可恢复性、题型 Skill 注入和作文错误路由等测试。
+- 新增题目材料范围、缺失引用材料、题库初始化可恢复性、题型 Skill 注入、作文错误路由、真实材料引用空格、真实国考题型措辞、error taxonomy Prompt/schema 契约等测试。
 - Frontend CI 的 push 门禁已覆盖当前开发分支 `feat/v0.1-product-shell`，后续该分支提交会自动跑 Vitest 与 TypeScript/Vite build。
 - Desktop CI 触发规则暂不改变；桌面 secure provider、Tauri 网络抓取与安装包仍按桌面验收流程确认。
 
@@ -159,7 +182,7 @@ Rubric 质量与答案 mapping 质量独立报告，避免模型自己漏 rubric
 
 ### 设置页
 
-已启用评分引擎控制页：remote 开关、protocol、model、base URL、reasoning effort、timeout、public config、OS keyring 凭据写入/删除、主动连接测试。浏览器 Vite 模式禁止 remote grading。
+已启用评分引擎控制页：remote 开关、protocol、model、base URL、reasoning effort、timeout、public config、OS keyring 凭据写入/删除、主动连接测试和完整批改链自检。浏览器 Vite 模式禁止 remote grading。
 
 ### CI / 测试
 
@@ -174,20 +197,21 @@ Rubric 质量与答案 mapping 质量独立报告，避免模型自己漏 rubric
 - Remote workflow 已具备真实模型调用能力，但 score policy 未校准，因此不是正式 AI 阅卷分。
 - 四类小题已进入题型专用 remote workflow；文章写作仍需独立作文评分 workflow，当前不会误套小题数值评分。
 - Benchmark 工程与 3 个 synthetic debug gold 已建立，但尚未填充真实独立人工 calibration/holdout cases。
-- 尚未在用户真实桌面环境完成 API key 写入、连接测试和一次完整五阶段真实 provider 人工验收。
+- 尚未在用户真实桌面环境完成一套公开真题的扫描/解析/拆题入库 + 一道真实非作文题的 remote Skill 批改联合验收。
 - 尚未形成基于真实 human gold 的 validation report。
 - 未做 PDF/图片/OCR 真题导入、能力画像、自适应推荐、整卷模考。
 
 ### 下一阶段
 
 1. 拉取当前分支并通过最新 Frontend 回归测试与 production build；
-2. 用一套真实公开整卷完成“扫描 → 校验 → 拆题入库”的桌面端到端验收；
-3. 从其中一道非作文真题提交真实作答，完成 secure provider + Shenlun Grader Skill v0.2 五阶段人工验收；
-4. 从真实训练记录生成少量 benchmark drafts；
-5. 完成独立人工材料点/rubric/mapping/taxonomy/human-score adjudication；
-6. 固定 calibration/holdout split；
-7. 跑真实 Model Runs，另建 Human Alignment，生成 validation reports；
-8. 比较模型与 reasoning effort，优先解决 rubric 遗漏和 mapping/taxonomy 错误；
-9. 校准 score policy；
-10. 设计文章写作专用评分 workflow；
-11. 只有证据达到门槛后，才将 `calibrationStatus` 从 `uncalibrated` 升级为 `validated`。
+2. 在 Tauri 桌面版用 2025 国考副省级固定样本完成“扫描 → 4材料/5题结构核对 → 拆题入库”的真实验收；
+3. 在设置页保存真实 provider 凭据，先运行“完整自检并启用 AI 批改”；
+4. 从 2025 国考副省级选一道非作文题提交真实作答，完成 secure provider + Shenlun Grader Skill v0.3 人工验收；
+5. 从真实训练记录生成少量 benchmark drafts；
+6. 完成独立人工材料点/rubric/mapping/taxonomy/human-score adjudication；
+7. 固定 calibration/holdout split；
+8. 跑真实 Model Runs，另建 Human Alignment，生成 validation reports；
+9. 比较模型与 reasoning effort，优先解决 rubric 遗漏和 mapping/taxonomy 错误；
+10. 校准 score policy；
+11. 设计文章写作专用评分 workflow；
+12. 只有证据达到门槛后，才将 `calibrationStatus` 从 `uncalibrated` 升级为 `validated`。
