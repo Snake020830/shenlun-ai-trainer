@@ -46,8 +46,13 @@ describe("benchmark draft creation", () => {
 
   it("cannot be evaluated before adjudication", () => {
     const draft = createBenchmarkDraft(question, "建议建立联动机制。", { caseId: "draft-002" });
-    expect(() => calculateMappingQuality(draft, { caseId: draft.id, predictedScore: 0, mappings: [] }))
-      .toThrow("not adjudicated");
+    expect(() => calculateMappingQuality(draft, {
+      caseId: draft.id,
+      predictedScore: 0,
+      predictedRubricPointIds: [],
+      rubricAlignments: [],
+      mappings: []
+    })).toThrow("not adjudicated");
   });
 
   it("rejects empty case ids and answers", () => {
