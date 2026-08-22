@@ -57,6 +57,63 @@ describe("structured material persistence", () => {
     expect(stored[0].materials[0].content).toBe("第一段。\n\n第二段。");
   });
 
+  it("upserts the same deterministic structured question id instead of duplicating it", async () => {
+    const id = "publicq:source-2025:task:1";
+    await persistence.addImportedQuestion({
+      id,
+      title: "旧标题",
+      year: 2025,
+      region: "国家",
+      type: "概括归纳",
+      difficulty: "进阶",
+      score: 10,
+      wordLimit: 200,
+      prompt: "旧题干",
+      materialText: "旧桥接",
+      materials: [{ label: "材料1", content: "旧材料。" }],
+      tags: ["公开真题"]
+    });
+
+    const updated = await persistence.addImportedQuestion({
+      id,
+      title: "新标题",
+      year: 2025,
+      region: "国家",
+      type: "概括归纳",
+      difficulty: "进阶",
+      score: 10,
+      wordLimit: 200,
+      prompt: "新题干",
+      materialText: "不应使用",
+      materials: [{ label: "材料1", content: "新材料第一段。\n\n新材料第二段。" }],
+      tags: ["公开真题", "国考"]
+    });
+
+    expect(updated.id).toBe(id);
+    const stored = await persistence.listImportedQuestions();
+    expect(stored).toHaveLength(1);
+    expect(stored[0].id).toBe(id);
+    expect(stored[0].title).toBe("新标题");
+    expect(stored[0].prompt).toBe("新题干");
+    expect(stored[0].materials[0].content).toBe("新材料第一段。\n\n新材料第二段。");
+  });
+
+  it("rejects unsafe deterministic question ids", async () => {
+    await expect(persistence.addImportedQuestion({
+      id: "../../bad-id",
+      title: "非法ID",
+      year: 2025,
+      region: "国家",
+      type: "概括归纳",
+      difficulty: "进阶",
+      score: 10,
+      wordLimit: 200,
+      prompt: "题干",
+      materialText: "材料",
+      tags: []
+    })).rejects.toThrow("unsupported characters");
+  });
+
   it("keeps the legacy materialText path for manual imports without structured materials", async () => {
     const question = await persistence.addImportedQuestion({
       title: "手工题",
