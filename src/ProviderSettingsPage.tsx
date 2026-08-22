@@ -99,7 +99,6 @@ export default function ProviderSettingsPage() {
       const transport = createRemoteModelTransport(testConfig, tauriSecureRemoteExecutor);
       const response = await transport.completeJson<{ ok: boolean }>({
         schemaName: "shenlun_provider_connection_test_v01",
-        temperature: 0,
         instructions: "这是连接测试。只返回符合 JSON schema 的对象，不要添加解释。",
         input: "请返回 ok=true。",
         jsonSchema: {
