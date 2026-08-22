@@ -64,6 +64,9 @@ export interface GradingBenchmarkCase {
   split?: "debug" | "calibration" | "holdout";
   provenance?: {
     source?: string;
+    goldAnnotatorId?: string;
+    annotationProtocolVersion?: string;
+    referenceAnswerRevealedAt?: string;
     annotatedAt?: string;
     adjudicationNotes?: string;
   };
