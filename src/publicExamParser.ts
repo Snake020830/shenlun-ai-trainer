@@ -33,8 +33,7 @@ const CHINESE_NUMBERS: Record<string, number> = {
 
 const TASK_ORDINAL = /^\s*([一二三四五六七八九十]|\d{1,2})[、.．]\s*$/u;
 const MATERIAL_HEADING = /^\s*材料\s*([0-9０-９一二三四五六七八九十]+)(?:\([^)]*\))?\s*$/u;
-const SECTION_MATERIALS = /^\s*(?:二[、.．]\s*)?给定(?:资料|材料)\s*$/u;
-const SECTION_TASKS = /^\s*(?:三[、.．]\s*)?作答要求\s*$/u;
+const SITE_FOOTER_MARKERS = ["欢迎使用公开真题库", "备案编号：", "网站版本：", "若有网络数据相关投诉举报"];
 
 function normalizeText(value: string): string {
   return value
@@ -44,6 +43,15 @@ function normalizeText(value: string): string {
     .replace(/\n[ \t]+/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+}
+
+function trimSiteFooter(value: string): string {
+  let end = value.length;
+  for (const marker of SITE_FOOTER_MARKERS) {
+    const index = value.indexOf(marker);
+    if (index >= 0) end = Math.min(end, index);
+  }
+  return normalizeText(value.slice(0, end));
 }
 
 function normalizeNumberToken(token: string): number | null {
@@ -145,7 +153,8 @@ function parseMaterials(text: string): ParsedPublicExamMaterial[] {
 }
 
 function parseTasks(text: string): ParsedPublicExamTask[] {
-  const lines = text.split("\n");
+  const cleanText = trimSiteFooter(text);
+  const lines = cleanText.split("\n");
   const ordinals = lines
     .map((line, index) => ({ index, match: line.match(TASK_ORDINAL) }))
     .filter((item): item is { index: number; match: RegExpMatchArray } => Boolean(item.match));
@@ -195,7 +204,7 @@ export function parseGkzhentiExamText(text: string, candidate?: PublicSourceCand
   const materialStart = materialSectionMatch?.index === undefined ? 0 : materialSectionMatch.index + materialSectionMatch[0].length;
   const taskStart = taskSectionMatch?.index === undefined ? normalized.length : taskSectionMatch.index + taskSectionMatch[0].length;
   const materialText = normalized.slice(materialStart, taskSectionMatch?.index ?? normalized.length);
-  const taskText = normalized.slice(taskStart);
+  const taskText = trimSiteFooter(normalized.slice(taskStart));
   const materials = parseMaterials(materialText);
   const tasks = parseTasks(taskText);
 
