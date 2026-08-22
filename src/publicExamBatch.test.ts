@@ -45,7 +45,20 @@ describe("public exam batch audit gates", () => {
 
   it("returns validated audit metadata and rejects malformed metadata", () => {
     expect(getCandidateAudit(candidate())?.taskCount).toBe(5);
-    expect(getCandidateAudit(candidate({ metadata: { parserAudit: { version: PUBLIC_EXAM_AUDIT_VERSION, auditedAt: "x", importable: true, materialCount: 2, taskCount: 2, warningCount: 0, warnings: [1] } } })) as never).toBeNull();
+    const malformed = candidate({
+      metadata: {
+        parserAudit: {
+          version: PUBLIC_EXAM_AUDIT_VERSION,
+          auditedAt: "x",
+          importable: true,
+          materialCount: 2,
+          taskCount: 2,
+          warningCount: 0,
+          warnings: [1]
+        }
+      }
+    });
+    expect(getCandidateAudit(malformed)).toBeNull();
   });
 
   it("summarizes audit and import batches for UI progress reporting", () => {
