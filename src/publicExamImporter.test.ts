@@ -55,7 +55,7 @@ vi.mock("./publicSourceStore", async importOriginal => {
   };
 });
 
-import { importPublicExam, publicQuestionId } from "./publicExamImporter";
+import { importPublicExam, publicQuestionId, selectTaskMaterials } from "./publicExamImporter";
 
 const candidate: PublicSourceCandidate = {
   id: "candidate-1",
@@ -101,8 +101,24 @@ describe("publicQuestionId", () => {
   });
 });
 
+describe("selectTaskMaterials", () => {
+  it("keeps only explicitly referenced materials for a small question", () => {
+    expect(selectTaskMaterials(exam, exam.tasks[0]).map(item => item.sourceNumber)).toEqual([1]);
+    expect(selectTaskMaterials(exam, exam.tasks[1]).map(item => item.sourceNumber)).toEqual([2]);
+  });
+
+  it("keeps the full paper for essay questions", () => {
+    expect(selectTaskMaterials(exam, exam.tasks[2]).map(item => item.sourceNumber)).toEqual([1, 2]);
+  });
+
+  it("fails closed when a task references a material missing from the parsed paper", () => {
+    expect(() => selectTaskMaterials(exam, { ...exam.tasks[0], materialNumbers: [1, 3] }))
+      .toThrow("材料 3 未在整卷材料中找到");
+  });
+});
+
 describe("importPublicExam", () => {
-  it("imports every task as its own deterministic local question while keeping the whole material corpus", async () => {
+  it("imports each task with its own relevant material scope while essays keep the whole paper", async () => {
     const result = await importPublicExam({ candidate, exam, retrievedAt: "2026-08-22T13:30:00+08:00" });
     expect(result.newlyImportedQuestionIds).toEqual([
       "publicq:candidate-1:task:1",
@@ -110,9 +126,12 @@ describe("importPublicExam", () => {
       "publicq:candidate-1:task:3"
     ]);
     expect(state.created).toHaveLength(3);
-    expect(state.created[0].materials).toHaveLength(2);
-    expect(state.created[0].materials[0]).toEqual({ id: "m1", label: "材料1", content: "材料一第一段。\n\n材料一第二段。" });
-    expect(state.created[1].materials).toHaveLength(2);
+    expect(state.created[0].materials).toEqual([
+      { id: "m1", label: "材料1", content: "材料一第一段。\n\n材料一第二段。" }
+    ]);
+    expect(state.created[1].materials).toEqual([
+      { id: "m1", label: "材料2", content: "材料二正文。" }
+    ]);
     expect(state.created[2].materials).toHaveLength(2);
     expect(state.links.map(item => item.taskIndex)).toEqual([0, 1, 2]);
     expect(state.savedSources).toHaveLength(3);
