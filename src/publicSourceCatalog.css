@@ -39,6 +39,11 @@
   gap: 9px;
 }
 
+.source-provider-card.source-role-primary-structured {
+  border-color: #cfded4;
+  background: linear-gradient(180deg, #fbfdfb, #fff);
+}
+
 .source-provider-card header {
   display: flex;
   align-items: flex-start;
@@ -56,6 +61,21 @@
   color: #747b77;
   font-size: 11px;
   line-height: 1.5;
+}
+
+.source-provider-card header em {
+  width: fit-content;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #eef3f0;
+  color: #4f675d;
+  font-size: 9px;
+  font-style: normal;
+}
+
+.source-role-primary-structured header em {
+  background: #e6f0e8;
+  color: #315a45;
 }
 
 .source-provider-card p {
@@ -76,14 +96,31 @@
   gap: 10px;
 }
 
+.catalog-filters {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+
 .public-source-toolbar .search-box {
-  flex: 1;
+  flex: 1 1 280px;
   max-width: 520px;
 }
 
-.public-source-toolbar > span {
-  color: #7c827f;
+.catalog-filters select {
+  height: 36px;
+  min-width: 112px;
+  border: 1px solid #dfe4e1;
+  border-radius: 8px;
+  padding: 0 28px 0 10px;
+  background: #fff;
+  color: #5c6560;
   font-size: 11px;
+  outline: none;
+}
+
+.catalog-filters select:focus {
+  border-color: #a9bdb2;
+  box-shadow: 0 0 0 2px rgba(73, 110, 90, .08);
 }
 
 .public-source-list {
@@ -181,8 +218,25 @@
   text-align: center;
 }
 
-.public-source-more {
-  border-top: 1px solid #edf0ee;
+.public-source-pagination {
+  min-height: 46px;
+  padding: 8px 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  background: #fafbfa;
+  color: #777f7b;
+  font-size: 11px;
+}
+
+.public-source-pagination > div {
+  display: flex;
+  gap: 6px;
+}
+
+.public-source-pagination button {
+  min-width: 66px;
 }
 
 .public-exam-preview {
@@ -375,8 +429,18 @@
     grid-template-columns: 1fr;
   }
 
+  .catalog-filters > * {
+    flex: 1 1 160px;
+    max-width: none;
+  }
+
+  .public-source-pagination,
   .public-exam-import-footer {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .public-source-pagination > div {
+    justify-content: flex-end;
   }
 }
