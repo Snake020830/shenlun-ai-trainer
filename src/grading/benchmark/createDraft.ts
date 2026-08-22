@@ -17,6 +17,11 @@ export function createBenchmarkDraft(
   if (!options.caseId.trim()) throw new Error("Benchmark draft caseId is required.");
   if (!answer.trim()) throw new Error("Benchmark draft answer is required.");
   const createdAt = options.createdAt ?? new Date().toISOString();
+  const source = options.source ?? `${question.source ?? "unknown"}:${question.id}`;
+  const inferredTrainingRecordId = source.startsWith("training-record:")
+    ? source.slice("training-record:".length).trim()
+    : "";
+  const trainingRecordId = options.trainingRecordId?.trim() || inferredTrainingRecordId;
 
   return {
     schemaVersion: "0.1.0",
@@ -47,8 +52,8 @@ export function createBenchmarkDraft(
       humanScores: []
     },
     provenance: {
-      source: options.source ?? `${question.source ?? "unknown"}:${question.id}`,
-      ...(options.trainingRecordId?.trim() ? { trainingRecordId: options.trainingRecordId.trim() } : {}),
+      source,
+      ...(trainingRecordId ? { trainingRecordId } : {}),
       createdAt,
       annotatedAt: undefined,
       adjudicationNotes: `Draft created ${createdAt}; gold fields require independent human annotation.`
