@@ -9,6 +9,7 @@ import type {
   WordBudgetOutput
 } from "./artifacts";
 import type { ReferenceAnswer } from "./contracts";
+import { ERROR_TAXONOMY, ERROR_TAXONOMY_VERSION } from "./errorTaxonomy";
 import { questionTypeSkillInstructions } from "./questionTypeSkill";
 import type { RemoteJsonRequest } from "./remote/config";
 
@@ -23,6 +24,10 @@ const COMMON_INSTRUCTIONS = `
 `;
 
 const ELEMENT_TYPES = ["problem", "cause", "measure", "outcome", "impact", "significance", "viewpoint", "mechanism", "other"];
+const ERROR_CODE_VALUES = ERROR_TAXONOMY.map(item => item.id);
+const ERROR_TAXONOMY_GUIDANCE = ERROR_TAXONOMY
+  .map(item => `${item.id}（${item.label}）：${item.definition}`)
+  .join("\n");
 
 const materialExtractionSchema: Record<string, unknown> = {
   type: "object",
@@ -92,7 +97,7 @@ const mappingSchema: Record<string, unknown> = {
           rubricPointId: { type: "string" },
           status: { type: "string", enum: ["hit", "partial", "missed"] },
           answerExcerpt: { type: "string" },
-          errorCodes: { type: "array", items: { type: "string" } },
+          errorCodes: { type: "array", items: { type: "string", enum: ERROR_CODE_VALUES } },
           diagnosis: { type: "string" },
           suggestion: { type: "string" }
         }
@@ -179,7 +184,10 @@ export function buildAnswerMappingRequest(question: Question, rubric: RubricPoin
   return {
     schemaName: "shenlun_answer_mapping_v01",
     jsonSchema: mappingSchema,
-    instructions: stageInstructions(question, "本阶段只做考生答案与 rubric 的逐点映射。不能因为出现关键词就判 hit，也不能因为措辞不同就判 missed。partial 用于方向正确但缺关键主体、对象、机制、限定或分类的情况。errorCodes 应使用系统 error taxonomy 中最贴切的代码。"),
+    instructions: stageInstructions(
+      question,
+      `本阶段只做考生答案与 rubric 的逐点映射。不能因为出现关键词就判 hit，也不能因为措辞不同就判 missed。partial 用于方向正确但缺关键主体、对象、机制、限定或分类的情况。\nerrorCodes 只能使用下列 ${ERROR_TAXONOMY_VERSION} 代码，不得自造代码；hit 且无实质错误时应返回空数组：\n${ERROR_TAXONOMY_GUIDANCE}`
+    ),
     input: JSON.stringify({ question: questionPayload(question), rubric, answer })
   };
 }
