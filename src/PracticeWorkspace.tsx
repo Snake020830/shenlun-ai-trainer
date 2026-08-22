@@ -24,6 +24,7 @@ import {
   getPracticeAnnotations,
   savePracticeAnnotations,
   saveTrainingPracticeMeta,
+  type PracticeHighlightColor,
   type PracticeTextAnnotation
 } from "./practiceSessionStore";
 import ReferenceCrossCheckPanel from "./ReferenceCrossCheckPanel";
@@ -38,6 +39,12 @@ const MATERIAL_FONT_KEY = "shenlun:material-font-size:v2";
 const MATERIAL_FONT_MIN = 15;
 const MATERIAL_FONT_MAX = 22;
 const MATERIAL_FONT_DEFAULT = 17;
+const HIGHLIGHT_COLORS: Array<{ value: PracticeHighlightColor; label: string }> = [
+  { value: "yellow", label: "黄色" },
+  { value: "blue", label: "蓝色" },
+  { value: "green", label: "绿色" },
+  { value: "pink", label: "粉色" }
+];
 
 function clampMaterialFontSize(value: number): number {
   return Math.min(MATERIAL_FONT_MAX, Math.max(MATERIAL_FONT_MIN, Math.round(value)));
@@ -83,8 +90,10 @@ function renderAnnotatedText(
     const active = annotations.filter(item => item.start < end && item.end > start);
     if (!active.length) return text;
     const annotation = active[active.length - 1];
+    const activeHighlight = [...active].reverse().find(item => item.type === "highlight");
+    const highlightColor = activeHighlight?.color ?? "blue";
     const className = [
-      active.some(item => item.type === "highlight") ? "material-highlight" : "",
+      activeHighlight ? `material-highlight material-highlight-${highlightColor}` : "",
       active.some(item => item.type === "underline") ? "material-underline" : "",
       active.some(item => item.id === selectedAnnotationId) ? "material-mark-selected" : ""
     ].filter(Boolean).join(" ");
@@ -124,6 +133,7 @@ export default function PracticeWorkspace({ question, onExit, onSubmitted }: { q
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [timerRunning, setTimerRunning] = useState(false);
   const [annotationMode, setAnnotationMode] = useState<AnnotationMode>(null);
+  const [highlightColor, setHighlightColor] = useState<PracticeHighlightColor>("yellow");
   const [annotations, setAnnotations] = useState<PracticeTextAnnotation[]>([]);
   const [annotationsLoaded, setAnnotationsLoaded] = useState(false);
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
@@ -245,7 +255,14 @@ export default function PracticeWorkspace({ question, onExit, onSubmitted }: { q
     const end = selectionOffset(root, range.endContainer, range.endOffset);
     if (end <= start) return;
     const id = crypto.randomUUID();
-    setAnnotations(current => [...current, { id, materialId, start, end, type: annotationMode }]);
+    setAnnotations(current => [...current, {
+      id,
+      materialId,
+      start,
+      end,
+      type: annotationMode,
+      ...(annotationMode === "highlight" ? { color: highlightColor } : {})
+    }]);
     setSelectedAnnotationId(id);
     selection.removeAllRanges();
   }
@@ -311,6 +328,9 @@ export default function PracticeWorkspace({ question, onExit, onSubmitted }: { q
         <div className="annotation-toolbar" aria-label="材料标注工具">
           <div className="annotation-tool-group"><BookOpenText size={15}/><strong>给定资料</strong></div>
           <button disabled={!annotationsLoaded} className={annotationMode === "highlight" ? "active" : ""} onClick={() => setAnnotationMode(mode => mode === "highlight" ? null : "highlight")}><Highlighter size={15}/><span>记号笔</span></button>
+          {annotationMode === "highlight" && <div className="highlight-color-palette" aria-label="记号笔颜色">
+            {HIGHLIGHT_COLORS.map(item => <button type="button" key={item.value} className={`highlight-color-dot color-${item.value} ${highlightColor === item.value ? "selected" : ""}`} title={`${item.label}记号笔`} aria-label={`${item.label}记号笔`} onClick={() => setHighlightColor(item.value)}/>) }
+          </div>}
           <button disabled={!annotationsLoaded} className={annotationMode === "underline" ? "active" : ""} onClick={() => setAnnotationMode(mode => mode === "underline" ? null : "underline")}><Underline size={15}/><span>下划线</span></button>
           <button disabled={!annotations.length} onClick={undoLastAnnotation}><Undo2 size={15}/><span>撤销</span></button>
           <button disabled={!selectedAnnotationId} onClick={deleteSelectedAnnotation}><Trash2 size={15}/><span>删除当前</span></button>
@@ -321,7 +341,7 @@ export default function PracticeWorkspace({ question, onExit, onSubmitted }: { q
             <button type="button" className="material-font-reset" disabled={materialFontSize === MATERIAL_FONT_DEFAULT} onClick={resetMaterialFontSize}>默认</button>
           </div>
         </div>
-        <div className="material-scroll exam-paper-scroll">
+        <div key={`${materialView}:${activeMaterialId}`} className="material-scroll exam-paper-scroll">
           {visibleMaterials.map((block, visibleIndex) => {
             const blockAnnotations = annotations.filter(item => item.materialId === block.id);
             const trueIndex = question.materials.findIndex(item => item.id === block.id);
