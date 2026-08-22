@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{error::Error as StdError, time::Duration};
 
 use keyring::Entry;
 use reqwest::redirect::Policy;
@@ -9,6 +9,7 @@ const CREDENTIAL_SERVICE: &str = "shenlun-ai-trainer";
 const MAX_RESPONSE_BYTES: usize = 2 * 1024 * 1024;
 const MAX_SECRET_BYTES: usize = 16 * 1024;
 const MAX_PROVIDER_ERROR_CHARS: usize = 600;
+const MAX_TRANSPORT_ERROR_CHARS: usize = 900;
 
 fn validate_secret_ref(secret_ref: &str) -> Result<(), String> {
     let valid_len = !secret_ref.is_empty() && secret_ref.len() <= 96;
@@ -49,6 +50,11 @@ fn validate_remote_url(raw: &str) -> Result<reqwest::Url, String> {
     Ok(url)
 }
 
+fn is_deepseek_url(url: &reqwest::Url) -> bool {
+    url.host_str()
+        .is_some_and(|host| host.eq_ignore_ascii_case("api.deepseek.com"))
+}
+
 fn provider_error_detail(bytes: &[u8]) -> Option<String> {
     let parsed = serde_json::from_slice::<Value>(bytes).ok();
     let message = parsed
@@ -64,6 +70,26 @@ fn provider_error_detail(bytes: &[u8]) -> Option<String> {
         let compact = value.split_whitespace().collect::<Vec<_>>().join(" ");
         compact.chars().take(MAX_PROVIDER_ERROR_CHARS).collect::<String>()
     }).filter(|value| !value.is_empty())
+}
+
+fn reqwest_error_detail(error: &reqwest::Error) -> String {
+    let mut parts = vec![error.to_string()];
+    let mut source = StdError::source(error);
+    while let Some(item) = source {
+        let text = item.to_string();
+        if !text.trim().is_empty() && !parts.iter().any(|existing| existing == &text) {
+            parts.push(text);
+        }
+        if parts.len() >= 5 {
+            break;
+        }
+        source = item.source();
+    }
+    parts
+        .join(" -> ")
+        .chars()
+        .take(MAX_TRANSPORT_ERROR_CHARS)
+        .collect()
 }
 
 #[derive(Debug, Deserialize)]
@@ -103,12 +129,23 @@ pub fn delete_provider_secret(secret_ref: String) -> Result<(), String> {
 #[tauri::command]
 pub async fn secure_post_json(request: SecurePostRequest) -> Result<SecurePostResponse, String> {
     let url = validate_remote_url(&request.url)?;
+    let deepseek_compat = is_deepseek_url(&url);
     let secret = load_secret(&request.secret_ref)?;
     let timeout_ms = request.timeout_ms.clamp(1_000, 300_000);
 
-    let client = reqwest::Client::builder()
+    let client_builder = reqwest::Client::builder()
         .redirect(Policy::none())
-        .timeout(Duration::from_millis(timeout_ms))
+        .timeout(Duration::from_millis(timeout_ms));
+    let client_builder = if deepseek_compat {
+        // Real Shenlun Stage 2 responses can be materially larger than the short
+        // provider smoke-test response. Keep DeepSeek on a conservative transport
+        // profile so CDN/body compression or HTTP/2 flow-control quirks cannot turn
+        // an otherwise valid completion into `error decoding response` in reqwest.
+        client_builder.http1_only()
+    } else {
+        client_builder
+    };
+    let client = client_builder
         .build()
         .map_err(|_| "Could not initialize secure HTTP client.".to_string())?;
 
@@ -116,12 +153,21 @@ pub async fn secure_post_json(request: SecurePostRequest) -> Result<SecurePostRe
         .post(url)
         .bearer_auth(secret)
         .header(reqwest::header::CONTENT_TYPE, "application/json")
+        .header(reqwest::header::ACCEPT, "application/json")
+        .header(reqwest::header::ACCEPT_ENCODING, "identity")
         .json(&request.body)
         .send()
         .await
-        .map_err(|error| format!("Remote provider request failed: {}", error))?;
+        .map_err(|error| format!("Remote provider request failed: {}", reqwest_error_detail(&error)))?;
 
     let status = response.status();
+    let response_version = format!("{:?}", response.version());
+    let content_encoding = response
+        .headers()
+        .get(reqwest::header::CONTENT_ENCODING)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("identity")
+        .to_string();
     let request_id = response
         .headers()
         .get("x-request-id")
@@ -136,7 +182,12 @@ pub async fn secure_post_json(request: SecurePostRequest) -> Result<SecurePostRe
     let bytes = response
         .bytes()
         .await
-        .map_err(|error| format!("Could not read remote provider response: {}", error))?;
+        .map_err(|error| format!(
+            "Could not read remote provider response [{}; content-encoding={}]: {}",
+            response_version,
+            content_encoding,
+            reqwest_error_detail(&error)
+        ))?;
     if bytes.len() > MAX_RESPONSE_BYTES {
         return Err("Remote provider response exceeded the size limit.".to_string());
     }
@@ -170,5 +221,13 @@ mod tests {
         let long = "x".repeat(MAX_PROVIDER_ERROR_CHARS + 100);
         let detail = provider_error_detail(long.as_bytes()).expect("detail");
         assert_eq!(detail.chars().count(), MAX_PROVIDER_ERROR_CHARS);
+    }
+
+    #[test]
+    fn detects_deepseek_transport_compatibility_host() {
+        let deepseek = reqwest::Url::parse("https://api.deepseek.com/chat/completions").unwrap();
+        let other = reqwest::Url::parse("https://api.example.com/v1/chat/completions").unwrap();
+        assert!(is_deepseek_url(&deepseek));
+        assert!(!is_deepseek_url(&other));
     }
 }
