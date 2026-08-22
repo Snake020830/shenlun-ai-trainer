@@ -21,8 +21,8 @@ const question: Question = {
   tags: [],
   materials: [{ id: "m1", label: "材料 1", content: "某地推进事项下沉并配置项目专员。" }],
   referenceAnswer: {
-    source: "老师答案",
-    content: "推进事项下沉；配置项目专员。"
+    source: "REF_ONLY_SOURCE",
+    content: "REF_ONLY_DIMENSION"
   }
 };
 
@@ -56,8 +56,9 @@ describe("grading stage prompt isolation", () => {
     ];
 
     for (const input of earlyStageInputs) {
-      expect(JSON.stringify(input)).not.toContain("老师答案");
-      expect(JSON.stringify(input)).not.toContain("配置项目专员");
+      const serialized = JSON.stringify(input);
+      expect(serialized).not.toContain("REF_ONLY_SOURCE");
+      expect(serialized).not.toContain("REF_ONLY_DIMENSION");
       expect(input.referenceAnswer).toBeUndefined();
     }
   });
@@ -73,6 +74,7 @@ describe("grading stage prompt isolation", () => {
 
     const stageFive = inputOf(buildReferenceCrossCheckRequest(question, rubric, question.referenceAnswer!));
     expect(stageFive.referenceAnswer).toEqual(question.referenceAnswer);
-    expect(JSON.stringify(stageFive)).toContain("老师答案");
+    expect(JSON.stringify(stageFive)).toContain("REF_ONLY_SOURCE");
+    expect(JSON.stringify(stageFive)).toContain("REF_ONLY_DIMENSION");
   });
 });
