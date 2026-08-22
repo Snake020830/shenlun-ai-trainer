@@ -1,9 +1,12 @@
 import type { GradingProviderOutput } from "../contracts";
+import { GRADING_WORKFLOW_VERSION, STAGE_PROMPTSET_VERSION } from "../versions";
 import type { BenchmarkModelRun } from "./types";
 
 export interface CreateBenchmarkModelRunOptions {
   runId: string;
   model?: string;
+  protocol?: string;
+  reasoningEffort?: string;
 }
 
 export function createBenchmarkModelRun(
@@ -57,8 +60,13 @@ export function createBenchmarkModelRun(
     })),
     providerId: output.review.providerId,
     model: options.model,
+    protocol: options.protocol,
+    reasoningEffort: options.reasoningEffort,
     rulesetVersion: output.review.rulesetVersion,
+    workflowVersion: GRADING_WORKFLOW_VERSION,
+    promptsetVersion: STAGE_PROMPTSET_VERSION,
     scoringPolicy: output.review.scoringPolicy,
-    generatedAt: output.review.generatedAt
+    generatedAt: output.review.generatedAt,
+    referenceCrossCheckUsed: Boolean(output.artifacts.referenceCrossCheck)
   };
 }
