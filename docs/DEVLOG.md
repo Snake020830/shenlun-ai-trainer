@@ -1,5 +1,30 @@
 # DEVLOG
 
+## 2026-08-22 — 题库导入与 Shenlun Grader Skill 落地
+
+### 公开真题题库
+
+- 新增可恢复的“一键初始化近10年题库”：主结构化来源扫描 → 待处理整卷结构校验 → 已通过整卷导入；重复运行复用既有状态和确定性题目 ID。
+- 失败/结构阻断项不在一键流程中反复请求，继续保留“重试失败项”作为显式恢复入口。
+- 整卷拆题时，小题只保存题干明确引用的材料；文章写作保留整卷材料，减少无关上下文进入作答与批改。
+- 若题干引用的材料号在解析结果中缺失，正式导入 fail closed。
+- 题库初始化统计按唯一试卷分组，不把同卷不同公开来源版本重复计数。
+- 正文仍按需读取并保存在用户本机；GitHub 仓库不打包第三方整卷全文。
+
+### Shenlun Grader Skill v0.2
+
+- 日常 `gradingService.grade()` 继续统一进入 `shenlunGraderSkill`；Skill 版本升级为 `shenlun-grader-skill@0.2.0`。
+- 新增五类题型专用批改约束：概括归纳、提出对策、综合分析、贯彻执行、文章写作。
+- 四类小题的题型约束已注入材料盲抽、rubric 构造、答案映射、字数审计和参考答案交叉验证全部五阶段。
+- Prompt 行为发生实质变化，`STAGE_PROMPTSET_VERSION` 同步升级为 `shenlun-stage-prompts@0.2.0`，避免 Benchmark 把不同提示条件混算。
+- 当前远程五阶段 score policy 仍是小题“材料点 → rubric → 逐点映射”逻辑；文章写作不再误用该流程生成数值分，真实 AI 作文评分等待专用论证/结构 workflow。
+
+### 回归与工程门禁
+
+- 新增题目材料范围、缺失引用材料、题库初始化可恢复性、题型 Skill 注入和作文错误路由等测试。
+- Frontend CI 的 push 门禁已覆盖当前开发分支 `feat/v0.1-product-shell`，后续该分支提交会自动跑 Vitest 与 TypeScript/Vite build。
+- Desktop CI 触发规则暂不改变；桌面 secure provider、Tauri 网络抓取与安装包仍按桌面验收流程确认。
+
 ## V0.1 — product shell + remote grading + benchmark foundation
 
 ### 产品闭环
@@ -147,6 +172,7 @@ Rubric 质量与答案 mapping 质量独立报告，避免模型自己漏 rubric
 ### 当前边界
 
 - Remote workflow 已具备真实模型调用能力，但 score policy 未校准，因此不是正式 AI 阅卷分。
+- 四类小题已进入题型专用 remote workflow；文章写作仍需独立作文评分 workflow，当前不会误套小题数值评分。
 - Benchmark 工程与 3 个 synthetic debug gold 已建立，但尚未填充真实独立人工 calibration/holdout cases。
 - 尚未在用户真实桌面环境完成 API key 写入、连接测试和一次完整五阶段真实 provider 人工验收。
 - 尚未形成基于真实 human gold 的 validation report。
@@ -154,12 +180,14 @@ Rubric 质量与答案 mapping 质量独立报告，避免模型自己漏 rubric
 
 ### 下一阶段
 
-1. 跑最新 Frontend/Desktop CI，冻结 benchmark 工程基线；
-2. 使用真实桌面环境做 secure provider 端到端验收；
-3. 从真实训练记录生成少量 benchmark drafts；
-4. 完成独立人工材料点/rubric/mapping/taxonomy/human-score adjudication；
-5. 固定 calibration/holdout split；
-6. 跑真实 Model Runs，另建 Human Alignment，生成 validation reports；
-7. 比较模型与 reasoning effort，优先解决 rubric 遗漏和 mapping/taxonomy 错误；
-8. 校准 score policy；
-9. 只有证据达到门槛后，才将 `calibrationStatus` 从 `uncalibrated` 升级为 `validated`。
+1. 拉取当前分支并通过最新 Frontend 回归测试与 production build；
+2. 用一套真实公开整卷完成“扫描 → 校验 → 拆题入库”的桌面端到端验收；
+3. 从其中一道非作文真题提交真实作答，完成 secure provider + Shenlun Grader Skill v0.2 五阶段人工验收；
+4. 从真实训练记录生成少量 benchmark drafts；
+5. 完成独立人工材料点/rubric/mapping/taxonomy/human-score adjudication；
+6. 固定 calibration/holdout split；
+7. 跑真实 Model Runs，另建 Human Alignment，生成 validation reports；
+8. 比较模型与 reasoning effort，优先解决 rubric 遗漏和 mapping/taxonomy 错误；
+9. 校准 score policy；
+10. 设计文章写作专用评分 workflow；
+11. 只有证据达到门槛后，才将 `calibrationStatus` 从 `uncalibrated` 升级为 `validated`。
