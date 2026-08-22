@@ -1,7 +1,7 @@
-export const STORAGE_SCHEMA_VERSION = 7;
+export const STORAGE_SCHEMA_VERSION = 8;
 
-// 运行时数据库的结构镜像。正式迁移文件位于 src-tauri/migrations/0001..0007。
-export const SQLITE_SCHEMA_V7 = `
+// 运行时数据库的结构镜像。正式迁移文件位于 src-tauri/migrations/0001..0008。
+export const SQLITE_SCHEMA_V8 = `
 PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS app_meta (
@@ -78,6 +78,12 @@ CREATE TABLE IF NOT EXISTS benchmark_alignments (
 CREATE TABLE IF NOT EXISTS practice_annotations (
   question_id TEXT PRIMARY KEY,
   annotations_json TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS practice_ink_strokes (
+  question_id TEXT PRIMARY KEY,
+  strokes_json TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
 
