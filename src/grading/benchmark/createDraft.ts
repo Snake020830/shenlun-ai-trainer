@@ -6,6 +6,7 @@ export interface CreateBenchmarkDraftOptions {
   source?: string;
   tags?: string[];
   createdAt?: string;
+  trainingRecordId?: string;
 }
 
 export function createBenchmarkDraft(
@@ -15,6 +16,7 @@ export function createBenchmarkDraft(
 ): GradingBenchmarkCase {
   if (!options.caseId.trim()) throw new Error("Benchmark draft caseId is required.");
   if (!answer.trim()) throw new Error("Benchmark draft answer is required.");
+  const createdAt = options.createdAt ?? new Date().toISOString();
 
   return {
     schemaVersion: "0.1.0",
@@ -46,8 +48,10 @@ export function createBenchmarkDraft(
     },
     provenance: {
       source: options.source ?? `${question.source ?? "unknown"}:${question.id}`,
+      ...(options.trainingRecordId?.trim() ? { trainingRecordId: options.trainingRecordId.trim() } : {}),
+      createdAt,
       annotatedAt: undefined,
-      adjudicationNotes: `Draft created ${options.createdAt ?? new Date().toISOString()}; gold fields require independent human annotation.`
+      adjudicationNotes: `Draft created ${createdAt}; gold fields require independent human annotation.`
     }
   };
 }
