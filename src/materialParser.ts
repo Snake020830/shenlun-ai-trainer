@@ -56,3 +56,17 @@ export function parseMaterialText(raw: string): ParsedMaterialBlock[] {
   // If headings were detected but none contained content, keep the original text intact rather than losing data.
   return result.length ? result : [{ label: "材料 1", content: normalized }];
 }
+
+/**
+ * Compatibility bridge for the current V0.1 persistence API, which still accepts one materialText string
+ * and uses a blank line as the stored material boundary.
+ *
+ * Internal blank paragraphs are reduced to a single newline so the old persistence splitter cannot mistake
+ * them for a new material. No textual content is removed; only redundant blank separator lines are collapsed.
+ */
+export function serializeMaterialTextForPersistence(raw: string): string {
+  return parseMaterialText(raw)
+    .map(block => block.content.replace(/\n\s*\n+/g, "\n").trim())
+    .filter(Boolean)
+    .join("\n\n");
+}
