@@ -6,6 +6,7 @@ import {
   type PublicExamBatchAuditResult,
   type PublicExamBatchImportResult
 } from "./publicExamBatch";
+import { groupPublicExamCandidates } from "./publicExamCatalog";
 import { discoverProviderCandidates, isRecentPublicExamYear } from "./publicSourceDiscovery";
 import { PUBLIC_SOURCE_PROVIDERS } from "./publicSourceProviders";
 import { publicSourceStore, type PublicSourceCandidate } from "./publicSourceStore";
@@ -21,7 +22,9 @@ export interface PublicExamBootstrapProgress {
 
 export interface PublicExamBootstrapResult {
   providerId: string;
+  /** Unique exam papers after source-version grouping. */
   candidateCount: number;
+  /** Source versions discovered during this scan. */
   discoveredThisRun: number;
   audit: ReturnType<typeof summarizePublicExamAudit>;
   import: ReturnType<typeof summarizePublicExamImport>;
@@ -94,12 +97,13 @@ export async function initializeRecentPublicExamLibrary(options: {
   }
 
   const finalCandidates = selectBootstrapCandidates(await publicSourceStore.listCandidates(), provider.id);
-  const finalImportedPaperCount = finalCandidates.filter(item => item.status === "imported").length;
-  options.onProgress?.({ phase: "done", done: finalImportedPaperCount, total: finalCandidates.length, title: "题库初始化完成" });
+  const finalGroups = groupPublicExamCandidates(finalCandidates);
+  const finalImportedPaperCount = finalGroups.filter(group => group.hasImportedVersion).length;
+  options.onProgress?.({ phase: "done", done: finalImportedPaperCount, total: finalGroups.length, title: "题库初始化完成" });
 
   return {
     providerId: provider.id,
-    candidateCount: finalCandidates.length,
+    candidateCount: finalGroups.length,
     discoveredThisRun: discovered.length,
     audit: summarizePublicExamAudit(auditResults),
     import: summarizePublicExamImport(importResults),
