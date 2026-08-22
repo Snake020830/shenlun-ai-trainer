@@ -125,7 +125,7 @@ export default function PublicSourceCatalogSection() {
       const result = await importPublicExam(preview);
       await reload();
       setImportedCount(result.newlyImportedQuestionIds.length);
-      setStatus(`整卷导入完成：新增 ${result.newlyImportedQuestionIds.length} 道题${result.reusedQuestionIds.length ? `，复用已存在 ${result.reusedQuestionIds.length} 道` : ""}。每道题均保留整卷完整材料和来源追溯。`);
+      setStatus(`整卷导入完成：新增 ${result.newlyImportedQuestionIds.length} 道题${result.reusedQuestionIds.length ? `，复用已存在 ${result.reusedQuestionIds.length} 道` : ""}。小题仅保留题干指定材料，文章写作保留整卷材料，并保留来源追溯。`);
     } catch (error) {
       console.error("Public exam import failed.", error);
       setStatus(error instanceof Error ? error.message : "整卷导入失败。");
@@ -184,7 +184,7 @@ export default function PublicSourceCatalogSection() {
       setStatus("当前没有已通过结构校验、等待导入的近10年整卷。");
       return;
     }
-    const confirmedBatch = window.confirm(`将重新读取并导入 ${auditedReadyCount} 套已通过结构校验的公开整卷。每套卷会拆成多道训练题并保留完整材料。继续吗？`);
+    const confirmedBatch = window.confirm(`将重新读取并导入 ${auditedReadyCount} 套已通过结构校验的公开整卷。每套卷会拆成多道训练题；小题按题干材料范围入库，文章写作保留整卷材料。继续吗？`);
     if (!confirmedBatch) return;
 
     setBatchMode("import");
