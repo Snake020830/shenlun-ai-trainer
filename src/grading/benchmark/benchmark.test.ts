@@ -97,4 +97,19 @@ describe("grading benchmark", () => {
     expect(metrics.meanSignedError).toBe(1);
     expect(metrics.normalizedMeanAbsoluteError).toBe(0.05);
   });
+
+  it("fails closed on duplicate rubric alignment rows", () => {
+    const duplicate: AlignedBenchmarkPrediction = {
+      ...prediction,
+      mappings: [prediction.mappings[0], prediction.mappings[0]]
+    };
+    expect(() => calculateMappingQuality(testCase, duplicate)).toThrow("Duplicate aligned prediction");
+    expect(() => calculateTaxonomyQuality(testCase, duplicate)).toThrow("Duplicate aligned prediction");
+    expect(hasCompleteAlignment(testCase, duplicate)).toBe(false);
+  });
+
+  it("fails closed on duplicate score predictions for one case", () => {
+    expect(() => calculateScoreCalibration([testCase], [prediction, { ...prediction }]))
+      .toThrow("Duplicate score prediction");
+  });
 });
