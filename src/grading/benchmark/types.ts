@@ -75,6 +75,16 @@ export interface BenchmarkValidationResult {
   warnings: string[];
 }
 
+export type RubricAlignmentRelation = "match" | "acceptable-merge" | "acceptable-split";
+
+export interface RubricAlignmentGroup {
+  goldRubricPointIds: string[];
+  predictedRubricPointIds: string[];
+  relation: RubricAlignmentRelation;
+  alignmentConfidence?: "high" | "medium" | "low";
+  alignmentNotes?: string;
+}
+
 export interface AlignedPredictionMapping {
   goldRubricPointId: string;
   predictedStatus: ReviewPoint["status"];
@@ -87,11 +97,25 @@ export interface AlignedPredictionMapping {
 export interface AlignedBenchmarkPrediction {
   caseId: string;
   predictedScore: number;
+  predictedRubricPointIds: string[];
+  rubricAlignments: RubricAlignmentGroup[];
   mappings: AlignedPredictionMapping[];
   providerId?: string;
   model?: string;
   rulesetVersion?: string;
   scoringPolicy?: string;
+}
+
+export interface RubricQualityMetrics {
+  goldPointCount: number;
+  predictedPointCount: number;
+  coveredGoldPointCount: number;
+  supportedPredictedPointCount: number;
+  recall: number | null;
+  precision: number | null;
+  f1: number | null;
+  unmatchedGoldRubricPointIds: string[];
+  unmatchedPredictedRubricPointIds: string[];
 }
 
 export interface MappingConfusionCounts {
@@ -102,6 +126,8 @@ export interface MappingConfusionCounts {
 
 export interface MappingQualityMetrics {
   alignedPointCount: number;
+  goldPointCount: number;
+  mappingCoverage: number | null;
   exactStatusAccuracy: number | null;
   confusion: MappingConfusionCounts;
 }
