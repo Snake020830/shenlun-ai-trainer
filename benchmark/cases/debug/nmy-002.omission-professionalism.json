@@ -2,6 +2,7 @@
   "schemaVersion": "0.1.0",
   "id": "debug-nmy-002-omission-professionalism",
   "tags": ["debug", "综合分析", "文化", "观点分类", "遗漏"],
+  "annotationStatus": "adjudicated",
   "split": "debug",
   "question": {
     "id": "q-nmy-002",
@@ -11,120 +12,30 @@
     "wordLimit": 400,
     "prompt": "根据给定资料，归纳“新民乐”走红引发的主要议论，并作简要说明。不超过 400 字。",
     "materials": [
-      {
-        "id": "m1",
-        "label": "材料 1",
-        "content": "近年来，一批青年演奏者通过改编传统曲目、融合电子音乐与舞台视觉，让民乐获得更大的传播舞台，并通过海外演出走向国际。支持者认为，新表达使传统艺术更贴近当代审美。"
-      },
-      {
-        "id": "m2",
-        "label": "材料 2",
-        "content": "也有人担心部分作品过度迎合市场，形式热闹却削弱民族音乐自身特色。业内人士认为，年轻从业者带来活力，但仍需提高专业素养与审美修养，在创新中守住传统文化的内在尺度。"
-      }
+      { "id": "m1", "label": "材料 1", "content": "近年来，一批青年演奏者通过改编传统曲目、融合电子音乐与舞台视觉，让民乐获得更大的传播舞台，并通过海外演出走向国际。支持者认为，新表达使传统艺术更贴近当代审美。" },
+      { "id": "m2", "label": "材料 2", "content": "也有人担心部分作品过度迎合市场，形式热闹却削弱民族音乐自身特色。业内人士认为，年轻从业者带来活力，但仍需提高专业素养与审美修养，在创新中守住传统文化的内在尺度。" }
     ]
   },
   "answer": "议论主要集中在两方面：一是新表达能扩大传播舞台、推动民乐出海并贴近当代审美，但也可能过度迎合市场、削弱民族特色；二是创新应与守本平衡，不能只追求形式热闹。",
   "gold": {
     "materialPoints": [
-      {
-        "id": "mp-nmy-01",
-        "materialId": "m1",
-        "canonicalLabel": "扩大传播舞台",
-        "elementType": "impact",
-        "evidence": "让民乐获得更大的传播舞台",
-        "independentDimension": true
-      },
-      {
-        "id": "mp-nmy-02",
-        "materialId": "m1",
-        "canonicalLabel": "推动海外传播",
-        "elementType": "impact",
-        "evidence": "通过海外演出走向国际",
-        "independentDimension": true
-      },
-      {
-        "id": "mp-nmy-03",
-        "materialId": "m1",
-        "canonicalLabel": "贴近当代审美",
-        "elementType": "viewpoint",
-        "evidence": "新表达使传统艺术更贴近当代审美",
-        "independentDimension": true
-      },
-      {
-        "id": "mp-nmy-04",
-        "materialId": "m2",
-        "canonicalLabel": "市场迎合削弱特色",
-        "elementType": "viewpoint",
-        "evidence": "过度迎合市场，形式热闹却削弱民族音乐自身特色",
-        "independentDimension": true
-      },
-      {
-        "id": "mp-nmy-05",
-        "materialId": "m2",
-        "canonicalLabel": "青年从业者带来活力",
-        "elementType": "viewpoint",
-        "evidence": "年轻从业者带来活力",
-        "independentDimension": true
-      },
-      {
-        "id": "mp-nmy-06",
-        "materialId": "m2",
-        "canonicalLabel": "提高专业与审美修养",
-        "elementType": "viewpoint",
-        "evidence": "仍需提高专业素养与审美修养",
-        "independentDimension": true
-      },
-      {
-        "id": "mp-nmy-07",
-        "materialId": "m2",
-        "canonicalLabel": "创新中守住文化尺度",
-        "elementType": "viewpoint",
-        "evidence": "在创新中守住传统文化的内在尺度",
-        "independentDimension": true
-      }
+      { "id": "mp-nmy-01", "materialId": "m1", "canonicalLabel": "扩大传播舞台", "elementType": "impact", "evidence": "让民乐获得更大的传播舞台", "independentDimension": true },
+      { "id": "mp-nmy-02", "materialId": "m1", "canonicalLabel": "推动海外传播", "elementType": "impact", "evidence": "通过海外演出走向国际", "independentDimension": true },
+      { "id": "mp-nmy-03", "materialId": "m1", "canonicalLabel": "贴近当代审美", "elementType": "viewpoint", "evidence": "新表达使传统艺术更贴近当代审美", "independentDimension": true },
+      { "id": "mp-nmy-04", "materialId": "m2", "canonicalLabel": "市场迎合削弱特色", "elementType": "viewpoint", "evidence": "过度迎合市场，形式热闹却削弱民族音乐自身特色", "independentDimension": true },
+      { "id": "mp-nmy-05", "materialId": "m2", "canonicalLabel": "青年从业者带来活力", "elementType": "viewpoint", "evidence": "年轻从业者带来活力", "independentDimension": true },
+      { "id": "mp-nmy-06", "materialId": "m2", "canonicalLabel": "提高专业与审美修养", "elementType": "viewpoint", "evidence": "仍需提高专业素养与审美修养", "independentDimension": true },
+      { "id": "mp-nmy-07", "materialId": "m2", "canonicalLabel": "创新中守住文化尺度", "elementType": "viewpoint", "evidence": "在创新中守住传统文化的内在尺度", "independentDimension": true }
     ],
     "rubric": [
-      {
-        "id": "r-nmy-01",
-        "canonicalLabel": "传播价值与文化影响",
-        "elementType": "viewpoint",
-        "materialPointIds": ["mp-nmy-01", "mp-nmy-02", "mp-nmy-03"],
-        "evidence": ["扩大传播舞台", "海外传播", "贴近当代审美"]
-      },
-      {
-        "id": "r-nmy-02",
-        "canonicalLabel": "青年从业者活力与专业素养",
-        "elementType": "viewpoint",
-        "materialPointIds": ["mp-nmy-05", "mp-nmy-06"],
-        "evidence": ["年轻从业者带来活力", "提高专业素养与审美修养"]
-      },
-      {
-        "id": "r-nmy-03",
-        "canonicalLabel": "创新表达与守住传统特色的张力",
-        "elementType": "viewpoint",
-        "materialPointIds": ["mp-nmy-04", "mp-nmy-07"],
-        "evidence": ["过度迎合市场可能削弱特色", "创新中守住传统文化内在尺度"]
-      }
+      { "id": "r-nmy-01", "canonicalLabel": "传播价值与文化影响", "elementType": "viewpoint", "materialPointIds": ["mp-nmy-01", "mp-nmy-02", "mp-nmy-03"], "evidence": ["扩大传播舞台", "海外传播", "贴近当代审美"] },
+      { "id": "r-nmy-02", "canonicalLabel": "青年从业者活力与专业素养", "elementType": "viewpoint", "materialPointIds": ["mp-nmy-05", "mp-nmy-06"], "evidence": ["年轻从业者带来活力", "提高专业素养与审美修养"] },
+      { "id": "r-nmy-03", "canonicalLabel": "创新表达与守住传统特色的张力", "elementType": "viewpoint", "materialPointIds": ["mp-nmy-04", "mp-nmy-07"], "evidence": ["过度迎合市场可能削弱特色", "创新中守住传统文化内在尺度"] }
     ],
     "mappings": [
-      {
-        "rubricPointId": "r-nmy-01",
-        "status": "hit",
-        "expectedErrorCodes": [],
-        "answerExcerpt": "扩大传播舞台、推动民乐出海并贴近当代审美"
-      },
-      {
-        "rubricPointId": "r-nmy-02",
-        "status": "missed",
-        "expectedErrorCodes": ["OMISSION"],
-        "notes": "答案没有覆盖青年从业者带来活力及需提升专业、审美修养这一独立争议维度。"
-      },
-      {
-        "rubricPointId": "r-nmy-03",
-        "status": "hit",
-        "expectedErrorCodes": [],
-        "answerExcerpt": "过度迎合市场、削弱民族特色；创新应与守本平衡"
-      }
+      { "rubricPointId": "r-nmy-01", "status": "hit", "expectedErrorCodes": [], "answerExcerpt": "扩大传播舞台、推动民乐出海并贴近当代审美" },
+      { "rubricPointId": "r-nmy-02", "status": "missed", "expectedErrorCodes": ["OMISSION"], "notes": "答案没有覆盖青年从业者带来活力及需提升专业、审美修养这一独立争议维度。" },
+      { "rubricPointId": "r-nmy-03", "status": "hit", "expectedErrorCodes": [], "answerExcerpt": "过度迎合市场、削弱民族特色；创新应与守本平衡" }
     ],
     "humanScores": []
   },
