@@ -1,5 +1,5 @@
 import type { Question } from "../types";
-import type { RemoteProviderPublicConfig } from "./remote/config";
+import { validatePublicProviderConfig, type RemoteProviderPublicConfig } from "./remote/config";
 import { createRemoteWorkflowProvider } from "./remote/remoteWorkflowProvider";
 import { tauriSecureRemoteExecutor } from "./remote/tauriExecutor";
 import { createRemoteModelTransport } from "./remote/transport";
@@ -79,6 +79,7 @@ export function validateProviderSmokeResult(
 
 export async function runProviderSmokeTest(config: RemoteProviderPublicConfig): Promise<ProviderSmokeTestReport> {
   const testConfig: RemoteProviderPublicConfig = { ...config, enabled: true };
+  validatePublicProviderConfig(testConfig);
   const transport = createRemoteModelTransport(testConfig, tauriSecureRemoteExecutor);
   const provider = createRemoteWorkflowProvider(transport);
   const result = await runShenlunGraderSkillWithProvider({
