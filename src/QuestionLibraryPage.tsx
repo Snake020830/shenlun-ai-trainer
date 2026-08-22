@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { isTauri } from "@tauri-apps/api/core";
-import { BookOpen, ChevronRight, Download, Eye, FileText, Globe2, Plus, RefreshCw, Search } from "lucide-react";
+import { BookOpen, ChevronRight, Download, ExternalLink, Eye, FileText, Globe2, Info, Plus, RefreshCw, Search } from "lucide-react";
 import { canImportParsedPublicExam } from "./publicExamParser";
 import { importPublicExam, previewPublicExam, type PublicExamPreview } from "./publicExamImporter";
 import { discoverProviderCandidates, getPublicExamYearRange, isRecentPublicExamYear } from "./publicSourceDiscovery";
 import { getPublicSourceProvider } from "./publicSourceProviders";
-import { publicSourceStore, type PublicSourceCandidate } from "./publicSourceStore";
+import { publicSourceStore, type PublicSourceCandidate, type QuestionSourceProvenance } from "./publicSourceStore";
 import type { Question } from "./types";
 import "./questionLibrary.css";
 
@@ -16,6 +16,10 @@ type LibraryTab = "ready" | "public";
 
 function difficultyLabel(question: Question): string {
   return question.difficulty;
+}
+
+function isPublicImportedQuestion(question: Question): boolean {
+  return question.id.startsWith("publicq:");
 }
 
 function PublicExamBrowser({ onImported }: { onImported: () => Promise<void> | void }) {
@@ -167,12 +171,32 @@ export default function QuestionLibraryPage({
 }) {
   const [tab, setTab] = useState<LibraryTab>("ready");
   const [query, setQuery] = useState("");
+  const [sourceLoadingId, setSourceLoadingId] = useState<string | null>(null);
+  const [sourceDetail, setSourceDetail] = useState<{ questionId: string; source: QuestionSourceProvenance | null } | null>(null);
   const filtered = allQuestions.filter(question => `${question.title}${question.type}${question.tags.join("")}`.toLowerCase().includes(query.trim().toLowerCase()));
 
   async function finishPublicImport() {
     await onRefreshImported();
     setTab("ready");
     setQuery("");
+  }
+
+  async function toggleSource(questionId: string) {
+    if (sourceDetail?.questionId === questionId) {
+      setSourceDetail(null);
+      return;
+    }
+    if (sourceLoadingId) return;
+    setSourceLoadingId(questionId);
+    try {
+      const source = await publicSourceStore.getQuestionSource(questionId);
+      setSourceDetail({ questionId, source });
+    } catch (error) {
+      console.error("Failed to load question source provenance.", error);
+      setSourceDetail({ questionId, source: null });
+    } finally {
+      setSourceLoadingId(null);
+    }
   }
 
   return <main className="page page-wide question-library-page">
@@ -182,7 +206,19 @@ export default function QuestionLibraryPage({
 
     {tab === "ready" ? <>
       <div className="toolbar"><div className="search-box"><Search size={17}/><input value={query} onChange={event => setQuery(event.target.value)} placeholder="搜索题目、题型或标签"/></div><span className="library-count">{filtered.length} 题</span></div>
-      <div className="question-grid">{filtered.map(question => <article className="question-card" key={question.id}><div className="question-top"><span className="library-difficulty">{difficultyLabel(question)}</span><span>{question.source === "local" ? `${question.year} · ${question.region}` : "功能演示"}</span></div><h3>{question.title}</h3><p>{question.prompt}</p><div className="tag-row">{question.tags.map(tag => <span key={tag}>#{tag}</span>)}</div><footer><span><FileText size={14}/>{question.type} · {question.score} 分 · {question.wordLimit} 字</span><button onClick={() => onStart(question)}>开始训练 <ChevronRight size={16}/></button></footer></article>)}</div>
+      <div className="question-grid">{filtered.map(question => {
+        const publicQuestion = isPublicImportedQuestion(question);
+        const detailOpen = sourceDetail?.questionId === question.id;
+        return <article className="question-card" key={question.id}>
+          <div className="question-top"><span className="library-difficulty">{difficultyLabel(question)}</span><span>{publicQuestion ? `公开真题 · ${question.year} · ${question.region}` : question.source === "local" ? `${question.year} · ${question.region}` : "功能演示"}</span></div>
+          <h3>{question.title}</h3>
+          <p>{question.prompt}</p>
+          <div className="tag-row">{question.tags.map(tag => <span key={tag}>#{tag}</span>)}</div>
+          {publicQuestion && <div className="question-source-row"><button type="button" onClick={() => void toggleSource(question.id)} disabled={sourceLoadingId !== null}><Info size={13}/>{sourceLoadingId === question.id ? "读取来源…" : detailOpen ? "收起来源" : "来源"}</button>{question.tags.includes("回忆版") && <span>回忆版</span>}</div>}
+          {detailOpen && <div className="question-source-detail">{sourceDetail.source ? <><div><strong>{sourceDetail.source.sourceName ?? "公开来源"}</strong><span>{sourceDetail.source.sourceTitle ?? question.title}</span></div>{sourceDetail.source.sourceUrl ? <a href={sourceDetail.source.sourceUrl} target="_blank" rel="noreferrer"><ExternalLink size={13}/>查看原始整卷</a> : null}{sourceDetail.source.isRecallVersion && <small>该来源标记为网友/考生回忆版本，训练时保留此标识。</small>}</> : <span>没有读取到这道题的来源记录。</span>}</div>}
+          <footer><span><FileText size={14}/>{question.type} · {question.score} 分 · {question.wordLimit} 字</span><button onClick={() => onStart(question)}>开始训练 <ChevronRight size={16}/></button></footer>
+        </article>;
+      })}</div>
       {!filtered.length && <div className="public-library-empty">没有符合条件的已入库题目。</div>}
     </> : <PublicExamBrowser onImported={finishPublicImport}/>}
   </main>;
