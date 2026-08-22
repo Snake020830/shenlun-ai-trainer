@@ -4,8 +4,11 @@ vi.mock("@tauri-apps/api/core", () => ({ isTauri: () => false }));
 
 import {
   getPracticeAnnotations,
+  getPracticeInkStrokes,
   savePracticeAnnotations,
+  savePracticeInkStrokes,
   saveTrainingPracticeMeta,
+  type PracticeInkStroke,
   type PracticeTextAnnotation,
   type TrainingPracticeMeta
 } from "./practiceSessionStore";
@@ -64,6 +67,49 @@ describe("practice session store", () => {
     await expect(savePracticeAnnotations("q1", [
       { id: "a3", materialId: "m1", start: 0, end: 2, type: "underline", color: "yellow" }
     ])).rejects.toThrow("cannot attach a highlight color");
+  });
+
+  it("persists character-anchored ink strokes per question", async () => {
+    const strokes: PracticeInkStroke[] = [{
+      id: "s1",
+      materialId: "m1",
+      color: "graphite",
+      width: 2.2,
+      points: [
+        { offset: 12, dx: -1.5, dy: 8 },
+        { offset: 13, dx: 3, dy: 9.5 },
+        { offset: 15, dx: 1, dy: 10 }
+      ]
+    }];
+    await savePracticeInkStrokes("q1", strokes);
+    expect(await getPracticeInkStrokes("q1")).toEqual(strokes);
+    expect(await getPracticeInkStrokes("q2")).toEqual([]);
+  });
+
+  it("rejects malformed or unsafe ink stroke data", async () => {
+    await expect(savePracticeInkStrokes("q1", [{
+      id: "s1",
+      materialId: "m1",
+      color: "graphite",
+      width: 2,
+      points: [{ offset: 1, dx: 0, dy: 0 }]
+    }])).rejects.toThrow("invalid point count");
+
+    await expect(savePracticeInkStrokes("q1", [{
+      id: "s1",
+      materialId: "m1",
+      color: "purple" as never,
+      width: 2,
+      points: [{ offset: 1, dx: 0, dy: 0 }, { offset: 2, dx: 1, dy: 1 }]
+    }])).rejects.toThrow("unsupported color");
+
+    await expect(savePracticeInkStrokes("q1", [{
+      id: "s1",
+      materialId: "m1",
+      color: "graphite",
+      width: 30,
+      points: [{ offset: 1, dx: 0, dy: 0 }, { offset: 2, dx: 1, dy: 1 }]
+    }])).rejects.toThrow("invalid width");
   });
 
   it("stores timing metadata independently for each submitted training record", async () => {
