@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
-import { ArrowLeft, Check, ChevronRight, CircleAlert, FilePlus2, FileText, History, Home, LibraryBig, PenLine, Plus, RotateCcw, Search, Settings, Sparkles, Target, TimerReset } from "lucide-react";
+import { ArrowLeft, Check, ChevronRight, CircleAlert, FilePlus2, FileText, History, Home, LibraryBig, PenLine, RotateCcw, Settings, Sparkles, Target, TimerReset } from "lucide-react";
 import { parseMaterialText, serializeMaterialTextForPersistence } from "./materialParser";
 import { buildMockReview, questions as builtinQuestions } from "./mockData";
 import PracticeWorkspace from "./PracticeWorkspace";
 import ProviderSettingsPage from "./ProviderSettingsPage";
+import QuestionLibraryPage from "./QuestionLibraryPage";
 import ReferenceCrossCheckPanel from "./ReferenceCrossCheckPanel";
 import { persistence } from "./storage";
 import type { AppView, Difficulty, LocalQuestionInput, MockReview, Question, QuestionType, TrainingRecord } from "./types";
@@ -54,12 +55,6 @@ function Today({ onStart, history, allQuestions }: { onStart: (question: Questio
   </main>;
 }
 
-function Library({ allQuestions, onStart, onImport }: { allQuestions: Question[]; onStart: (question: Question) => void; onImport: () => void }) {
-  const [query, setQuery] = useState("");
-  const filtered = allQuestions.filter(q => `${q.title}${q.type}${q.tags.join("")}`.toLowerCase().includes(query.trim().toLowerCase()));
-  return <main className="page page-wide"><header className="page-header compact"><div><p className="eyebrow">题库</p><h1>按能力点选题，而不是随机刷题</h1><p>内置样题与本地导入题统一进入训练工作台。</p></div><button className="primary" onClick={onImport}><Plus size={16}/>导入题目</button></header><div className="toolbar"><div className="search-box"><Search size={17}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="搜索题目、题型或标签"/></div><Badge>{filtered.length} 题</Badge></div><div className="question-grid">{filtered.map(q => <article className="question-card" key={q.id}><div className="question-top"><Badge tone={q.difficulty === "挑战" ? "amber" : "neutral"}>{q.difficulty}</Badge><span>{q.source === "local" ? "本地导入" : `${q.year} · ${q.region}`}</span></div><h3>{q.title}</h3><p>{q.prompt}</p><div className="tag-row">{q.tags.map(tag => <span key={tag}>#{tag}</span>)}</div><footer><span>{q.type} · {q.score} 分 · {q.wordLimit} 字</span><button onClick={() => onStart(q)}>开始训练 <ChevronRight size={16}/></button></footer></article>)}</div></main>;
-}
-
 function ImportQuestion({ onCancel, onSaved }: { onCancel: () => void; onSaved: (question: Question) => void }) {
   const [title, setTitle] = useState("");
   const [year, setYear] = useState(new Date().getFullYear());
@@ -89,6 +84,7 @@ function ImportQuestion({ onCancel, onSaved }: { onCancel: () => void; onSaved: 
       wordLimit,
       prompt,
       materialText: serializeMaterialTextForPersistence(materialText),
+      materials: parsedMaterials.map(material => ({ label: material.label, content: material.content })),
       tags: tags.split(/[，,]/).map(item => item.trim()).filter(Boolean),
       referenceAnswerContent,
       referenceAnswerSource
@@ -104,10 +100,6 @@ function ImportQuestion({ onCancel, onSaved }: { onCancel: () => void; onSaved: 
   }
 
   return <main className="page page-wide import-page"><header className="page-header compact"><div><p className="eyebrow">本地题库</p><h1>导入一道申论题</h1><p>支持完整真题粘贴。优先按“材料一 / 材料1 / 给定资料1”等显式标题识别材料，材料内部空行不会被当成新材料。</p></div><button className="secondary" onClick={onCancel}><ArrowLeft size={16}/>返回题库</button></header><form className="import-form" onSubmit={submit}><section className="form-card"><h3>题目信息</h3><label className="field field-wide"><span>题目名称</span><input value={title} onChange={e => setTitle(e.target.value)} placeholder="例如：概括某地基层治理的主要做法" required/></label><div className="form-grid"><label className="field"><span>题型</span><select value={type} onChange={e => setType(e.target.value as QuestionType)}>{["概括归纳","提出对策","综合分析","贯彻执行","文章写作"].map(item => <option key={item}>{item}</option>)}</select></label><label className="field"><span>难度</span><select value={difficulty} onChange={e => setDifficulty(e.target.value as Difficulty)}>{["基础","进阶","挑战"].map(item => <option key={item}>{item}</option>)}</select></label><label className="field"><span>分值</span><input type="number" min="1" max="100" value={score} onChange={e => setScore(Number(e.target.value))}/></label><label className="field"><span>字数上限</span><input type="number" min="50" max="2000" value={wordLimit} onChange={e => setWordLimit(Number(e.target.value))}/></label><label className="field"><span>年份</span><input type="number" min="2000" max="2100" value={year} onChange={e => setYear(Number(e.target.value))}/></label><label className="field"><span>来源/地区</span><input value={region} onChange={e => setRegion(e.target.value)}/></label></div><label className="field field-wide"><span>标签（逗号分隔）</span><input value={tags} onChange={e => setTags(e.target.value)} placeholder="基层治理，概括做法，要点分类"/></label></section><section className="form-card"><h3>题干与材料</h3><label className="field field-wide"><span>作答要求</span><textarea className="form-textarea prompt-input" value={prompt} onChange={e => setPrompt(e.target.value)} placeholder="粘贴题干与作答要求" required/></label><label className="field field-wide"><span>给定资料</span><textarea className="form-textarea material-input" value={materialText} onChange={e => setMaterialText(e.target.value)} placeholder="建议保留原题中的“材料一 / 材料二 / 给定资料1”等标题；每则材料内部可以正常保留多个自然段。" required/></label><div className="import-note"><CircleAlert size={16}/><span>{materialText.trim() ? `当前识别为 ${parsedMaterials.length} 则材料。` : "粘贴材料后会显示识别结果。"} 未检测到显式材料标题时，整段按一则材料保存，避免误拆。真实 AI 评分仍从完整材料盲抽要点。</span></div></section><section className="form-card"><h3>老师 / 机构参考答案（可选）</h3><label className="field field-wide"><span>来源</span><input value={referenceAnswerSource} onChange={e => setReferenceAnswerSource(e.target.value)} placeholder="例如：某机构参考答案、老师批改稿"/></label><label className="field field-wide"><span>参考答案正文</span><textarea className="form-textarea prompt-input" value={referenceAnswerContent} onChange={e => setReferenceAnswerContent(e.target.value)} placeholder="可留空。保存后在正常作答界面完全隐藏，仅在 AI 已完成盲抽、rubric、答案映射和字数审计后用于 Stage 5 交叉验证。"/></label><div className="import-note"><CircleAlert size={16}/><span>参考答案不是唯一真值，也不会反向改写前四阶段的材料评分框架；它只用于发现遗漏维度、比较归类粒度和记录差异。</span></div></section><footer className="form-actions"><button type="button" className="secondary" onClick={onCancel}>取消</button><button className="primary" type="submit" disabled={saving}><FilePlus2 size={16}/>{saving ? "保存中…" : "保存并开始作答"}</button></footer></form></main>;
-}
-
-function BeforeReview({ question }: { question: Question }) {
-  return <div className="before-review"><div className="review-icon"><Sparkles size={22}/></div><h3>批改面板</h3><p>提交前不展示要点，避免提示效应。提交后这里会显示结构化反馈。</p><div className="review-rule"><Check size={16}/><span>要点覆盖</span></div><div className="review-rule"><Check size={16}/><span>要素分类</span></div><div className="review-rule"><Check size={16}/><span>表达与冗余</span></div><small>提交后按当前设置的评分引擎运行；远程 AI 若启用，其数值分仍属于未校准实验评分。</small><div className="question-facts"><span>题型</span><strong>{question.type}</strong><span>字数</span><strong>≤ {question.wordLimit}</strong></div></div>;
 }
 
 function ReviewPanel({ review }: { review: MockReview }) {
@@ -142,6 +134,11 @@ export default function App() {
   const [selectedRecord, setSelectedRecord] = useState<TrainingRecord | null>(null);
   const [returnView, setReturnView] = useState<AppView>("history");
 
+  async function refreshImportedQuestions() {
+    const questions = await persistence.listImportedQuestions();
+    setImportedQuestions(questions);
+  }
+
   useEffect(() => {
     let cancelled = false;
     async function hydrate() {
@@ -152,7 +149,7 @@ export default function App() {
           persistence.listHistory()
         ]);
         if (cancelled) return;
-        setImportedQuestions(current => mergeUniqueById(current, questions));
+        setImportedQuestions(questions);
         setHistory(current => mergeUniqueById(current, records));
       } catch (error) {
         console.error("Failed to initialize persistence.", error);
@@ -170,7 +167,7 @@ export default function App() {
 
   let content: React.ReactNode;
   if (view === "today") content = <Today onStart={start} history={history} allQuestions={allQuestions}/>;
-  else if (view === "library") content = <Library allQuestions={allQuestions} onStart={start} onImport={() => setView("import")}/>;
+  else if (view === "library") content = <QuestionLibraryPage allQuestions={allQuestions} onStart={start} onImport={() => setView("import")} onRefreshImported={refreshImportedQuestions}/>;
   else if (view === "import") content = <ImportQuestion onCancel={() => setView("library")} onSaved={saveImported}/>;
   else if (view === "review") content = <ReviewQueue records={history} allQuestions={allQuestions} onOpen={record => openRecord(record, "review")}/>;
   else if (view === "history") content = <HistoryPage records={history} onOpen={record => openRecord(record, "history")}/>;
