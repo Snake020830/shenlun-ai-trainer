@@ -195,7 +195,7 @@ export async function auditPublicExamCandidate(candidate: PublicSourceCandidate)
       warningCount: warnings.length,
       warnings
     };
-    const outcome: PublicExamBatchAttemptOutcome = importable ? "ready" : "blocked";
+    const outcome: "ready" | "blocked" = importable ? "ready" : "blocked";
     const message = importable ? undefined : warnings[0] ?? "结构校验未通过。";
     await persistBatchAttempt(candidate, batchAttempt("audit", outcome, message), {
       audit,
