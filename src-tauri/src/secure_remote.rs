@@ -95,7 +95,7 @@ pub fn store_provider_secret(secret_ref: String, secret: String) -> Result<(), S
 
 #[tauri::command]
 pub fn delete_provider_secret(secret_ref: String) -> Result<(), String> {
-    credential_entry(&secret_ref)?
+    credential_entry(secret_ref.as_str())?
         .delete_credential()
         .map_err(|_| "Could not delete provider credential.".to_string())
 }
@@ -161,7 +161,7 @@ mod tests {
 
     #[test]
     fn extracts_provider_error_message() {
-        let detail = provider_error_detail(br#"{\"error\":{\"message\":\"bad request payload\"}}"#);
+        let detail = provider_error_detail(br#"{"error":{"message":"bad request payload"}}"#);
         assert_eq!(detail.as_deref(), Some("bad request payload"));
     }
 
