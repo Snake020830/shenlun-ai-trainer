@@ -49,7 +49,7 @@ describe("remote protocol codec", () => {
     expect(chat.body.reasoning_effort).toBeUndefined();
   });
 
-  it("encodes Chat Completions with store=false and json_schema", () => {
+  it("encodes generic Chat Completions with store=false and json_schema", () => {
     const call = encodeRemoteCall(config("openai-chat-completions"), request);
     expect(call.url).toBe("https://api.example.com/v1/chat/completions");
     expect(call.body.store).toBe(false);
@@ -61,6 +61,20 @@ describe("remote protocol codec", () => {
         strict: false
       }
     });
+  });
+
+  it("encodes DeepSeek Chat Completions with json_object and schema instructions", () => {
+    const call = encodeRemoteCall(config("openai-chat-completions", {
+      baseUrl: "https://api.deepseek.com",
+      model: "deepseek-v4-pro"
+    }), request);
+
+    expect(call.url).toBe("https://api.deepseek.com/chat/completions");
+    expect(call.body.store).toBeUndefined();
+    expect(call.body.response_format).toEqual({ type: "json_object" });
+    const messages = call.body.messages as Array<{ role: string; content: string }>;
+    expect(messages[0]?.content).toContain("合法 JSON 对象");
+    expect(messages[0]?.content).toContain(JSON.stringify(request.jsonSchema));
   });
 
   it("decodes Chat Completions JSON content", () => {
