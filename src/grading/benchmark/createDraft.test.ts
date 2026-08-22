@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Question } from "../../types";
+import type { BenchmarkAlignment, BenchmarkModelRun } from "./types";
 import { createBenchmarkDraft } from "./createDraft";
 import { calculateMappingQuality } from "./metrics";
 import { validateBenchmarkCase } from "./validateCase";
@@ -46,14 +47,25 @@ describe("benchmark draft creation", () => {
 
   it("cannot be evaluated before adjudication", () => {
     const draft = createBenchmarkDraft(question, "建议建立联动机制。", { caseId: "draft-002" });
-    expect(() => calculateMappingQuality(draft, {
+    const run: BenchmarkModelRun = {
+      schemaVersion: "0.1.0",
       caseId: draft.id,
       runId: "run-draft",
       predictedScore: 0,
-      predictedRubricPointIds: [],
+      maxScore: question.score,
+      rubric: [],
+      mappings: [],
+      workflowVersion: "shenlun-workflow@0.1.0",
+      promptsetVersion: "shenlun-stage-prompts@0.1.0",
+      referenceCrossCheckUsed: false
+    };
+    const alignment: BenchmarkAlignment = {
+      caseId: draft.id,
+      runId: run.runId,
       rubricAlignments: [],
-      mappings: []
-    })).toThrow("not adjudicated");
+      mappingLinks: []
+    };
+    expect(() => calculateMappingQuality(draft, run, alignment)).toThrow("not adjudicated");
   });
 
   it("rejects empty case ids and answers", () => {
