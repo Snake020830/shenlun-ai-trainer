@@ -1,4 +1,5 @@
 export type RemoteProtocol = "openai-chat-completions" | "openai-responses";
+export type ReasoningEffort = "provider-default" | "low" | "medium" | "high" | "xhigh";
 
 export interface RemoteProviderPublicConfig {
   id: string;
@@ -9,6 +10,7 @@ export interface RemoteProviderPublicConfig {
   model: string;
   secretRef: string;
   timeoutMs: number;
+  reasoningEffort: ReasoningEffort;
 }
 
 export interface RemoteJsonRequest {
@@ -38,8 +40,17 @@ export const DEFAULT_REMOTE_PROVIDER_CONFIG: RemoteProviderPublicConfig = {
   baseUrl: "",
   model: "",
   secretRef: "grading-provider-api-key",
-  timeoutMs: 120_000
+  timeoutMs: 120_000,
+  reasoningEffort: "provider-default"
 };
+
+const REASONING_EFFORTS = new Set<ReasoningEffort>([
+  "provider-default",
+  "low",
+  "medium",
+  "high",
+  "xhigh"
+]);
 
 export function validatePublicProviderConfig(config: RemoteProviderPublicConfig): void {
   if (!config.enabled) return;
@@ -50,6 +61,9 @@ export function validatePublicProviderConfig(config: RemoteProviderPublicConfig)
   }
   if (!Number.isFinite(config.timeoutMs) || config.timeoutMs < 1_000 || config.timeoutMs > 300_000) {
     throw new Error("Remote provider timeoutMs must be between 1000ms and 300000ms.");
+  }
+  if (!REASONING_EFFORTS.has(config.reasoningEffort)) {
+    throw new Error("Remote provider reasoningEffort is invalid.");
   }
 
   let url: URL;
