@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { isTauri } from "@tauri-apps/api/core";
 import { BookOpen, ChevronRight, Download, ExternalLink, Eye, FileText, Globe2, Info, Plus, RefreshCw, Search } from "lucide-react";
+import { groupPublicExamCandidates } from "./publicExamCatalog";
 import { canImportParsedPublicExam } from "./publicExamParser";
 import { importPublicExam, previewPublicExam, type PublicExamPreview } from "./publicExamImporter";
 import { discoverProviderCandidates, getPublicExamYearRange, isRecentPublicExamYear } from "./publicSourceDiscovery";
@@ -22,6 +23,13 @@ function isPublicImportedQuestion(question: Question): boolean {
   return question.id.startsWith("publicq:");
 }
 
+function sourceVariantLabel(candidate: PublicSourceCandidate): string {
+  if (candidate.status === "imported") return "已入库版本";
+  if (candidate.metadata?.recallVersion) return "回忆版本";
+  if (/(站友|网友|考生).*(提供|整理)|站友提供/.test(candidate.title)) return "用户提供版本";
+  return "公开版本";
+}
+
 function PublicExamBrowser({ onImported }: { onImported: () => Promise<void> | void }) {
   const desktop = isTauri();
   const yearRange = getPublicExamYearRange();
@@ -31,6 +39,7 @@ function PublicExamBrowser({ onImported }: { onImported: () => Promise<void> | v
   const [regionFilter, setRegionFilter] = useState("all");
   const [page, setPage] = useState(1);
   const [busy, setBusy] = useState<string | null>(null);
+  const [expandedGroupKey, setExpandedGroupKey] = useState<string | null>(null);
   const [status, setStatus] = useState(`只加载近10年（${yearRange.minYear}—${yearRange.maxYear}）公开整卷目录；正文在你选择某一卷时才读取。`);
   const [preview, setPreview] = useState<PublicExamPreview | null>(null);
   const [confirmed, setConfirmed] = useState(false);
@@ -56,9 +65,10 @@ function PublicExamBrowser({ onImported }: { onImported: () => Promise<void> | v
     setBusy("scan");
     setStatus(`正在更新 ${yearRange.minYear}—${yearRange.maxYear} 公开申论整卷目录；只保存标题、年份、地区、卷别和原始 URL…`);
     try {
-      const rows = await discoverProviderCandidates(provider);
+      const discovered = await discoverProviderCandidates(provider);
       await reload();
-      setStatus(`目录更新完成：当前主来源识别 ${rows.length} 套近10年申论整卷。重复来源已自动去重。`);
+      const groupCount = groupPublicExamCandidates(discovered).length;
+      setStatus(`目录更新完成：识别 ${groupCount} 套近10年申论整卷、${discovered.length} 个公开版本；同卷多版本已分组，不会重复占满题库。`);
     } catch (error) {
       console.error("Failed to scan primary public exam catalog.", error);
       setStatus(error instanceof Error ? error.message : "公开真题目录更新失败。");
@@ -93,9 +103,10 @@ function PublicExamBrowser({ onImported }: { onImported: () => Promise<void> | v
     try {
       const result = await importPublicExam(preview);
       await reload();
-      setStatus(`已导入：新增 ${result.newlyImportedQuestionIds.length} 道题${result.reusedQuestionIds.length ? `，已有 ${result.reusedQuestionIds.length} 道直接复用` : ""}。`);
+      setStatus(`已导入：新增 ${result.newlyImportedQuestionIds.length} 道题${result.reusedQuestionIds.length ? `，已有 ${result.reusedQuestionIds.length} 道直接复用` : ""}。同卷其他公开版本仍保留用于来源核对，不会自动重复导入。`);
       setPreview(null);
       setConfirmed(false);
+      setExpandedGroupKey(null);
       await onImported();
     } catch (error) {
       console.error("Failed to import public exam.", error);
@@ -105,20 +116,21 @@ function PublicExamBrowser({ onImported }: { onImported: () => Promise<void> | v
     }
   }
 
+  const groups = useMemo(() => groupPublicExamCandidates(candidates), [candidates]);
   const options = useMemo(() => ({
-    years: [...new Set(candidates.map(item => item.year).filter((value): value is number => typeof value === "number"))].sort((a, b) => b - a),
-    regions: [...new Set(candidates.map(item => item.region).filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b, "zh-CN"))
-  }), [candidates]);
+    years: [...new Set(groups.map(item => item.year))].sort((a, b) => b - a),
+    regions: [...new Set(groups.map(item => item.region).filter(Boolean))].sort((a, b) => a.localeCompare(b, "zh-CN"))
+  }), [groups]);
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    return candidates.filter(item => {
-      if (yearFilter !== "all" && String(item.year ?? "") !== yearFilter) return false;
-      if (regionFilter !== "all" && item.region !== regionFilter) return false;
+    return groups.filter(group => {
+      if (yearFilter !== "all" && String(group.year) !== yearFilter) return false;
+      if (regionFilter !== "all" && group.region !== regionFilter) return false;
       if (!needle) return true;
-      return `${item.title} ${item.paperVariant ?? ""} ${item.region ?? ""}`.toLowerCase().includes(needle);
+      return group.members.some(item => `${item.title} ${item.paperVariant ?? ""} ${item.region ?? ""}`.toLowerCase().includes(needle));
     });
-  }, [candidates, query, regionFilter, yearFilter]);
+  }, [groups, query, regionFilter, yearFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PUBLIC_PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
@@ -127,7 +139,7 @@ function PublicExamBrowser({ onImported }: { onImported: () => Promise<void> | v
 
   return <div className="public-library-browser">
     <div className="public-library-intro">
-      <div><Globe2 size={20}/><div><strong>公开申论整卷 · 近10年</strong><span>{yearRange.minYear}—{yearRange.maxYear}。目录元数据在本机缓存；完整材料只在你预览并确认一套卷时读取。</span></div></div>
+      <div><Globe2 size={20}/><div><strong>公开申论整卷 · 近10年</strong><span>{yearRange.minYear}—{yearRange.maxYear}。同一套卷的多个公开版本合并显示；完整材料只在你预览某个版本时读取。</span></div></div>
       <button className="secondary" disabled={!desktop || busy !== null} onClick={() => void scanPrimaryCatalog()}><RefreshCw size={15}/>{busy === "scan" ? "更新中…" : candidates.length ? "更新目录" : "获取公开目录"}</button>
     </div>
     {!desktop && <div className="library-runtime-note">浏览器预览不能跨站抓取公开真题。正式目录更新和整卷导入在 Tauri 桌面版执行；这里仍可验收布局。</div>}
@@ -137,13 +149,24 @@ function PublicExamBrowser({ onImported }: { onImported: () => Promise<void> | v
       <div className="search-box"><Search size={16}/><input value={query} onChange={event => setQuery(event.target.value)} placeholder="搜索国考、省考、年份或卷别"/></div>
       <select value={yearFilter} onChange={event => setYearFilter(event.target.value)}><option value="all">近10年全部年份</option>{options.years.map(year => <option key={year} value={year}>{year}</option>)}</select>
       <select value={regionFilter} onChange={event => setRegionFilter(event.target.value)}><option value="all">全部地区</option>{options.regions.map(region => <option key={region} value={region}>{region}</option>)}</select>
-      <span>{filtered.length} 套</span>
+      <span>{filtered.length} 套 · {candidates.length} 个版本</span>
     </div>
 
     <div className="public-exam-cards">
-      {rows.map(item => <article className="public-exam-card" key={item.id}>
-        <div className="public-exam-card-heading"><div><strong>{item.title}</strong><div>{item.year && <span>{item.year}</span>}{item.region && <span>{item.region}</span>}{item.paperVariant && <span>{item.paperVariant}</span>}{item.metadata?.recallVersion && <span className="recall">回忆来源</span>}{item.status === "imported" && <span className="imported">已入库</span>}</div></div><button disabled={!desktop || busy !== null || item.status === "imported"} onClick={() => void openPreview(item)}><Eye size={14}/>{busy === item.id ? "读取中" : item.status === "imported" ? "已导入" : "预览整卷"}</button></div>
-      </article>)}
+      {rows.map(group => {
+        const item = group.preferred;
+        const expanded = expandedGroupKey === group.key;
+        return <article className="public-exam-card" key={group.key}>
+          <div className="public-exam-card-heading">
+            <div>
+              <strong>{item.title}</strong>
+              <div>{item.year && <span>{item.year}</span>}{item.region && <span>{item.region}</span>}{item.paperVariant && <span>{item.paperVariant}</span>}<span className="preferred">推荐版本</span>{item.metadata?.recallVersion && <span className="recall">回忆来源</span>}{group.hasImportedVersion && <span className="imported">已有版本入库</span>}{group.alternatives.length > 0 && <button className="variant-toggle" onClick={() => setExpandedGroupKey(expanded ? null : group.key)}>{expanded ? "收起版本" : `另有 ${group.alternatives.length} 个版本`}</button>}</div>
+            </div>
+            <button disabled={!desktop || busy !== null || group.hasImportedVersion} onClick={() => void openPreview(item)}><Eye size={14}/>{busy === item.id ? "读取中" : group.hasImportedVersion ? "已有版本入库" : "预览推荐版"}</button>
+          </div>
+          {expanded && <div className="public-exam-variants">{group.alternatives.map(alternative => <div key={alternative.id}><div><strong>{alternative.title}</strong><span>{sourceVariantLabel(alternative)}</span></div><div>{!group.hasImportedVersion && <button disabled={!desktop || busy !== null} onClick={() => void openPreview(alternative)}><Eye size={13}/>{busy === alternative.id ? "读取中" : "预览此版本"}</button>}<a href={alternative.sourceUrl} target="_blank" rel="noreferrer"><ExternalLink size={13}/>原页面</a></div></div>)}</div>}
+        </article>;
+      })}
       {!rows.length && <div className="public-library-empty">{candidates.length ? "没有符合筛选条件的整卷。" : `尚未获取 ${yearRange.minYear}—${yearRange.maxYear} 公开整卷目录。桌面版点击“获取公开目录”后即可按年份和地区浏览。`}</div>}
     </div>
 
@@ -200,7 +223,7 @@ export default function QuestionLibraryPage({
   }
 
   return <main className="page page-wide question-library-page">
-    <header className="page-header compact"><div><p className="eyebrow">题库</p><h1>真题先核验，再进入训练</h1><p>已入库题目可以直接作答；公开整卷只保留最近10年目录，选中后按需读取并结构化导入。</p></div><button className="primary" onClick={onImport}><Plus size={16}/>手工导入</button></header>
+    <header className="page-header compact"><div><p className="eyebrow">题库</p><h1>真题先核验，再进入训练</h1><p>已入库题目可以直接作答；公开整卷只保留最近10年目录，同一套卷的多个公开版本会合并显示。</p></div><button className="primary" onClick={onImport}><Plus size={16}/>手工导入</button></header>
 
     <div className="library-tabs"><button className={tab === "ready" ? "active" : ""} onClick={() => setTab("ready")}><BookOpen size={16}/>已入库题目 <span>{allQuestions.length}</span></button><button className={tab === "public" ? "active" : ""} onClick={() => setTab("public")}><Globe2 size={16}/>近10年公开整卷</button></div>
 
@@ -208,14 +231,14 @@ export default function QuestionLibraryPage({
       <div className="toolbar"><div className="search-box"><Search size={17}/><input value={query} onChange={event => setQuery(event.target.value)} placeholder="搜索题目、题型或标签"/></div><span className="library-count">{filtered.length} 题</span></div>
       <div className="question-grid">{filtered.map(question => {
         const publicQuestion = isPublicImportedQuestion(question);
-        const detailOpen = sourceDetail?.questionId === question.id;
+        const detail = sourceDetail?.questionId === question.id ? sourceDetail : null;
         return <article className="question-card" key={question.id}>
           <div className="question-top"><span className="library-difficulty">{difficultyLabel(question)}</span><span>{publicQuestion ? `公开真题 · ${question.year} · ${question.region}` : question.source === "local" ? `${question.year} · ${question.region}` : "功能演示"}</span></div>
           <h3>{question.title}</h3>
           <p>{question.prompt}</p>
           <div className="tag-row">{question.tags.map(tag => <span key={tag}>#{tag}</span>)}</div>
-          {publicQuestion && <div className="question-source-row"><button type="button" onClick={() => void toggleSource(question.id)} disabled={sourceLoadingId !== null}><Info size={13}/>{sourceLoadingId === question.id ? "读取来源…" : detailOpen ? "收起来源" : "来源"}</button>{question.tags.includes("回忆版") && <span>回忆版</span>}</div>}
-          {detailOpen && <div className="question-source-detail">{sourceDetail.source ? <><div><strong>{sourceDetail.source.sourceName ?? "公开来源"}</strong><span>{sourceDetail.source.sourceTitle ?? question.title}</span></div>{sourceDetail.source.sourceUrl ? <a href={sourceDetail.source.sourceUrl} target="_blank" rel="noreferrer"><ExternalLink size={13}/>查看原始整卷</a> : null}{sourceDetail.source.isRecallVersion && <small>该来源标记为网友/考生回忆版本，训练时保留此标识。</small>}</> : <span>没有读取到这道题的来源记录。</span>}</div>}
+          {publicQuestion && <div className="question-source-row"><button type="button" onClick={() => void toggleSource(question.id)} disabled={sourceLoadingId !== null}><Info size={13}/>{sourceLoadingId === question.id ? "读取来源…" : detail ? "收起来源" : "来源"}</button>{question.tags.includes("回忆版") && <span>回忆版</span>}</div>}
+          {detail && <div className="question-source-detail">{detail.source ? <><div><strong>{detail.source.sourceName ?? "公开来源"}</strong><span>{detail.source.sourceTitle ?? question.title}</span></div>{detail.source.sourceUrl ? <a href={detail.source.sourceUrl} target="_blank" rel="noreferrer"><ExternalLink size={13}/>查看原始整卷</a> : null}{detail.source.isRecallVersion && <small>该来源标记为网友/考生回忆版本，训练时保留此标识。</small>}</> : <span>没有读取到这道题的来源记录。</span>}</div>}
           <footer><span><FileText size={14}/>{question.type} · {question.score} 分 · {question.wordLimit} 字</span><button onClick={() => onStart(question)}>开始训练 <ChevronRight size={16}/></button></footer>
         </article>;
       })}</div>
