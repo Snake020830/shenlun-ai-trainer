@@ -52,6 +52,27 @@ const fixture = `
 网站版本：v20260406
 `;
 
+const realStyleFixture = `
+2024年国家公务员考试《申论》卷（副省级）站友提供版
+给定资料
+材料1：
+第一则材料。
+材料2：
+第二则材料。
+作答要求
+第一题：
+请根据“给定材料1”，简要总结某企业成功的经验。（10分）
+要求：全面、准确、有条理，不超过200字。
+第二题：
+请根据“给定材料2”，分析问题并提出对策。（20分）
+要求：分析全面、对策得当，不超过400字。
+第三题：
+参考给定材料，联系实际，自选角度，自拟题目，写一篇文章。（40分）
+要求：观点明确，结构完整，篇幅1000字左右。
+欢迎使用公开真题库（https://gwy.gkzhenti.cn）
+网站版本：v20260406
+`;
+
 describe("parseGkzhentiExamText", () => {
   it("extracts the full material corpus without losing natural paragraph breaks", () => {
     const exam = parseGkzhentiExamText(fixture, candidate);
@@ -83,6 +104,20 @@ describe("parseGkzhentiExamText", () => {
     expect(exam.tasks[4].wordLimit).toBe(1200);
   });
 
+  it("supports real-source headings like 材料1： and 第一题：", () => {
+    const exam = parseGkzhentiExamText(realStyleFixture, candidate);
+    expect(exam.warnings).toEqual([]);
+    expect(exam.materials.map(item => item.label)).toEqual(["材料1", "材料2"]);
+    expect(exam.tasks).toHaveLength(3);
+    expect(exam.tasks[0].ordinal).toBe("一");
+    expect(exam.tasks[0].materialNumbers).toEqual([1]);
+    expect(exam.tasks[1].questionType).toBe("提出对策");
+    expect(exam.tasks[1].tags).toContain("复合题");
+    expect(exam.tasks[2].questionType).toBe("文章写作");
+    expect(exam.tasks[2].wordLimit).toBe(1000);
+    expect(canImportParsedPublicExam(exam)).toBe(true);
+  });
+
   it("keeps requirements separate from the substantive prompt", () => {
     const exam = parseGkzhentiExamText(fixture, candidate);
     expect(exam.tasks[0].prompt).toContain("生态实践智慧");
@@ -100,7 +135,7 @@ describe("parseGkzhentiExamText", () => {
   it("is importable only when the page structure and every task-level warning is resolved", () => {
     expect(canImportParsedPublicExam(parseGkzhentiExamText(fixture, candidate))).toBe(true);
 
-    const broken = parseGkzhentiExamText(`二、给定材料\n材料1\n正文。\n三、作答要求\n一、\n概括材料内容。（10分）\n要求：不超过200字。`, candidate);
+    const broken = parseGkzhentiExamText(`二、给定材料\n材料1\n正文。\n三、作答要求\n第一题：\n概括材料内容。（10分）\n要求：不超过200字。`, candidate);
     expect(canImportParsedPublicExam(broken)).toBe(false);
     expect(broken.tasks[0].warnings).toContain("未识别明确材料编号；默认导入整卷材料，需人工核验。");
   });
