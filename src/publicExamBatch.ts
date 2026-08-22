@@ -1,3 +1,4 @@
+import { groupPublicExamCandidates } from "./publicExamCatalog";
 import { canImportParsedPublicExam } from "./publicExamParser";
 import { importPublicExam, previewPublicExam } from "./publicExamImporter";
 import { isRecentPublicExamYear } from "./publicSourceDiscovery";
@@ -72,6 +73,20 @@ export function isAuditedImportableCandidate(candidate: PublicSourceCandidate): 
   );
 }
 
+function preferredBatchAuditQueue(candidates: PublicSourceCandidate[]): PublicSourceCandidate[] {
+  return groupPublicExamCandidates(candidates)
+    .filter(group => !group.hasImportedVersion)
+    .map(group => group.preferred)
+    .filter(item => isRecentPublicExamYear(item.year) && item.status !== "imported" && item.status !== "rejected");
+}
+
+function preferredBatchImportQueue(candidates: PublicSourceCandidate[]): PublicSourceCandidate[] {
+  return groupPublicExamCandidates(candidates)
+    .filter(group => !group.hasImportedVersion)
+    .map(group => group.members.find(isAuditedImportableCandidate))
+    .filter((item): item is PublicSourceCandidate => Boolean(item));
+}
+
 export async function auditPublicExamCandidate(candidate: PublicSourceCandidate): Promise<PublicExamBatchAuditResult> {
   if (!isRecentPublicExamYear(candidate.year)) {
     return { candidateId: candidate.id, title: candidate.title, outcome: "skipped", message: "不在最近10年正式题库范围。" };
@@ -128,9 +143,7 @@ export async function auditPublicExamCandidates(
 ): Promise<PublicExamBatchAuditResult[]> {
   const delayMs = Math.max(250, options.delayMs ?? 500);
   const maxCandidates = Math.max(1, Math.min(options.maxCandidates ?? 500, 500));
-  const queue = candidates
-    .filter(item => isRecentPublicExamYear(item.year) && item.status !== "imported" && item.status !== "rejected")
-    .slice(0, maxCandidates);
+  const queue = preferredBatchAuditQueue(candidates).slice(0, maxCandidates);
   const results: PublicExamBatchAuditResult[] = [];
 
   for (let index = 0; index < queue.length; index += 1) {
@@ -154,7 +167,7 @@ export async function importAuditedPublicExams(
 ): Promise<PublicExamBatchImportResult[]> {
   const delayMs = Math.max(250, options.delayMs ?? 500);
   const maxCandidates = Math.max(1, Math.min(options.maxCandidates ?? 500, 500));
-  const queue = candidates.filter(isAuditedImportableCandidate).slice(0, maxCandidates);
+  const queue = preferredBatchImportQueue(candidates).slice(0, maxCandidates);
   const results: PublicExamBatchImportResult[] = [];
 
   for (let index = 0; index < queue.length; index += 1) {
@@ -165,7 +178,7 @@ export async function importAuditedPublicExams(
       // permanent content snapshot because the public page may have changed.
       const preview = await previewPublicExam(current);
       if (!canImportParsedPublicExam(preview.exam)) {
-        throw new Error("网页在批量校验后发生变化或当前解析不再通过，已跳过。")
+        throw new Error("网页在批量校验后发生变化或当前解析不再通过，已跳过。");
       }
       const imported = await importPublicExam(preview);
       const result: PublicExamBatchImportResult = {
