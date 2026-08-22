@@ -212,6 +212,18 @@ function preserveWorkflowState(existing: PublicSourceCandidate, incoming: Public
   };
 }
 
+async function findExistingCandidate(db: Database, candidate: PublicSourceCandidate): Promise<PublicSourceCandidate | null> {
+  const rows = await db.select<CandidateRow[]>(
+    `SELECT id, provider_id, title, source_url, year, region, paper_variant, source_kind,
+            access_note, discovered_at, status, imported_question_id, metadata_json
+     FROM public_source_candidates
+     WHERE source_url = $1 OR id = $2
+     LIMIT 1`,
+    [candidate.sourceUrl, candidate.id]
+  );
+  return rows[0] ? candidateFromRow(rows[0]) : null;
+}
+
 export const publicSourceStore = {
   async listCandidates(): Promise<PublicSourceCandidate[]> {
     const db = await getDatabase();
@@ -239,6 +251,9 @@ export const publicSourceStore = {
       writeJson(CANDIDATES_KEY, next);
       return;
     }
+
+    const previous = await findExistingCandidate(db, candidate);
+    const nextCandidate = previous ? preserveWorkflowState(previous, candidate) : candidate;
     await db.execute(
       `INSERT INTO public_source_candidates
         (id, provider_id, title, source_url, year, region, paper_variant, source_kind,
@@ -252,27 +267,23 @@ export const publicSourceStore = {
          paper_variant=excluded.paper_variant,
          source_kind=excluded.source_kind,
          access_note=excluded.access_note,
-         status=CASE
-           WHEN public_source_candidates.status IN ('reviewed','imported','rejected')
-             THEN public_source_candidates.status
-           ELSE excluded.status
-         END,
-         imported_question_id=COALESCE(public_source_candidates.imported_question_id, excluded.imported_question_id),
+         status=excluded.status,
+         imported_question_id=excluded.imported_question_id,
          metadata_json=excluded.metadata_json`,
       [
-        candidate.id,
-        candidate.providerId,
-        candidate.title,
-        candidate.sourceUrl,
-        candidate.year ?? null,
-        candidate.region ?? null,
-        candidate.paperVariant ?? null,
-        candidate.sourceKind,
-        candidate.accessNote ?? null,
-        candidate.discoveredAt,
-        candidate.status,
-        candidate.importedQuestionId ?? null,
-        JSON.stringify(candidate.metadata ?? {})
+        nextCandidate.id,
+        nextCandidate.providerId,
+        nextCandidate.title,
+        nextCandidate.sourceUrl,
+        nextCandidate.year ?? null,
+        nextCandidate.region ?? null,
+        nextCandidate.paperVariant ?? null,
+        nextCandidate.sourceKind,
+        nextCandidate.accessNote ?? null,
+        nextCandidate.discoveredAt,
+        nextCandidate.status,
+        nextCandidate.importedQuestionId ?? null,
+        JSON.stringify(nextCandidate.metadata ?? {})
       ]
     );
   },
