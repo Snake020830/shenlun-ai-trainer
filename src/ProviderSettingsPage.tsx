@@ -136,7 +136,7 @@ export default function ProviderSettingsPage() {
     if (!config || !desktop || !readyForRemote || busy) return;
     setBusy("smoke");
     setSmokeReport(null);
-    setStatus({ tone: "neutral", text: "正在运行完整批改链自检：材料盲抽 → rubric → 答案映射 → 字数审计。该过程会发送 4 个小型 AI 请求。" });
+    setStatus({ tone: "neutral", text: "正在运行真实负载批改链自检：材料盲抽 → rubric → 答案映射 → 字数审计。该过程会发送 4 个结构化 AI 请求。" });
     try {
       const report = await runProviderSmokeTest(config);
       const enabledConfig: RemoteProviderPublicConfig = { ...config, enabled: true };
@@ -202,9 +202,9 @@ export default function ProviderSettingsPage() {
       </div>
       <div className="provider-smoke-actions">
         <button className="secondary" disabled={!desktop || !readyForRemote || busy !== null} onClick={testConnection}><TestTube2 size={16}/>{busy === "test" ? "测试中…" : "快速测试连接"}</button>
-        <button className="primary" disabled={!desktop || !readyForRemote || busy !== null} onClick={runFullSmokeAndEnable}><BadgeCheck size={16}/>{busy === "smoke" ? "完整自检中…" : "完整自检并启用 AI 批改"}</button>
+        <button className="primary" disabled={!desktop || !readyForRemote || busy !== null} onClick={runFullSmokeAndEnable}><BadgeCheck size={16}/>{busy === "smoke" ? "真实负载自检中…" : "完整自检并启用 AI 批改"}</button>
       </div>
-      <small className="provider-smoke-note">完整自检会使用一个很短的内置调试题发送 4 个结构化请求，不写入训练记录，也不进入 Human Gold。通过只代表模型能够执行当前批改 Skill，不代表诊断分已经完成真实阅卷校准。</small>
+      <small className="provider-smoke-note">完整自检会使用一则中等长度、包含多个独立要点的内置申论题发送 4 个结构化请求，更接近真实小题的 Stage 1—4 负载；不写入训练记录，也不进入 Human Gold。通过仍只代表模型能够稳定执行当前批改 Skill，不代表诊断分已经完成真实阅卷校准。</small>
       {smokeReport && <div className="provider-smoke-report"><BadgeCheck size={16}/><div><strong>完整批改链已通过</strong><span>{smokeReport.model} · candidates {smokeReport.materialCandidateCount} · rubric {smokeReport.rubricCount} · mappings {smokeReport.mappingCount}</span><small>{smokeReport.skillVersion} · {smokeReport.scoreInterpretation}</small></div></div>}
     </section>
 
@@ -222,7 +222,7 @@ export default function ProviderSettingsPage() {
       <div className="settings-grid">
         <label className="field"><span>协议</span><select value={config.protocol} onChange={event => patch("protocol", event.target.value as RemoteProtocol)}>{Object.entries(PROTOCOL_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
         <label className="field"><span>推理强度</span><select value={config.reasoningEffort} disabled={!responsesMode} onChange={event => patch("reasoningEffort", event.target.value as ReasoningEffort)}>{Object.entries(REASONING_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><small>{responsesMode ? "支持 reasoning.effort 的 Responses provider 可选择 High；兼容性不确定时保留 Provider 默认。" : "Chat Completions 兼容模式暂不发送 reasoning 参数。"}</small></label>
-        <label className="field"><span>请求超时（毫秒）</span><input type="number" min="1000" max="300000" step="1000" value={config.timeoutMs} onChange={event => patch("timeoutMs", Number(event.target.value))}/></label>
+        <label className="field"><span>请求超时（毫秒）</span><input type="number" min="1000" max="300000" step="1000" value={config.timeoutMs} onChange={event => patch("timeoutMs", Number(event.target.value))}/><small>DeepSeek 实战请求内部至少保留 240 秒兼容窗口；其他 provider 按此配置执行。</small></label>
         <label className="field"><span>配置名称</span><input value={config.label} onChange={event => patch("label", event.target.value)} /></label>
       </div>
       <div className="settings-actions"><button className="primary" disabled={busy !== null} onClick={savePublicConfig}><Save size={16}/>{busy === "config" ? "保存中…" : "保存模型配置"}</button><button className="secondary" disabled={busy !== null} onClick={resetConfig}><RotateCcw size={16}/>恢复默认配置</button></div>
