@@ -25,20 +25,28 @@ function harmonicMean(precision: number | null, recall: number | null): number |
   return 2 * precision * recall / (precision + recall);
 }
 
+function assertUniqueAlignedMappings(prediction: AlignedBenchmarkPrediction): void {
+  const seen = new Set<string>();
+  for (const mapping of prediction.mappings) {
+    if (seen.has(mapping.goldRubricPointId)) {
+      throw new Error(`Duplicate aligned prediction for ${mapping.goldRubricPointId}.`);
+    }
+    seen.add(mapping.goldRubricPointId);
+  }
+}
+
 export function calculateMappingQuality(
   testCase: GradingBenchmarkCase,
   prediction: AlignedBenchmarkPrediction
 ): MappingQualityMetrics {
   if (prediction.caseId !== testCase.id) throw new Error("Prediction caseId does not match benchmark case.");
+  assertUniqueAlignedMappings(prediction);
 
   const goldById = new Map(testCase.gold.mappings.map(item => [item.rubricPointId, item]));
-  const seen = new Set<string>();
   const confusion = emptyConfusion();
   let correct = 0;
 
   for (const mapping of prediction.mappings) {
-    if (seen.has(mapping.goldRubricPointId)) throw new Error(`Duplicate aligned prediction for ${mapping.goldRubricPointId}.`);
-    seen.add(mapping.goldRubricPointId);
     const gold = goldById.get(mapping.goldRubricPointId);
     if (!gold) throw new Error(`Aligned prediction references unknown gold rubric ${mapping.goldRubricPointId}.`);
     confusion[gold.status][mapping.predictedStatus] += 1;
@@ -46,8 +54,8 @@ export function calculateMappingQuality(
   }
 
   return {
-    alignedPointCount: seen.size,
-    exactStatusAccuracy: safeRatio(correct, seen.size),
+    alignedPointCount: prediction.mappings.length,
+    exactStatusAccuracy: safeRatio(correct, prediction.mappings.length),
     confusion
   };
 }
@@ -57,6 +65,7 @@ export function calculateTaxonomyQuality(
   prediction: AlignedBenchmarkPrediction
 ): TaxonomyQualityMetrics {
   if (prediction.caseId !== testCase.id) throw new Error("Prediction caseId does not match benchmark case.");
+  assertUniqueAlignedMappings(prediction);
 
   const goldById = new Map(testCase.gold.mappings.map(item => [item.rubricPointId, item]));
   let truePositive = 0;
@@ -98,7 +107,14 @@ export function calculateScoreCalibration(
   cases: GradingBenchmarkCase[],
   predictions: AlignedBenchmarkPrediction[]
 ): ScoreCalibrationMetrics {
-  const predictionsByCase = new Map(predictions.map(item => [item.caseId, item]));
+  const predictionsByCase = new Map<string, AlignedBenchmarkPrediction>();
+  for (const prediction of predictions) {
+    if (predictionsByCase.has(prediction.caseId)) {
+      throw new Error(`Duplicate score prediction for benchmark case ${prediction.caseId}.`);
+    }
+    predictionsByCase.set(prediction.caseId, prediction);
+  }
+
   const absoluteErrors: number[] = [];
   const squaredErrors: number[] = [];
   const signedErrors: number[] = [];
@@ -137,6 +153,7 @@ export function calculateScoreCalibration(
 export function hasCompleteAlignment(testCase: GradingBenchmarkCase, prediction: AlignedBenchmarkPrediction): boolean {
   const goldIds = new Set(testCase.gold.rubric.map(item => item.id));
   const alignedIds = new Set(prediction.mappings.map(item => item.goldRubricPointId));
+  if (prediction.mappings.length !== alignedIds.size) return false;
   if (goldIds.size !== alignedIds.size) return false;
   for (const id of goldIds) if (!alignedIds.has(id)) return false;
   return true;
