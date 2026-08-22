@@ -3,6 +3,7 @@ import type { FormEvent } from "react";
 import { ArrowLeft, BookOpenText, Check, ChevronRight, CircleAlert, Clock3, FilePlus2, FileText, History, Home, LibraryBig, PanelRightClose, PanelRightOpen, PenLine, Plus, RotateCcw, Search, Settings, Sparkles, Target, TimerReset } from "lucide-react";
 import { gradingService } from "./grading";
 import { buildMockReview, questions as builtinQuestions } from "./mockData";
+import ProviderSettingsPage from "./ProviderSettingsPage";
 import { persistence } from "./storage";
 import type { AppView, Difficulty, LocalQuestionInput, MockReview, Question, QuestionType, TrainingRecord } from "./types";
 
@@ -171,10 +172,6 @@ function RecordDetail({ record, allQuestions, onBack, onRetry }: { record: Train
   return <main className="page page-wide"><header className="detail-header"><button className="secondary" onClick={onBack}><ArrowLeft size={16}/>返回</button><div><p className="eyebrow">训练复盘</p><h1>{record.title}</h1><p>{record.submittedAt} · 得分 {record.score}/{record.maxScore}</p></div>{question ? <button className="primary" onClick={() => onRetry(question)}>重新作答</button> : <span/>}</header><div className="detail-grid"><section className="answer-snapshot"><span>你的答案</span><p>{record.answer}</p></section><aside className="detail-review">{review ? <ReviewPanel review={review}/> : <div className="empty-state"><CircleAlert size={24}/><strong>这条旧记录没有批改快照</strong><span>对应题目也已不存在，无法重建模拟反馈。</span></div>}</aside></div></main>;
 }
 
-function SettingsPage() {
-  return <main className="page centered"><div className="placeholder"><Settings size={30}/><h2>设置页将在评分引擎接入时启用</h2><p>届时在这里配置模型提供商、API、数据目录、批改严格度和隐私选项。当前不提前堆无效设置。</p><Badge>V0.2</Badge></div></main>;
-}
-
 export default function App() {
   const [view, setView] = useState<AppView>("today");
   const [importedQuestions, setImportedQuestions] = useState<Question[]>([]);
@@ -217,7 +214,7 @@ export default function App() {
   else if (view === "review") content = <ReviewQueue records={history} allQuestions={allQuestions} onOpen={record => openRecord(record, "review")}/>;
   else if (view === "history") content = <HistoryPage records={history} onOpen={record => openRecord(record, "history")}/>;
   else if (view === "record" && selectedRecord) content = <RecordDetail record={selectedRecord} allQuestions={allQuestions} onBack={() => setView(returnView)} onRetry={start}/>;
-  else content = <SettingsPage/>;
+  else content = <ProviderSettingsPage/>;
 
   return <div className="app-shell"><Sidebar view={view} onChange={setView}/>{content}</div>;
 }
