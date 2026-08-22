@@ -48,6 +48,7 @@ describe("benchmark draft creation", () => {
     const draft = createBenchmarkDraft(question, "建议建立联动机制。", { caseId: "draft-002" });
     expect(() => calculateMappingQuality(draft, {
       caseId: draft.id,
+      runId: "run-draft",
       predictedScore: 0,
       predictedRubricPointIds: [],
       rubricAlignments: [],
