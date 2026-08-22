@@ -8,7 +8,8 @@ import type {
   RubricPointArtifact,
   WordBudgetOutput
 } from "./artifacts";
-import type { ReferenceAnswer, RemoteJsonRequest } from "./contracts";
+import type { ReferenceAnswer } from "./contracts";
+import type { RemoteJsonRequest } from "./remote/config";
 
 const COMMON_INSTRUCTIONS = `
 你正在执行申论评分系统的结构化子任务。
