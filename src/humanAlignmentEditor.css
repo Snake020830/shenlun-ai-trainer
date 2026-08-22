@@ -1,0 +1,256 @@
+.human-alignment-editor {
+  margin-top: 14px;
+  border: 1px solid #dbe3ec;
+  border-radius: 14px;
+  padding: 16px;
+  background: #f8fafc;
+  display: grid;
+  gap: 14px;
+}
+
+.alignment-header,
+.alignment-column-title,
+.alignment-selection-summary,
+.alignment-group-card,
+.alignment-actions {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.alignment-header > div > span {
+  display: block;
+  font-size: 11px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.alignment-header h4 {
+  margin: 4px 0;
+}
+
+.alignment-header p {
+  margin: 0;
+  max-width: 760px;
+  color: #64748b;
+  line-height: 1.55;
+  font-size: 13px;
+}
+
+.alignment-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.alignment-columns > section,
+.alignment-builder,
+.alignment-groups,
+.alignment-provenance {
+  border: 1px solid #dbe3ec;
+  border-radius: 12px;
+  background: #fff;
+  padding: 12px;
+}
+
+.alignment-column-title {
+  align-items: baseline;
+  margin-bottom: 9px;
+}
+
+.alignment-column-title small {
+  color: #64748b;
+}
+
+.alignment-rubric-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px;
+  margin-top: 8px;
+  background: #fff;
+}
+
+.alignment-rubric-card.model {
+  background: #fbfdff;
+}
+
+.alignment-rubric-card.resolved {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+}
+
+.alignment-select-row,
+.unmatched-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.alignment-select-row > span {
+  display: grid;
+  gap: 3px;
+}
+
+.alignment-select-row input,
+.unmatched-row input {
+  margin-top: 3px;
+}
+
+.alignment-rubric-card p {
+  margin: 8px 0;
+  color: #475569;
+  line-height: 1.55;
+  font-size: 13px;
+}
+
+.alignment-rubric-card small {
+  color: #64748b;
+}
+
+.unmatched-row {
+  margin-top: 9px;
+  border-top: 1px dashed #e2e8f0;
+  padding-top: 8px;
+  color: #9f1239;
+  font-size: 12px;
+}
+
+.model-judgment-readonly {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.model-judgment-readonly > span {
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.model-judgment-readonly code,
+.alignment-group-card code {
+  font-size: 10px;
+}
+
+.alignment-builder-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+}
+
+.alignment-builder-grid .wide {
+  grid-column: 1 / -1;
+}
+
+.alignment-builder-grid label > span,
+.alignment-provenance label > span {
+  display: block;
+  margin-bottom: 5px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.alignment-builder-grid input,
+.alignment-builder-grid select,
+.alignment-provenance input,
+.alignment-provenance textarea {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 8px 9px;
+  font: inherit;
+  background: #fff;
+}
+
+.alignment-selection-summary {
+  align-items: center;
+  margin-top: 10px;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 10px;
+  font-size: 12px;
+  color: #475569;
+}
+
+.alignment-groups {
+  display: grid;
+  gap: 8px;
+}
+
+.alignment-group-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 9px;
+  padding: 9px 10px;
+  align-items: center;
+}
+
+.alignment-group-card > div {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  gap: 5px 8px;
+  align-items: center;
+}
+
+.alignment-group-card small {
+  grid-column: 2 / -1;
+  color: #64748b;
+}
+
+.alignment-empty,
+.alignment-message,
+.alignment-locked {
+  border: 1px dashed #cbd5e1;
+  border-radius: 9px;
+  padding: 10px;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.alignment-provenance {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 10px;
+}
+
+.alignment-provenance textarea {
+  min-height: 72px;
+  resize: vertical;
+}
+
+.alignment-actions {
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.alignment-locked {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  border-style: solid;
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+  color: #166534;
+}
+
+@media (max-width: 920px) {
+  .alignment-columns,
+  .alignment-builder-grid,
+  .alignment-provenance {
+    grid-template-columns: 1fr;
+  }
+
+  .alignment-builder-grid .wide {
+    grid-column: auto;
+  }
+
+  .alignment-header,
+  .alignment-selection-summary {
+    flex-direction: column;
+  }
+}
