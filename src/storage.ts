@@ -516,6 +516,34 @@ export const persistence = {
     if (question && question.source !== "builtin") await insertBenchmarkDraftIfMissing(db, question, record);
   },
 
+  async captureBenchmarkDraftFromHistory(recordId: string): Promise<GradingBenchmarkCase | null> {
+    const normalizedId = recordId.trim();
+    if (!normalizedId) return null;
+    const db = await getDatabase();
+    if (!db) {
+      const record = readJson<TrainingRecord[]>(HISTORY_KEY, []).find(item => item.id === normalizedId);
+      if (!record) return null;
+      const question = readJson<Question[]>(QUESTIONS_KEY, [])
+        .find(item => item.id === record.questionId && item.source !== "builtin");
+      if (!question) return null;
+      return insertBenchmarkDraftIfMissing(null, question, record);
+    }
+
+    const rows = await db.select<TrainingRow[]>(
+      `SELECT id, question_id, title_snapshot, score, max_score, answer, review_json,
+              submitted_at, submitted_at_display
+       FROM training_records
+       WHERE id = $1
+       LIMIT 1`,
+      [normalizedId]
+    );
+    const row = rows[0];
+    if (!row) return null;
+    const question = await loadQuestionById(db, row.question_id);
+    if (!question || question.source === "builtin") return null;
+    return insertBenchmarkDraftIfMissing(db, question, trainingRecordFromRow(row));
+  },
+
   async listImportedQuestions(): Promise<Question[]> {
     const db = await getDatabase();
     if (!db) return readJson<Question[]>(QUESTIONS_KEY, []);
