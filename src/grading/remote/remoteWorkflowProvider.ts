@@ -18,7 +18,45 @@ import {
   validateRubricConstruction,
   validateWordBudget
 } from "../workflowValidation";
-import type { RemoteModelTransport } from "./config";
+import type { RemoteJsonRequest, RemoteModelTransport } from "./config";
+
+type StageName = "Stage 1 材料抽取" | "Stage 2 Rubric 构造" | "Stage 3 答案映射" | "Stage 4 表达与字数审计" | "Stage 5 参考答案交叉核验";
+
+function errorText(error: unknown): string {
+  if (error instanceof Error && error.message.trim()) return error.message.trim();
+  if (typeof error === "string" && error.trim()) return error.trim();
+  return "未知错误";
+}
+
+function repairRequest(request: RemoteJsonRequest, validationError: unknown): RemoteJsonRequest {
+  return {
+    ...request,
+    temperature: 0,
+    instructions: `${request.instructions}\n\n上一次输出未通过应用的结构校验。请重新完成本阶段，不要解释错误，只返回一个符合约束的 JSON 对象。上一次校验错误：${errorText(validationError)}`
+  };
+}
+
+async function runValidatedStage<T>(
+  transport: RemoteModelTransport,
+  stage: StageName,
+  request: RemoteJsonRequest,
+  validate: (value: unknown) => T
+): Promise<T> {
+  let firstError: unknown;
+  try {
+    const response = await transport.completeJson<unknown>(request);
+    return validate(response.data);
+  } catch (error) {
+    firstError = error;
+  }
+
+  try {
+    const response = await transport.completeJson<unknown>(repairRequest(request, firstError));
+    return validate(response.data);
+  } catch (retryError) {
+    throw new Error(`${stage}失败：${errorText(retryError)}`);
+  }
+}
 
 export function createRemoteWorkflowProvider(
   transport: RemoteModelTransport,
@@ -37,34 +75,45 @@ export function createRemoteWorkflowProvider(
       }
 
       const materialIds = new Set(question.materials.map(item => item.id));
-      const extractionResponse = await transport.completeJson<unknown>(buildMaterialExtractionRequest(question));
-      const extraction = validateMaterialExtraction(extractionResponse.data, materialIds);
+      const extraction = await runValidatedStage(
+        transport,
+        "Stage 1 材料抽取",
+        buildMaterialExtractionRequest(question),
+        value => validateMaterialExtraction(value, materialIds)
+      );
 
       const candidateIds = new Set(extraction.materialCandidates.map(item => item.id));
-      const rubricResponse = await transport.completeJson<unknown>(
-        buildRubricConstructionRequest(question, extraction.materialCandidates)
+      const rubricOutput = await runValidatedStage(
+        transport,
+        "Stage 2 Rubric 构造",
+        buildRubricConstructionRequest(question, extraction.materialCandidates),
+        value => validateRubricConstruction(value, candidateIds)
       );
-      const rubricOutput = validateRubricConstruction(rubricResponse.data, candidateIds);
       const rubricIds = new Set(rubricOutput.rubric.map(item => item.id));
 
-      const [mappingResponse, wordBudgetResponse] = await Promise.all([
-        transport.completeJson<unknown>(buildAnswerMappingRequest(question, rubricOutput.rubric, answer)),
-        transport.completeJson<unknown>(buildWordBudgetRequest(question, answer))
+      const [mappingOutput, wordBudgetOutput] = await Promise.all([
+        runValidatedStage(
+          transport,
+          "Stage 3 答案映射",
+          buildAnswerMappingRequest(question, rubricOutput.rubric, answer),
+          value => validateAnswerMapping(value, rubricIds)
+        ),
+        runValidatedStage(
+          transport,
+          "Stage 4 表达与字数审计",
+          buildWordBudgetRequest(question, answer),
+          value => validateWordBudget(value, question.wordLimit, answer.replace(/\s/g, "").length)
+        )
       ]);
-      const mappingOutput = validateAnswerMapping(mappingResponse.data, rubricIds);
-      const actualCharCount = answer.replace(/\s/g, "").length;
-      const wordBudgetOutput = validateWordBudget(
-        wordBudgetResponse.data,
-        question.wordLimit,
-        actualCharCount
-      );
 
       let referenceCrossCheck: GradingWorkflowArtifacts["referenceCrossCheck"];
       if (referenceAnswer?.content.trim()) {
-        const referenceResponse = await transport.completeJson<unknown>(
-          buildReferenceCrossCheckRequest(question, rubricOutput.rubric, referenceAnswer)
+        const validatedReference = await runValidatedStage(
+          transport,
+          "Stage 5 参考答案交叉核验",
+          buildReferenceCrossCheckRequest(question, rubricOutput.rubric, referenceAnswer),
+          validateReferenceCrossCheck
         );
-        const validatedReference = validateReferenceCrossCheck(referenceResponse.data);
         referenceCrossCheck = {
           ...validatedReference.referenceCrossCheck,
           source: validatedReference.referenceCrossCheck.source ?? referenceAnswer.source
