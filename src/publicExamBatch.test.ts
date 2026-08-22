@@ -81,7 +81,7 @@ describe("public exam batch audit gates", () => {
     expect(getCandidateBatchAttempt(candidate({ metadata: { batchAttempt: { version: "old" } } }))).toBeNull();
   });
 
-  it("does not re-audit clean reviewed exams and isolates failed exams for retry", () => {
+  it("does not re-audit clean reviewed exams and isolates current-version failures for retry", () => {
     const ready = candidate({ id: "ready", sourceUrl: "https://gwy.gkzhenti.cn/paper/ready", region: "国家" });
     const pending = candidate({
       id: "pending",
@@ -113,6 +113,38 @@ describe("public exam batch audit gates", () => {
 
     expect(selectPendingPublicExamAuditCandidates([ready, pending, failed, blocked]).map(item => item.id)).toEqual(["pending"]);
     expect(selectRetryablePublicExamCandidates([ready, pending, failed, blocked]).map(item => item.id).sort()).toEqual(["blocked", "failed"]);
+  });
+
+  it("invalidates stale audit/failure cache after parser contract changes so bootstrap re-audits it", () => {
+    const staleBlocked = candidate({
+      id: "stale-blocked",
+      sourceUrl: "https://gwy.gkzhenti.cn/paper/stale-blocked",
+      title: "2025年国家公考《申论》题（副省级）",
+      paperVariant: "副省级",
+      status: "discovered",
+      metadata: {
+        parserAudit: {
+          version: "public-exam-audit@0.1.0",
+          auditedAt: "2026-08-22T12:00:00+08:00",
+          importable: false,
+          materialCount: 4,
+          taskCount: 5,
+          warningCount: 1,
+          warnings: ["旧 parser 未识别材料引用"]
+        },
+        batchAttempt: {
+          version: "public-exam-batch@0.1.0",
+          phase: "audit",
+          outcome: "blocked",
+          attemptedAt: "2026-08-22T12:00:00+08:00"
+        }
+      }
+    });
+
+    expect(getCandidateAudit(staleBlocked)).toBeNull();
+    expect(getCandidateBatchAttempt(staleBlocked)).toBeNull();
+    expect(selectRetryablePublicExamCandidates([staleBlocked])).toEqual([]);
+    expect(selectPendingPublicExamAuditCandidates([staleBlocked]).map(item => item.id)).toEqual(["stale-blocked"]);
   });
 
   it("summarizes audit and import batches for UI progress reporting", () => {
