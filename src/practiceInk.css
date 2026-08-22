@@ -45,6 +45,11 @@
   cursor: crosshair;
 }
 
+.material-text-stage.ink-active .material-highlight,
+.material-text-stage.ink-active .material-underline {
+  pointer-events: none;
+}
+
 .material-text-stage.eraser-active,
 .material-text-stage.eraser-active .exam-material-text,
 .material-text-stage.eraser-active .exam-material-text * {
