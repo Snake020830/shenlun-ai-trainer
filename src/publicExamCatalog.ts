@@ -31,6 +31,14 @@ export function normalizePaperVariant(value: string | undefined): string {
     .replace(/c类/g, "c卷");
 }
 
+function sessionQualifier(title: string): string {
+  const normalized = normalizeText(title);
+  const qualifiers = [
+    "上半年", "下半年", "春季", "秋季", "第一批", "第二批", "第三批", "第一次", "第二次", "第三次"
+  ];
+  return qualifiers.find(item => normalized.includes(item)) ?? "";
+}
+
 function normalizedTitleStem(title: string): string {
   return normalizeText(title)
     .replace(/(?:网友|考生|站友)(?:回忆|提供|整理)?版?/g, "")
@@ -47,8 +55,9 @@ export function publicExamIdentityKey(candidate: PublicSourceCandidate): string 
   const year = candidate.year ?? 0;
   const region = normalizeText(candidate.region ?? "未知地区");
   const variant = normalizePaperVariant(candidate.paperVariant);
+  const session = sessionQualifier(candidate.title);
   const fallbackStem = variant ? "" : normalizedTitleStem(candidate.title);
-  return [year, region, variant || fallbackStem || "默认卷"].join("|");
+  return [year, region, variant || fallbackStem || "默认卷", session || "常规批次"].join("|");
 }
 
 export function publicExamSourceQuality(candidate: PublicSourceCandidate): number {
