@@ -13,6 +13,7 @@ describe("public provider config sanitization", () => {
       model: "model-x",
       secretRef: "grading-provider-api-key",
       timeoutMs: 45_000,
+      reasoningEffort: "high",
       apiKey: "must-not-survive",
       bearerToken: "must-not-survive-either"
     };
@@ -20,19 +21,22 @@ describe("public provider config sanitization", () => {
     const sanitized = sanitizePublicConfig(raw) as unknown as Record<string, unknown>;
     expect(sanitized.id).toBe("p1");
     expect(sanitized.model).toBe("model-x");
+    expect(sanitized.reasoningEffort).toBe("high");
     expect(sanitized.apiKey).toBeUndefined();
     expect(sanitized.bearerToken).toBeUndefined();
     expect(Object.keys(sanitized).sort()).toEqual([
-      "baseUrl", "enabled", "id", "label", "model", "protocol", "secretRef", "timeoutMs"
+      "baseUrl", "enabled", "id", "label", "model", "protocol", "reasoningEffort", "secretRef", "timeoutMs"
     ].sort());
   });
 
-  it("falls back when protocol and numeric values are malformed", () => {
+  it("falls back when protocol, reasoning effort, and numeric values are malformed", () => {
     const sanitized = sanitizePublicConfig({
       protocol: "made-up-protocol",
+      reasoningEffort: "ultra",
       timeoutMs: "forever"
     });
     expect(sanitized.protocol).toBe(DEFAULT_REMOTE_PROVIDER_CONFIG.protocol);
+    expect(sanitized.reasoningEffort).toBe(DEFAULT_REMOTE_PROVIDER_CONFIG.reasoningEffort);
     expect(sanitized.timeoutMs).toBe(DEFAULT_REMOTE_PROVIDER_CONFIG.timeoutMs);
     expect(sanitized.enabled).toBe(false);
   });
