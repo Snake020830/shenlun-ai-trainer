@@ -10,6 +10,7 @@ import { getPublicSourceProvider } from "./publicSourceProviders";
 import { publicSourceStore, type PublicSourceCandidate, type QuestionSourceProvenance } from "./publicSourceStore";
 import type { Question } from "./types";
 import "./questionLibrary.css";
+import "./questionLibraryPreviewModal.css";
 
 const PRIMARY_PROVIDER_ID = "gkzhenti-public";
 const PUBLIC_PAGE_SIZE = 30;
@@ -43,6 +44,7 @@ function PublicExamBrowser({ onImported }: { onImported: () => Promise<void> | v
   const [expandedGroupKey, setExpandedGroupKey] = useState<string | null>(null);
   const [status, setStatus] = useState(`只加载近10年（${yearRange.minYear}—${yearRange.maxYear}）公开整卷目录；正文在你选择某一卷时才读取。`);
   const [preview, setPreview] = useState<PublicExamPreview | null>(null);
+  const [previewCandidate, setPreviewCandidate] = useState<PublicSourceCandidate | null>(null);
   const [previewError, setPreviewError] = useState<{ candidateId: string; message: string } | null>(null);
   const [confirmed, setConfirmed] = useState(false);
 
@@ -81,6 +83,7 @@ function PublicExamBrowser({ onImported }: { onImported: () => Promise<void> | v
 
   async function openPreview(candidate: PublicSourceCandidate) {
     if (!desktop || busy) return;
+    setPreviewCandidate(candidate);
     setBusy(candidate.id);
     setPreview(null);
     setPreviewError(null);
@@ -103,6 +106,14 @@ function PublicExamBrowser({ onImported }: { onImported: () => Promise<void> | v
     }
   }
 
+  function closePreviewDialog() {
+    if (busy) return;
+    setPreviewCandidate(null);
+    setPreview(null);
+    setPreviewError(null);
+    setConfirmed(false);
+  }
+
   async function importExam() {
     if (!preview || !confirmed || busy) return;
     setBusy(preview.candidate.id);
@@ -110,6 +121,7 @@ function PublicExamBrowser({ onImported }: { onImported: () => Promise<void> | v
       const result = await importPublicExam(preview);
       await reload();
       setStatus(`已导入：新增 ${result.newlyImportedQuestionIds.length} 道题${result.reusedQuestionIds.length ? `，已有 ${result.reusedQuestionIds.length} 道直接复用` : ""}。同卷其他公开版本仍保留用于来源核对，不会自动重复导入。`);
+      setPreviewCandidate(null);
       setPreview(null);
       setPreviewError(null);
       setConfirmed(false);
@@ -163,7 +175,6 @@ function PublicExamBrowser({ onImported }: { onImported: () => Promise<void> | v
       {rows.map(group => {
         const item = group.preferred;
         const expanded = expandedGroupKey === group.key;
-        const groupPreviewError = previewError && group.members.some(member => member.id === previewError.candidateId) ? previewError : null;
         return <article className="public-exam-card" key={group.key}>
           <div className="public-exam-card-heading">
             <div>
@@ -172,7 +183,6 @@ function PublicExamBrowser({ onImported }: { onImported: () => Promise<void> | v
             </div>
             <button disabled={!desktop || busy !== null || group.hasImportedVersion} onClick={() => void openPreview(item)}><Eye size={14}/>{busy === item.id ? "读取中" : group.hasImportedVersion ? "已有版本入库" : "预览推荐版"}</button>
           </div>
-          {groupPreviewError && <div className="library-parser-warning">预览失败：{groupPreviewError.message}</div>}
           {expanded && <div className="public-exam-variants">{group.alternatives.map(alternative => <div key={alternative.id}><div><strong>{alternative.title}</strong><span>{sourceVariantLabel(alternative)}</span></div><div>{!group.hasImportedVersion && <button disabled={!desktop || busy !== null} onClick={() => void openPreview(alternative)}><Eye size={13}/>{busy === alternative.id ? "读取中" : "预览此版本"}</button>}<a href={alternative.sourceUrl} target="_blank" rel="noreferrer"><ExternalLink size={13}/>原页面</a></div></div>)}</div>}
         </article>;
       })}
@@ -181,11 +191,28 @@ function PublicExamBrowser({ onImported }: { onImported: () => Promise<void> | v
 
     {filtered.length > 0 && <div className="public-library-pager"><span>第 {currentPage}/{totalPages} 页</span><div><button className="secondary" disabled={currentPage <= 1} onClick={() => setPage(value => Math.max(1, value - 1))}>上一页</button><button className="secondary" disabled={currentPage >= totalPages} onClick={() => setPage(value => Math.min(totalPages, value + 1))}>下一页</button></div></div>}
 
-    {preview && <div className="library-exam-preview">
-      <header><div><span>导入前核验</span><h3>{preview.exam.title}</h3><p>{preview.exam.materials.length} 则材料 · {preview.exam.tasks.length} 道作答题</p></div><button className="text-button" onClick={() => { setPreview(null); setPreviewError(null); setConfirmed(false); }}>关闭</button></header>
-      {preview.exam.warnings.length > 0 && <div className="library-parser-warning">{preview.exam.warnings.join("；")}</div>}
-      <div className="library-preview-tasks">{preview.exam.tasks.map(task => <article key={task.taskIndex}><div><strong>第 {task.taskIndex + 1} 题</strong><span>{task.questionType}</span><span>{task.score ?? "?"} 分</span><span>≤ {task.wordLimit ?? "?"} 字</span></div><p>{task.prompt}</p>{task.warnings.length > 0 && <small>{task.warnings.join("；")}</small>}</article>)}</div>
-      <footer>{importable ? <label><input type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)}/><span>已对照原始页面核对材料数、题数、分值和字数。</span></label> : <span className="blocked">结构校验未通过，禁止自动导入。</span>}<button className="primary" disabled={!importable || !confirmed || busy !== null} onClick={() => void importExam()}><Download size={15}/>{busy === preview.candidate.id ? "导入中…" : "导入整卷所有题"}</button></footer>
+    {previewCandidate && <div className="library-preview-backdrop" role="dialog" aria-modal="true" aria-label="公开真题导入前核验">
+      <div className="library-exam-preview library-exam-preview-modal">
+        {!preview && !previewError ? <div className="library-preview-loading">
+          <RefreshCw size={24}/>
+          <strong>正在读取并解析整卷</strong>
+          <span>{previewCandidate.title}</span>
+          <small>通常几秒内完成；网络较慢时最多等待约 20 秒。</small>
+        </div> : null}
+
+        {previewError ? <div className="library-preview-error">
+          <header><div><span>预览失败</span><h3>{previewCandidate.title}</h3></div><button className="text-button" disabled={busy !== null} onClick={closePreviewDialog}>关闭</button></header>
+          <p>{previewError.message}</p>
+          <div><a href={previewCandidate.sourceUrl} target="_blank" rel="noreferrer"><ExternalLink size={14}/>打开原始页面</a><button className="secondary" disabled={busy !== null} onClick={() => void openPreview(previewCandidate)}><RefreshCw size={14}/>重新读取</button></div>
+        </div> : null}
+
+        {preview ? <>
+          <header><div><span>导入前核验</span><h3>{preview.exam.title}</h3><p>{preview.exam.materials.length} 则材料 · {preview.exam.tasks.length} 道作答题</p></div><button className="text-button" disabled={busy !== null} onClick={closePreviewDialog}>关闭</button></header>
+          {preview.exam.warnings.length > 0 && <div className="library-parser-warning">{preview.exam.warnings.join("；")}</div>}
+          <div className="library-preview-tasks">{preview.exam.tasks.map(task => <article key={task.taskIndex}><div><strong>第 {task.taskIndex + 1} 题</strong><span>{task.questionType}</span><span>{task.score ?? "?"} 分</span><span>≤ {task.wordLimit ?? "?"} 字</span>{task.materialNumbers.length ? <span>材料 {task.materialNumbers.join("、")}</span> : null}</div><p>{task.prompt}</p>{task.warnings.length > 0 && <small>{task.warnings.join("；")}</small>}</article>)}</div>
+          <footer>{importable ? <label><input type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)}/><span>已对照原始页面核对材料数、题数、分值和字数。</span></label> : <span className="blocked">结构校验未通过，禁止自动导入。</span>}<button className="primary" disabled={!importable || !confirmed || busy !== null} onClick={() => void importExam()}><Download size={15}/>{busy === preview.candidate.id ? "导入中…" : "导入整卷所有题"}</button></footer>
+        </> : null}
+      </div>
     </div>}
   </div>;
 }
