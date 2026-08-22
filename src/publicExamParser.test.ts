@@ -73,6 +73,23 @@ const realStyleFixture = `
 网站版本：v20260406
 `;
 
+const missingSectionHeadingsFixture = `
+2024年某省公务员考试《申论》题（A卷）
+材料1(10001)
+第一则材料正文。
+材料2(10002)
+第二则材料正文。
+第一题：
+请根据材料1概括主要做法。（15分）
+要求：全面准确，不超过250字。
+第二题：
+请根据材料2分析问题并提出对策。（25分）
+要求：分析全面，对策具体，不超过500字。
+第三题：
+参考给定材料，自选角度，自拟题目，写一篇文章。（60分）
+要求：观点明确，字数1000-1200字。
+`;
+
 describe("parseGkzhentiExamText", () => {
   it("extracts the full material corpus without losing natural paragraph breaks", () => {
     const exam = parseGkzhentiExamText(fixture, candidate);
@@ -116,6 +133,24 @@ describe("parseGkzhentiExamText", () => {
     expect(exam.tasks[2].questionType).toBe("文章写作");
     expect(exam.tasks[2].wordLimit).toBe(1000);
     expect(canImportParsedPublicExam(exam)).toBe(true);
+  });
+
+  it("conservatively infers boundaries when section headings are omitted but clear material/task sequences remain", () => {
+    const exam = parseGkzhentiExamText(missingSectionHeadingsFixture, candidate);
+    expect(exam.warnings).toEqual([]);
+    expect(exam.materials).toHaveLength(2);
+    expect(exam.materials[0].content).toBe("第一则材料正文。");
+    expect(exam.materials[1].content).toBe("第二则材料正文。");
+    expect(exam.tasks).toHaveLength(3);
+    expect(exam.tasks[0].materialNumbers).toEqual([1]);
+    expect(exam.tasks[1].materialNumbers).toEqual([2]);
+    expect(canImportParsedPublicExam(exam)).toBe(true);
+  });
+
+  it("does not infer a task section from one ambiguous standalone numbered line", () => {
+    const ambiguous = parseGkzhentiExamText(`材料1：\n正文。\n材料2：\n正文中出现编号。\n一、\n只是材料里的一个孤立编号。`, candidate);
+    expect(canImportParsedPublicExam(ambiguous)).toBe(false);
+    expect(ambiguous.warnings.some(item => item.includes("无法可靠推断连续题号边界"))).toBe(true);
   });
 
   it("keeps requirements separate from the substantive prompt", () => {
