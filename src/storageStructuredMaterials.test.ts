@@ -71,7 +71,7 @@ describe("structured material persistence", () => {
       tags: []
     });
 
-    expect(question.materials.map(item => item.content)).toEqual(["第一则。", "第二则。 ".trim()]);
+    expect(question.materials.map(item => item.content)).toEqual(["第一则。", "第二则。"]);
     expect(question.materials.map(item => item.label)).toEqual(["材料 1", "材料 2"]);
   });
 });
