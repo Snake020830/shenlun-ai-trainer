@@ -5,10 +5,19 @@
   --exam-muted: #737064;
   --exam-rule: rgba(99, 88, 65, .16);
   --answer-cell: 30px;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
   background: #eceae3;
 }
 
+.exam-practice-shell > .practice-grid {
+  flex: 1;
+  min-height: 0;
+}
+
 .exam-practice-header {
+  flex: 0 0 58px;
   background: #f3f0e8;
   border-bottom-color: #d9d4c8;
 }
@@ -66,6 +75,7 @@
 }
 
 .demo-question-notice {
+  flex: 0 0 auto;
   min-height: 30px;
   padding: 7px 16px;
   border-bottom: 1px solid #e0d8c8;
@@ -132,7 +142,8 @@
 }
 
 .exam-paper-scroll {
-  height: calc(100vh - 178px);
+  height: calc(100% - 90px);
+  overflow: auto;
   padding: 30px 34px 76px;
   background:
     radial-gradient(circle at 20% 10%, rgba(117,95,56,.025), transparent 28%),
@@ -196,6 +207,7 @@
 }
 
 .exam-answer-pane {
+  min-height: 0;
   background: #f0eee8;
 }
 
@@ -219,7 +231,7 @@
 .grid-answer-wrap {
   min-height: 0;
   display: grid;
-  grid-template-rows: 34px 1fr;
+  grid-template-rows: 34px minmax(0, 1fr);
   padding: 14px 16px 16px;
   background: #e9e7df;
 }
