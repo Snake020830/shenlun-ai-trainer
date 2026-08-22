@@ -6,7 +6,7 @@ import {
   resetRemoteProviderConfig,
   saveRemoteProviderConfig
 } from "./grading/providerSettings";
-import type { RemoteProviderPublicConfig, RemoteProtocol } from "./grading/remote/config";
+import type { ReasoningEffort, RemoteProviderPublicConfig, RemoteProtocol } from "./grading/remote/config";
 import { createRemoteModelTransport } from "./grading/remote/transport";
 import { tauriProviderSecretStore, tauriSecureRemoteExecutor } from "./grading/remote/tauriExecutor";
 import "./providerSettings.css";
@@ -14,6 +14,14 @@ import "./providerSettings.css";
 const PROTOCOL_LABELS: Record<RemoteProtocol, string> = {
   "openai-responses": "Responses API（优先）",
   "openai-chat-completions": "Chat Completions（兼容）"
+};
+
+const REASONING_LABELS: Record<ReasoningEffort, string> = {
+  "provider-default": "Provider 默认",
+  low: "Low",
+  medium: "Medium",
+  high: "High",
+  xhigh: "XHigh"
 };
 
 type StatusTone = "neutral" | "success" | "error";
@@ -139,6 +147,8 @@ export default function ProviderSettingsPage() {
     return <main className="page page-wide provider-settings-page"><div className="settings-loading">正在读取评分引擎配置…</div></main>;
   }
 
+  const responsesMode = config.protocol === "openai-responses";
+
   return <main className="page page-wide provider-settings-page">
     <header className="page-header compact">
       <div>
@@ -159,8 +169,9 @@ export default function ProviderSettingsPage() {
       <div className="settings-grid">
         <label className="field"><span>协议</span><select value={config.protocol} onChange={event => patch("protocol", event.target.value as RemoteProtocol)}>{Object.entries(PROTOCOL_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
         <label className="field"><span>模型</span><input value={config.model} onChange={event => patch("model", event.target.value)} placeholder="例如：支持结构化 JSON 的模型名"/></label>
-        <label className="field field-wide"><span>API Base URL</span><input value={config.baseUrl} onChange={event => patch("baseUrl", event.target.value)} placeholder="https://provider.example.com/v1/"/><small>必须使用 HTTPS；仅 localhost 开发允许 HTTP。不要在 URL 中嵌入用户名、密码或 token。</small></label>
+        <label className="field"><span>推理强度</span><select value={config.reasoningEffort} disabled={!responsesMode} onChange={event => patch("reasoningEffort", event.target.value as ReasoningEffort)}>{Object.entries(REASONING_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><small>{responsesMode ? "通过 Responses API 的 reasoning.effort 发送；Provider 默认表示完全不传该参数。" : "Chat Completions 兼容模式暂不发送 reasoning 参数，避免兼容服务因未知字段失败。"}</small></label>
         <label className="field"><span>请求超时（毫秒）</span><input type="number" min="1000" max="300000" step="1000" value={config.timeoutMs} onChange={event => patch("timeoutMs", Number(event.target.value))}/></label>
+        <label className="field field-wide"><span>API Base URL</span><input value={config.baseUrl} onChange={event => patch("baseUrl", event.target.value)} placeholder="https://provider.example.com/v1/"/><small>必须使用 HTTPS；仅 localhost 开发允许 HTTP。不要在 URL 中嵌入用户名、密码或 token。</small></label>
         <label className="field"><span>配置名称</span><input value={config.label} onChange={event => patch("label", event.target.value)} /></label>
       </div>
       <div className="settings-actions"><button className="primary" disabled={busy !== null} onClick={savePublicConfig}><Save size={16}/>{busy === "config" ? "保存中…" : "保存公开配置"}</button><button className="secondary" disabled={busy !== null} onClick={resetConfig}><RotateCcw size={16}/>恢复默认配置</button></div>
