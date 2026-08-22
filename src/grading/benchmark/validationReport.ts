@@ -14,6 +14,7 @@ import {
   calculateScoreCalibration,
   calculateTaxonomyQuality
 } from "./metrics";
+import { validateBenchmarkAlignment } from "./validateAlignment";
 
 export interface BenchmarkExperimentSignature {
   providerId: string | null;
@@ -180,6 +181,11 @@ export function buildValidationReport(
     if (alignment.runId !== run.runId) {
       throw new Error(`Validation report alignment runId does not match model run for case ${testCase.id}.`);
     }
+    const alignmentValidation = validateBenchmarkAlignment(testCase, run, alignment);
+    if (!alignmentValidation.valid) {
+      throw new Error(`Validation report alignment for case ${testCase.id} is invalid: ${alignmentValidation.errors.join("; ")}`);
+    }
+
     const rubric = calculateRubricQuality(testCase, run, alignment);
     const mapping = calculateMappingQuality(testCase, run, alignment);
     const taxonomy = calculateTaxonomyQuality(testCase, run, alignment);
