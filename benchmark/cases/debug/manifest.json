@@ -1,0 +1,9 @@
+{
+  "schemaVersion": "0.1.0",
+  "description": "Synthetic debug cases derived from the repository's built-in questions. These cases validate extraction/rubric/mapping behavior only and must not be used for score calibration.",
+  "cases": [
+    "jqh-001.partial-service.json",
+    "nmy-002.omission-professionalism.json",
+    "fp-003.partial-system-analysis.json"
+  ]
+}
