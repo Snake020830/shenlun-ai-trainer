@@ -101,9 +101,9 @@ export interface LocalQuestionInput {
   score: number;
   wordLimit: number;
   prompt: string;
-  /** Manual paste path. Programmatic importers should prefer `materials`. */
-  materialText?: string;
-  /** Structured import path used by public-web/PDF/OCR adapters. */
+  /** Manual/compatibility persistence path. Public importers preserve the whole exam material order here. */
+  materialText: string;
+  /** Reserved structured import path for the later PDF/OCR/storage upgrade. */
   materials?: StructuredMaterialInput[];
   tags: string[];
   referenceAnswerContent?: string;
