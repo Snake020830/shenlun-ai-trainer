@@ -64,13 +64,49 @@ describe("publicSourceStore", () => {
     expect(rows[0].discoveredAt).toBe(candidate.discoveredAt);
   });
 
-  it("does not demote imported sources or lose their question linkage during rescans", async () => {
+  it("does not demote imported sources or lose their legacy question pointer during rescans", async () => {
     await publicSourceStore.upsertCandidate(candidate);
     await publicSourceStore.markCandidateImported(candidate.id, "question-1");
     await publicSourceStore.upsertCandidate({ ...candidate, status: "discovered" });
     const rows = await publicSourceStore.listCandidates();
     expect(rows[0].status).toBe("imported");
     expect(rows[0].importedQuestionId).toBe("question-1");
+  });
+
+  it("links one exam source to multiple local questions by task index", async () => {
+    await publicSourceStore.linkCandidateQuestion({
+      candidateId: candidate.id,
+      questionId: "question-1",
+      taskIndex: 0,
+      createdAt: "2026-08-22T13:20:00+08:00"
+    });
+    await publicSourceStore.linkCandidateQuestion({
+      candidateId: candidate.id,
+      questionId: "question-2",
+      taskIndex: 1,
+      createdAt: "2026-08-22T13:21:00+08:00"
+    });
+    const links = await publicSourceStore.listCandidateQuestionLinks(candidate.id);
+    expect(links.map(item => [item.taskIndex, item.questionId])).toEqual([
+      [0, "question-1"],
+      [1, "question-2"]
+    ]);
+    expect(await publicSourceStore.listQuestionSourceLinks("question-2")).toHaveLength(1);
+  });
+
+  it("refuses to map two questions onto the same source task index", async () => {
+    await publicSourceStore.linkCandidateQuestion({
+      candidateId: candidate.id,
+      questionId: "question-1",
+      taskIndex: 0,
+      createdAt: "2026-08-22T13:20:00+08:00"
+    });
+    await expect(publicSourceStore.linkCandidateQuestion({
+      candidateId: candidate.id,
+      questionId: "question-other",
+      taskIndex: 0,
+      createdAt: "2026-08-22T13:22:00+08:00"
+    })).rejects.toThrow("already linked to another question");
   });
 
   it("marks an imported source without losing source metadata", async () => {
