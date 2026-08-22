@@ -61,7 +61,7 @@ function result(kind: "remote" | "mock" = "remote"): ShenlunGraderResult {
       }
     },
     meta: {
-      skillVersion: "shenlun-grader-skill@0.3.0",
+      skillVersion: "shenlun-grader-skill@0.3.1",
       rulesetVersion: "shenlun-grading@0.1.0",
       providerId: kind === "remote" ? "remote:test-provider" : "mock-v01",
       providerKind: kind,
