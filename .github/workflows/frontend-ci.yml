@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - feat/v0.1-product-shell
   pull_request:
     branches:
       - main
