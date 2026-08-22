@@ -48,7 +48,7 @@ function isAsciiAlphaNumeric(value: string): boolean {
  * Visual answer-sheet occupancy only. It must not be used as the grader's word
  * count. Common handwriting conventions are simulated conservatively:
  * - Han characters / punctuation: one cell each;
- * - short numeric enumerators such as `1.` / `1、`: one cell;
+ * - short numeric enumerators such as `1.` / `1、` / `(1)` / `（1）`: one cell;
  * - consecutive ASCII letters or digits: two characters per cell;
  * - an explicit newline advances to the next answer-sheet row.
  */
@@ -76,7 +76,7 @@ export function countExamGridCells(text: string, columns = EXAM_GRID_COLUMNS): n
     }
 
     const remainder = text.slice(index);
-    const enumerator = remainder.match(/^\d{1,2}[.．、]/u);
+    const enumerator = remainder.match(/^(?:\d{1,2}[.．、]|[（(]\d{1,2}[）)])/u);
     if (enumerator) {
       cells += 1;
       index += enumerator[0].length;
