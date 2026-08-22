@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Question, QuestionType } from "../types";
+import { ERROR_TAXONOMY, ERROR_TAXONOMY_VERSION } from "./errorTaxonomy";
 import { QUESTION_TYPE_SKILL_VERSION } from "./questionTypeSkill";
 import {
   buildAnswerMappingRequest,
@@ -31,23 +32,31 @@ function inputOf(request: { input: string }) {
   return JSON.parse(request.input) as Record<string, unknown>;
 }
 
+function sampleCandidates() {
+  return [{
+    id: "c1",
+    materialId: "m1",
+    elementType: "measure" as const,
+    claim: "事项下沉",
+    evidence: "推进事项下沉",
+    independentDimension: true
+  }];
+}
+
+function sampleRubric() {
+  return [{
+    id: "r1",
+    title: "事项下沉",
+    elementType: "measure" as const,
+    candidateIds: ["c1"],
+    evidence: ["推进事项下沉"]
+  }];
+}
+
 describe("grading stage prompt isolation", () => {
   it("keeps the stored reference answer out of stages 1-4", () => {
-    const candidates = [{
-      id: "c1",
-      materialId: "m1",
-      elementType: "measure" as const,
-      claim: "事项下沉",
-      evidence: "推进事项下沉",
-      independentDimension: true
-    }];
-    const rubric = [{
-      id: "r1",
-      title: "事项下沉",
-      elementType: "measure" as const,
-      candidateIds: ["c1"],
-      evidence: ["推进事项下沉"]
-    }];
+    const candidates = sampleCandidates();
+    const rubric = sampleRubric();
 
     const earlyStageInputs = [
       inputOf(buildMaterialExtractionRequest(question)),
@@ -65,36 +74,15 @@ describe("grading stage prompt isolation", () => {
   });
 
   it("passes the reference answer explicitly only to stage 5", () => {
-    const rubric = [{
-      id: "r1",
-      title: "事项下沉",
-      elementType: "measure" as const,
-      candidateIds: ["c1"],
-      evidence: ["推进事项下沉"]
-    }];
-
-    const stageFive = inputOf(buildReferenceCrossCheckRequest(question, rubric, question.referenceAnswer!));
+    const stageFive = inputOf(buildReferenceCrossCheckRequest(question, sampleRubric(), question.referenceAnswer!));
     expect(stageFive.referenceAnswer).toEqual(question.referenceAnswer);
     expect(JSON.stringify(stageFive)).toContain("REF_ONLY_SOURCE");
     expect(JSON.stringify(stageFive)).toContain("REF_ONLY_DIMENSION");
   });
 
   it("injects question-type skill guidance into every remote grading stage", () => {
-    const candidates = [{
-      id: "c1",
-      materialId: "m1",
-      elementType: "measure" as const,
-      claim: "事项下沉",
-      evidence: "推进事项下沉",
-      independentDimension: true
-    }];
-    const rubric = [{
-      id: "r1",
-      title: "事项下沉",
-      elementType: "measure" as const,
-      candidateIds: ["c1"],
-      evidence: ["推进事项下沉"]
-    }];
+    const candidates = sampleCandidates();
+    const rubric = sampleRubric();
     const requests = [
       buildMaterialExtractionRequest(question),
       buildRubricConstructionRequest(question, candidates),
@@ -123,5 +111,31 @@ describe("grading stage prompt isolation", () => {
       const request = buildMaterialExtractionRequest({ ...question, type });
       expect(request.instructions).toContain(marker);
     }
+  });
+
+  it("passes the complete error taxonomy contract to stage 3 instead of asking the model to invent codes", () => {
+    const request = buildAnswerMappingRequest(question, sampleRubric(), "推进事项下沉。");
+    expect(request.instructions).toContain(ERROR_TAXONOMY_VERSION);
+    for (const entry of ERROR_TAXONOMY) {
+      expect(request.instructions).toContain(entry.id);
+      expect(request.instructions).toContain(entry.label);
+    }
+  });
+
+  it("constrains errorCodes in the structured-output schema to known taxonomy ids", () => {
+    const request = buildAnswerMappingRequest(question, sampleRubric(), "推进事项下沉。");
+    const schema = request.jsonSchema as {
+      properties: {
+        mappings: {
+          items: {
+            properties: {
+              errorCodes: { items: { enum: string[] } }
+            }
+          }
+        }
+      }
+    };
+    expect(schema.properties.mappings.items.properties.errorCodes.items.enum)
+      .toEqual(ERROR_TAXONOMY.map(item => item.id));
   });
 });
