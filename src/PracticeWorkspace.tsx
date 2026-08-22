@@ -2,17 +2,22 @@ import { useEffect, useMemo, useState } from "react";
 import {
   BookOpenText,
   Check,
+  ChevronLeft,
+  ChevronRight,
   CircleAlert,
   Clock3,
-  Eraser,
   Highlighter,
+  Minus,
   PanelRightClose,
   PanelRightOpen,
   Pause,
   Play,
+  Plus,
   RotateCcw,
   Sparkles,
-  Underline
+  Trash2,
+  Underline,
+  Undo2
 } from "lucide-react";
 import { gradingService } from "./grading";
 import {
@@ -27,6 +32,14 @@ import type { MockReview, Question, TrainingRecord } from "./types";
 import "./practiceExam.css";
 
 type AnnotationMode = PracticeTextAnnotation["type"] | null;
+type MaterialView = "single" | "all";
+
+const MATERIAL_FONT_KEY = "shenlun:material-font-size:v1";
+
+function readMaterialFontSize(): number {
+  const raw = Number(localStorage.getItem(MATERIAL_FONT_KEY));
+  return Number.isFinite(raw) && raw >= 16 && raw <= 24 ? raw : 19;
+}
 
 function formatElapsed(totalSeconds: number): string {
   const hours = Math.floor(totalSeconds / 3600);
@@ -44,7 +57,12 @@ function selectionOffset(root: HTMLElement, node: Node, offset: number): number 
   return range.toString().length;
 }
 
-function renderAnnotatedText(content: string, annotations: PracticeTextAnnotation[]) {
+function renderAnnotatedText(
+  content: string,
+  annotations: PracticeTextAnnotation[],
+  selectedAnnotationId: string | null,
+  onSelectAnnotation: (id: string) => void
+) {
   if (!annotations.length) return content;
   const boundaries = new Set<number>([0, content.length]);
   for (const item of annotations) {
@@ -56,11 +74,24 @@ function renderAnnotatedText(content: string, annotations: PracticeTextAnnotatio
     const end = points[index + 1];
     const text = content.slice(start, end);
     const active = annotations.filter(item => item.start < end && item.end > start);
+    if (!active.length) return text;
+    const annotation = active[active.length - 1];
     const className = [
       active.some(item => item.type === "highlight") ? "material-highlight" : "",
-      active.some(item => item.type === "underline") ? "material-underline" : ""
+      active.some(item => item.type === "underline") ? "material-underline" : "",
+      active.some(item => item.id === selectedAnnotationId) ? "material-mark-selected" : ""
     ].filter(Boolean).join(" ");
-    return className ? <span key={`${start}-${end}`} className={className}>{text}</span> : text;
+    return <span
+      key={`${start}-${end}`}
+      className={className}
+      role="button"
+      tabIndex={0}
+      title="点击选中此标记，可单独删除"
+      onClick={event => {
+        event.stopPropagation();
+        onSelectAnnotation(annotation.id);
+      }}
+    >{text}</span>;
   });
 }
 
@@ -79,7 +110,7 @@ function ReviewPanel({ review }: { review: MockReview }) {
 export default function PracticeWorkspace({ question, onExit, onSubmitted }: { question: Question; onExit: () => void; onSubmitted: (record: TrainingRecord) => void }) {
   const [answer, setAnswer] = useState("");
   const [review, setReview] = useState<MockReview | null>(null);
-  const [rightOpen, setRightOpen] = useState(true);
+  const [rightOpen, setRightOpen] = useState(false);
   const [draftLoaded, setDraftLoaded] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -88,14 +119,25 @@ export default function PracticeWorkspace({ question, onExit, onSubmitted }: { q
   const [annotationMode, setAnnotationMode] = useState<AnnotationMode>(null);
   const [annotations, setAnnotations] = useState<PracticeTextAnnotation[]>([]);
   const [annotationsLoaded, setAnnotationsLoaded] = useState(false);
+  const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
+  const [activeMaterialId, setActiveMaterialId] = useState(question.materials[0]?.id ?? "");
+  const [materialView, setMaterialView] = useState<MaterialView>("single");
+  const [materialFontSize, setMaterialFontSize] = useState(readMaterialFontSize);
   const chars = answer.replace(/\s/g, "").length;
-  const totalMaterialChars = useMemo(() => question.materials.reduce((sum, item) => sum + item.content.replace(/\s/g, "").length, 0), [question.materials]);
+  const activeMaterialIndex = Math.max(0, question.materials.findIndex(item => item.id === activeMaterialId));
+  const visibleMaterials = useMemo(
+    () => materialView === "all" ? question.materials : question.materials.filter(item => item.id === activeMaterialId),
+    [activeMaterialId, materialView, question.materials]
+  );
 
   useEffect(() => {
     let cancelled = false;
     setAnnotationsLoaded(false);
     setAnnotations([]);
     setAnnotationMode(null);
+    setSelectedAnnotationId(null);
+    setActiveMaterialId(question.materials[0]?.id ?? "");
+    setMaterialView("single");
     setElapsedSeconds(0);
     setTimerRunning(false);
     getPracticeAnnotations(question.id)
@@ -109,7 +151,11 @@ export default function PracticeWorkspace({ question, onExit, onSubmitted }: { q
         if (!cancelled) setAnnotationsLoaded(true);
       });
     return () => { cancelled = true; };
-  }, [question.id]);
+  }, [question.id, question.materials]);
+
+  useEffect(() => {
+    localStorage.setItem(MATERIAL_FONT_KEY, String(materialFontSize));
+  }, [materialFontSize]);
 
   useEffect(() => {
     if (!timerRunning) return;
@@ -162,6 +208,7 @@ export default function PracticeWorkspace({ question, onExit, onSubmitted }: { q
     try {
       const result = await gradingService.grade({ question, answer, referenceAnswer: question.referenceAnswer });
       setReview(result);
+      setRightOpen(true);
       setTimerRunning(false);
       const now = new Date();
       const record: TrainingRecord = { id: crypto.randomUUID(), questionId: question.id, title: question.title, score: result.score, maxScore: result.maxScore, submittedAt: now.toLocaleString("zh-CN"), submittedAtIso: now.toISOString(), answer, review: result };
@@ -190,14 +237,33 @@ export default function PracticeWorkspace({ question, onExit, onSubmitted }: { q
     const start = selectionOffset(root, range.startContainer, range.startOffset);
     const end = selectionOffset(root, range.endContainer, range.endOffset);
     if (end <= start) return;
-    setAnnotations(current => [...current, {
-      id: crypto.randomUUID(),
-      materialId,
-      start,
-      end,
-      type: annotationMode
-    }]);
+    const id = crypto.randomUUID();
+    setAnnotations(current => [...current, { id, materialId, start, end, type: annotationMode }]);
+    setSelectedAnnotationId(id);
     selection.removeAllRanges();
+  }
+
+  function undoLastAnnotation() {
+    setAnnotations(current => {
+      if (!current.length) return current;
+      const next = current.slice(0, -1);
+      setSelectedAnnotationId(next.at(-1)?.id ?? null);
+      return next;
+    });
+  }
+
+  function deleteSelectedAnnotation() {
+    if (!selectedAnnotationId) return;
+    setAnnotations(current => current.filter(item => item.id !== selectedAnnotationId));
+    setSelectedAnnotationId(null);
+  }
+
+  function changeMaterial(step: -1 | 1) {
+    if (!question.materials.length) return;
+    const nextIndex = Math.min(question.materials.length - 1, Math.max(0, activeMaterialIndex + step));
+    setActiveMaterialId(question.materials[nextIndex].id);
+    setMaterialView("single");
+    setSelectedAnnotationId(null);
   }
 
   const persistenceStatus = submitError ?? (draftLoaded ? "已自动保存" : "正在读取草稿…");
@@ -209,27 +275,47 @@ export default function PracticeWorkspace({ question, onExit, onSubmitted }: { q
       <div className="practice-title-block"><strong>{question.title}</strong><span>{question.type} · {question.score} 分 · ≤ {question.wordLimit} 字</span></div>
       <div className="practice-header-actions">
         <div className={`exam-timer ${timerRunning ? "running" : ""}`}><Clock3 size={16}/><strong>{formatElapsed(elapsedSeconds)}</strong><button title={timerRunning ? "暂停计时" : "开始计时"} onClick={() => setTimerRunning(value => !value)}>{timerRunning ? <Pause size={14}/> : <Play size={14}/>}</button><button title="计时归零" onClick={() => { setTimerRunning(false); setElapsedSeconds(0); }}><RotateCcw size={13}/></button></div>
-        <button className="icon-button" onClick={() => setRightOpen(value => !value)}>{rightOpen ? <PanelRightClose size={19}/> : <PanelRightOpen size={19}/>}</button>
+        <button className="icon-button" title={rightOpen ? "收起批改栏" : "展开批改栏"} onClick={() => setRightOpen(value => !value)}>{rightOpen ? <PanelRightClose size={19}/> : <PanelRightOpen size={19}/>}</button>
       </div>
     </header>
-    {isDemo && <div className="demo-question-notice">当前为内置功能演示题，材料长度仅用于测试交互；正式训练请导入完整真题材料。</div>}
+    {isDemo && <div className="demo-question-notice">当前为内置功能演示题；正式训练将使用完整题干与完整材料。</div>}
     <div className={rightOpen ? "practice-grid" : "practice-grid right-hidden"}>
       <section className="materials-pane exam-materials-pane">
-        <div className="pane-title exam-pane-title"><BookOpenText size={18}/><strong>给定资料</strong><span>{question.materials.length} 则 · 约 {totalMaterialChars} 字</span></div>
+        <div className="material-navigation">
+          <div className="material-tabs" role="tablist">
+            {question.materials.map((block, index) => <button key={block.id} className={materialView === "single" && block.id === activeMaterialId ? "active" : ""} onClick={() => { setActiveMaterialId(block.id); setMaterialView("single"); setSelectedAnnotationId(null); }}>材料{index + 1}</button>)}
+            {question.materials.length > 1 && <button className={materialView === "all" ? "active" : ""} onClick={() => { setMaterialView("all"); setSelectedAnnotationId(null); }}>查看全部</button>}
+          </div>
+          <div className="material-nav-stepper"><button disabled={materialView === "all" || activeMaterialIndex === 0} onClick={() => changeMaterial(-1)}><ChevronLeft size={15}/></button><span>{materialView === "all" ? "全部材料" : `${activeMaterialIndex + 1} / ${question.materials.length}`}</span><button disabled={materialView === "all" || activeMaterialIndex >= question.materials.length - 1} onClick={() => changeMaterial(1)}><ChevronRight size={15}/></button></div>
+        </div>
         <div className="annotation-toolbar" aria-label="材料标注工具">
+          <div className="annotation-tool-group"><BookOpenText size={15}/><strong>给定资料</strong></div>
           <button disabled={!annotationsLoaded} className={annotationMode === "highlight" ? "active" : ""} onClick={() => setAnnotationMode(mode => mode === "highlight" ? null : "highlight")}><Highlighter size={15}/><span>记号笔</span></button>
           <button disabled={!annotationsLoaded} className={annotationMode === "underline" ? "active" : ""} onClick={() => setAnnotationMode(mode => mode === "underline" ? null : "underline")}><Underline size={15}/><span>下划线</span></button>
-          <button disabled={!annotationsLoaded || !annotations.length} onClick={() => setAnnotations([])}><Eraser size={15}/><span>清除标记</span></button>
-          <small>{!annotationsLoaded ? "正在读取标记…" : annotationMode ? "选中材料文字即可标记" : "选择工具后，再拖选原文"}</small>
+          <button disabled={!annotations.length} onClick={undoLastAnnotation}><Undo2 size={15}/><span>撤销</span></button>
+          <button disabled={!selectedAnnotationId} onClick={deleteSelectedAnnotation}><Trash2 size={15}/><span>删除当前</span></button>
+          <div className="material-font-controls"><button disabled={materialFontSize <= 16} onClick={() => setMaterialFontSize(size => Math.max(16, size - 1))}><Minus size={13}/><span>A</span></button><span>{materialFontSize}</span><button disabled={materialFontSize >= 24} onClick={() => setMaterialFontSize(size => Math.min(24, size + 1))}><Plus size={13}/><span>A</span></button></div>
         </div>
-        <div className="material-scroll exam-paper-scroll">{question.materials.map(block => {
-          const blockAnnotations = annotations.filter(item => item.materialId === block.id);
-          return <article className="material exam-material" key={block.id}><div className="material-label"><span>{block.label}</span><small>{block.content.replace(/\s/g, "").length} 字</small></div><p onMouseUp={event => annotateSelection(block.id, event)}>{renderAnnotatedText(block.content, blockAnnotations)}</p></article>;
-        })}</div>
+        <div className="material-scroll exam-paper-scroll" style={{ "--material-font-size": `${materialFontSize}px` } as React.CSSProperties}>
+          {visibleMaterials.map((block, visibleIndex) => {
+            const blockAnnotations = annotations.filter(item => item.materialId === block.id);
+            const trueIndex = question.materials.findIndex(item => item.id === block.id);
+            return <article className="material exam-material" key={block.id}>
+              <div className="material-label"><span>材料{trueIndex + 1}</span>{materialView === "all" && visibleIndex > 0 ? <i/> : null}</div>
+              <p onMouseUp={event => annotateSelection(block.id, event)} onClick={() => setSelectedAnnotationId(null)}>{renderAnnotatedText(block.content, blockAnnotations, selectedAnnotationId, setSelectedAnnotationId)}</p>
+            </article>;
+          })}
+        </div>
       </section>
       <section className="answer-pane exam-answer-pane">
-        <div className="prompt-box exam-prompt-box"><span>作答任务</span><p>{question.prompt}</p></div>
-        <div className="grid-answer-wrap"><div className="answer-paper-label"><span>答题区</span><small>一字一格 · 键盘输入模拟申论答题纸</small></div><textarea className="grid-answer-input" value={answer} onChange={event => setAnswer(event.target.value)} placeholder={draftLoaded ? "在稿纸中独立作答……" : "正在读取本地草稿……"} disabled={!draftLoaded}/></div>
+        <div className="prompt-box exam-prompt-box"><span>题目要求</span><p>{question.prompt}</p></div>
+        <div className="grid-answer-wrap">
+          <div className="answer-paper-label"><span>你的作答</span><small>稿纸网格会始终保留</small></div>
+          <div className="grid-answer-stage">
+            <div className="answer-grid-layer" aria-hidden="true"/>
+            <textarea className="grid-answer-input" spellCheck={false} value={answer} onChange={event => setAnswer(event.target.value)} placeholder={draftLoaded ? "" : "正在读取本地草稿……"} disabled={!draftLoaded}/>
+          </div>
+        </div>
         <div className="answer-footer exam-answer-footer"><span className={chars > question.wordLimit ? "over-limit" : ""}>{chars} / {question.wordLimit} 字</span><span>{formatElapsed(elapsedSeconds)}</span><span className={submitError ? "over-limit" : ""}>{persistenceStatus}</span><button className="primary" disabled={chars < 10 || !draftLoaded || submitting} onClick={submit}><Sparkles size={16}/>{submitting ? "批改中…" : "提交批改"}</button></div>
       </section>
       {rightOpen && <aside className="review-pane">{review ? <ReviewPanel review={review}/> : <BeforeReview question={question}/>}</aside>}
