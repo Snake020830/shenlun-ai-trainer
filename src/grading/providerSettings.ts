@@ -3,10 +3,17 @@ import {
   DEFAULT_REMOTE_PROVIDER_CONFIG,
   validatePublicProviderConfig
 } from "./remote/config";
-import type { RemoteProviderPublicConfig, RemoteProtocol } from "./remote/config";
+import type { ReasoningEffort, RemoteProviderPublicConfig, RemoteProtocol } from "./remote/config";
 
 const PROVIDER_CONFIG_KEY = "public:remote-provider.v1";
 const PROTOCOLS = new Set<RemoteProtocol>(["openai-responses", "openai-chat-completions"]);
+const REASONING_EFFORTS = new Set<ReasoningEffort>([
+  "provider-default",
+  "low",
+  "medium",
+  "high",
+  "xhigh"
+]);
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -19,6 +26,9 @@ function sanitizePublicConfig(value: unknown): RemoteProviderPublicConfig {
   const protocol = typeof raw.protocol === "string" && PROTOCOLS.has(raw.protocol as RemoteProtocol)
     ? raw.protocol as RemoteProtocol
     : DEFAULT_REMOTE_PROVIDER_CONFIG.protocol;
+  const reasoningEffort = typeof raw.reasoningEffort === "string" && REASONING_EFFORTS.has(raw.reasoningEffort as ReasoningEffort)
+    ? raw.reasoningEffort as ReasoningEffort
+    : DEFAULT_REMOTE_PROVIDER_CONFIG.reasoningEffort;
 
   return {
     id: typeof raw.id === "string" ? raw.id : DEFAULT_REMOTE_PROVIDER_CONFIG.id,
@@ -30,7 +40,8 @@ function sanitizePublicConfig(value: unknown): RemoteProviderPublicConfig {
     secretRef: typeof raw.secretRef === "string" ? raw.secretRef : DEFAULT_REMOTE_PROVIDER_CONFIG.secretRef,
     timeoutMs: typeof raw.timeoutMs === "number" && Number.isFinite(raw.timeoutMs)
       ? raw.timeoutMs
-      : DEFAULT_REMOTE_PROVIDER_CONFIG.timeoutMs
+      : DEFAULT_REMOTE_PROVIDER_CONFIG.timeoutMs,
+    reasoningEffort
   };
 }
 
