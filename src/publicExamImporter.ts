@@ -17,6 +17,12 @@ export interface PublicExamImportResult {
   reusedQuestionIds: string[];
 }
 
+export function publicQuestionId(candidateId: string, taskIndex: number): string {
+  if (!candidateId.trim()) throw new Error("Public source candidate id is required.");
+  if (!Number.isInteger(taskIndex) || taskIndex < 0) throw new Error("Public exam task index is invalid.");
+  return `publicq:${candidateId}:task:${taskIndex + 1}`;
+}
+
 function buildWholeExamMaterialText(exam: ParsedPublicExam): string {
   return [...exam.materials]
     .sort((left, right) => left.sourceNumber - right.sourceNumber)
@@ -39,6 +45,7 @@ function questionInputForTask(candidate: PublicSourceCandidate, exam: ParsedPubl
   }
 
   return {
+    id: publicQuestionId(candidate.id, taskIndex),
     title: `${candidate.title} · 第${taskIndex + 1}题`,
     year: candidate.year ?? new Date().getFullYear(),
     region: candidate.region ?? "公开真题",
@@ -75,7 +82,7 @@ export async function previewPublicExam(candidate: PublicSourceCandidate): Promi
   }
   const provider = getPublicSourceProvider(candidate.providerId);
   if (provider?.role !== "primary-structured") {
-    throw new Error("该来源当前只用于发现或交叉核验，尚未通过结构化整卷解析验证。" );
+    throw new Error("该来源当前只用于发现或交叉核验，尚未通过结构化整卷解析验证。");
   }
   const response = await fetchPublicSourceText(candidate.sourceUrl);
   const exam = parseGkzhentiExamHtml(response.body, candidate);
@@ -85,12 +92,12 @@ export async function previewPublicExam(candidate: PublicSourceCandidate): Promi
 export async function importPublicExam(preview: PublicExamPreview): Promise<PublicExamImportResult> {
   const { candidate, exam, retrievedAt } = preview;
   if (!canImportParsedPublicExam(exam)) {
-    throw new Error("整卷解析仍有结构警告或缺少分值/字数，禁止自动写入正式题库。请先人工核验。" );
+    throw new Error("整卷解析仍有结构警告或缺少分值/字数，禁止自动写入正式题库。请先人工核验。");
   }
 
   const provider = getPublicSourceProvider(candidate.providerId);
   if (provider?.role !== "primary-structured") {
-    throw new Error("只有经过结构化页面验证的主来源才能自动写入正式题库。" );
+    throw new Error("只有经过结构化页面验证的主来源才能自动写入正式题库。");
   }
 
   const existingLinks = await publicSourceStore.listCandidateQuestionLinks(candidate.id);
@@ -108,6 +115,8 @@ export async function importPublicExam(preview: PublicExamPreview): Promise<Publ
       continue;
     }
 
+    // Deterministic id means a retry after a partial persistence failure upserts the
+    // same question instead of creating a second UUID-backed copy.
     const question = await persistence.addImportedQuestion(questionInputForTask(candidate, exam, taskIndex));
     const now = new Date().toISOString();
     await publicSourceStore.saveQuestionSource({
@@ -136,7 +145,7 @@ export async function importPublicExam(preview: PublicExamPreview): Promise<Publ
   const importedTaskIndexes = new Set(finalLinks.map(link => link.taskIndex));
   const complete = exam.tasks.every((_, taskIndex) => importedTaskIndexes.has(taskIndex));
   if (!complete) {
-    throw new Error("整卷只完成了部分题目导入。来源不会标记为“已导入”；再次重试会从缺失题号继续。" );
+    throw new Error("整卷只完成了部分题目导入。来源不会标记为“已导入”；再次重试会从缺失题号继续。");
   }
 
   await publicSourceStore.markCandidateImported(candidate.id, finalLinks[0]?.questionId);
