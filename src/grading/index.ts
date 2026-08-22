@@ -3,7 +3,13 @@ import { resolveGradingService } from "./serviceResolver";
 import { runShenlunGraderSkill } from "./shenlunGraderSkill";
 
 export async function gradeAnswer(request: GradingRequest) {
-  return (await runShenlunGraderSkill(request)).review;
+  const result = await runShenlunGraderSkill(request);
+  return {
+    ...result.review,
+    skillVersion: result.meta.skillVersion,
+    scoreInterpretation: result.meta.scoreInterpretation,
+    skillWarnings: result.meta.warnings
+  };
 }
 
 // Detailed raw workflow access is kept for benchmark/calibration code that needs
