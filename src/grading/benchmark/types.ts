@@ -75,6 +75,36 @@ export interface BenchmarkValidationResult {
   warnings: string[];
 }
 
+export interface BenchmarkModelRunRubricPoint {
+  id: string;
+  title: string;
+  elementType: ElementType;
+  evidence: string[];
+}
+
+export interface BenchmarkModelRunMapping {
+  predictedRubricPointId: string;
+  status: ReviewPoint["status"];
+  errorCodes: string[];
+  diagnosis: string;
+  suggestion?: string;
+}
+
+export interface BenchmarkModelRun {
+  schemaVersion: "0.1.0";
+  caseId: string;
+  runId: string;
+  predictedScore: number;
+  maxScore: number;
+  rubric: BenchmarkModelRunRubricPoint[];
+  mappings: BenchmarkModelRunMapping[];
+  providerId?: string;
+  model?: string;
+  rulesetVersion?: string;
+  scoringPolicy?: string;
+  generatedAt?: string;
+}
+
 export type RubricAlignmentRelation = "match" | "acceptable-merge" | "acceptable-split";
 
 export interface RubricAlignmentGroup {
