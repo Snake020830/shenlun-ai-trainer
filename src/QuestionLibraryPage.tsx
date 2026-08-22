@@ -25,7 +25,7 @@ function isPublicImportedQuestion(question: Question): boolean {
 
 function sourceVariantLabel(candidate: PublicSourceCandidate): string {
   if (candidate.status === "imported") return "已入库版本";
-  if (candidate.metadata?.recallVersion) return "回忆版本";
+  if (candidate.metadata?.recallVersion === true) return "回忆版本";
   if (/(站友|网友|考生).*(提供|整理)|站友提供/.test(candidate.title)) return "用户提供版本";
   return "公开版本";
 }
@@ -160,7 +160,7 @@ function PublicExamBrowser({ onImported }: { onImported: () => Promise<void> | v
           <div className="public-exam-card-heading">
             <div>
               <strong>{item.title}</strong>
-              <div>{item.year && <span>{item.year}</span>}{item.region && <span>{item.region}</span>}{item.paperVariant && <span>{item.paperVariant}</span>}<span className="preferred">推荐版本</span>{item.metadata?.recallVersion && <span className="recall">回忆来源</span>}{group.hasImportedVersion && <span className="imported">已有版本入库</span>}{group.alternatives.length > 0 && <button className="variant-toggle" onClick={() => setExpandedGroupKey(expanded ? null : group.key)}>{expanded ? "收起版本" : `另有 ${group.alternatives.length} 个版本`}</button>}</div>
+              <div>{item.year && <span>{item.year}</span>}{item.region && <span>{item.region}</span>}{item.paperVariant && <span>{item.paperVariant}</span>}<span className="preferred">推荐版本</span>{item.metadata?.recallVersion === true && <span className="recall">回忆来源</span>}{group.hasImportedVersion && <span className="imported">已有版本入库</span>}{group.alternatives.length > 0 && <button className="variant-toggle" onClick={() => setExpandedGroupKey(expanded ? null : group.key)}>{expanded ? "收起版本" : `另有 ${group.alternatives.length} 个版本`}</button>}</div>
             </div>
             <button disabled={!desktop || busy !== null || group.hasImportedVersion} onClick={() => void openPreview(item)}><Eye size={14}/>{busy === item.id ? "读取中" : group.hasImportedVersion ? "已有版本入库" : "预览推荐版"}</button>
           </div>
