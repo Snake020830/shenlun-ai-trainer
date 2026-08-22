@@ -114,6 +114,31 @@ const jiangsuHeadinglessFixture = `
 要求：（1）观点明确；（2）结构完整；（3）篇幅1000字左右。
 `;
 
+const multilineRequirementsFixture = `
+2026年国家公考《申论》题（副省级）
+给定材料
+材料1
+材料一正文。
+材料2
+材料二正文。
+作答要求
+一、
+请根据“给定资料1”，概括主要做法。（10分）
+要求：全面准确，有条理，不超过250字。
+二、
+“给定资料2”是一篇新闻报道，请围绕这篇报道写一则短评。（20分）
+要求：
+（1）观点明确，重点突出；
+（2）语言流畅，逻辑清晰；
+（3）不超过450字。
+三、
+参考给定资料，联系实际，自选角度，自拟题目，写一篇文章。（70分）
+要求：
+（1）观点明确，见解深刻；
+（2）思路清晰，语言流畅；
+（3）字数1000-1200字。
+`;
+
 describe("parseGkzhentiExamText", () => {
   it("extracts the full material corpus without losing natural paragraph breaks", () => {
     const exam = parseGkzhentiExamText(fixture, candidate);
@@ -173,6 +198,18 @@ describe("parseGkzhentiExamText", () => {
     expect(canImportParsedPublicExam(exam)).toBe(true);
   });
 
+  it("keeps multiline requirement lists attached to the correct recent-paper task", () => {
+    const exam = parseGkzhentiExamText(multilineRequirementsFixture, candidate);
+    expect(exam.warnings).toEqual([]);
+    expect(exam.tasks).toHaveLength(3);
+    expect(exam.tasks[1].questionType).toBe("贯彻执行");
+    expect(exam.tasks[1].wordLimit).toBe(450);
+    expect(exam.tasks[1].requirements).toContain("（1）观点明确");
+    expect(exam.tasks[1].requirements).toContain("（3）不超过450字");
+    expect(exam.tasks[2].wordLimit).toBe(1200);
+    expect(canImportParsedPublicExam(exam)).toBe(true);
+  });
+
   it("conservatively infers boundaries when section headings are omitted but clear material/task sequences remain", () => {
     const exam = parseGkzhentiExamText(missingSectionHeadingsFixture, candidate);
     expect(exam.warnings).toEqual([]);
@@ -218,6 +255,7 @@ describe("inferPublicQuestionType", () => {
   it("uses conservative rule-based task classification", () => {
     expect(inferPublicQuestionType("请概括主要做法。")).toBe("概括归纳");
     expect(inferPublicQuestionType("分析这一现象产生的原因。")).toBe("综合分析");
+    expect(inferPublicQuestionType("对此，请谈谈你的看法。")).toBe("综合分析");
     expect(inferPublicQuestionType("针对问题提出进一步改进建议。")).toBe("提出对策");
     expect(inferPublicQuestionType("拟写一份工作简报。")).toBe("贯彻执行");
     expect(inferPublicQuestionType("围绕新闻报道写一则短评。")).toBe("贯彻执行");
