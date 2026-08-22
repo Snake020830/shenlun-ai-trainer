@@ -25,5 +25,7 @@ jobs:
           node-version: 24
       - name: Install dependencies
         run: npm install --no-audit --no-fund
+      - name: Grading unit tests
+        run: npm test
       - name: TypeScript and Vite build
         run: npm run build
