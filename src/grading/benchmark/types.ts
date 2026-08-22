@@ -138,6 +138,8 @@ export interface BenchmarkAlignment {
   alignmentStatus?: BenchmarkAlignmentStatus;
   rubricAlignments: RubricAlignmentGroup[];
   mappingLinks: AnswerMappingLink[];
+  unmatchedGoldRubricPointIds?: string[];
+  unmatchedPredictedRubricPointIds?: string[];
   provenance?: {
     alignedBy?: string;
     alignedAt?: string;
