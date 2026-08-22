@@ -37,6 +37,12 @@ const TASK_ORDINAL = /^\s*(?:第\s*)?([一二三四五六七八九十]|\d{1,2})\
 const MATERIAL_HEADING = /^\s*材料\s*([0-9０-９一二三四五六七八九十]+)(?:\([^)]*\))?\s*(?:[：:])?\s*$/u;
 const SITE_FOOTER_MARKERS = ["欢迎使用公开真题库", "备案编号：", "网站版本：", "若有网络数据相关投诉举报"];
 
+interface IndexedLine {
+  line: string;
+  index: number;
+  start: number;
+}
+
 function normalizeText(value: string): string {
   return value
     .replace(/\r\n?/g, "\n")
@@ -45,6 +51,15 @@ function normalizeText(value: string): string {
     .replace(/\n[ \t]+/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+}
+
+function indexedLines(value: string): IndexedLine[] {
+  let offset = 0;
+  return value.split("\n").map((line, index) => {
+    const current = { line, index, start: offset };
+    offset += line.length + 1;
+    return current;
+  });
 }
 
 function trimSiteFooter(value: string): string {
@@ -202,19 +217,55 @@ function parseTasks(text: string): ParsedPublicExamTask[] {
   }).filter(task => task.prompt.length > 0);
 }
 
+function inferSectionBoundaries(normalized: string): { materialStart: number | null; taskStart: number | null } {
+  const lines = indexedLines(normalized);
+  const materialHeadings = lines.filter(item => MATERIAL_HEADING.test(item.line));
+  if (!materialHeadings.length) return { materialStart: null, taskStart: null };
+
+  const firstMaterial = materialHeadings[0];
+  const lastMaterial = materialHeadings[materialHeadings.length - 1];
+  const possibleTasks = lines.filter(item => item.index > lastMaterial.index && TASK_ORDINAL.test(item.line));
+
+  // Requiring at least two numbered tasks avoids treating a standalone numbered line
+  // inside the final material as an inferred task section. A one-question paper stays
+  // blocked unless it has an explicit 作答要求 heading.
+  if (possibleTasks.length < 2) return { materialStart: firstMaterial.start, taskStart: null };
+
+  const firstTask = possibleTasks[0];
+  const probe = lines
+    .slice(firstTask.index + 1, Math.min(lines.length, firstTask.index + 5))
+    .map(item => item.line)
+    .join("\n");
+  if (!/[（(]\s*\d{1,3}\s*分\s*[）)]/u.test(probe)) {
+    return { materialStart: firstMaterial.start, taskStart: null };
+  }
+  return { materialStart: firstMaterial.start, taskStart: firstTask.start };
+}
+
 export function parseGkzhentiExamText(text: string, candidate?: PublicSourceCandidate): ParsedPublicExam {
   const normalized = normalizeText(text);
   const materialSectionMatch = normalized.match(/(?:^|\n)(?:二[、.．]\s*)?给定(?:资料|材料)\s*(?:\n|$)/u);
   const taskSectionMatch = normalized.match(/(?:^|\n)(?:三[、.．]\s*)?作答要求\s*(?:\n|$)/u);
+  const inferred = inferSectionBoundaries(normalized);
   const warnings: string[] = [];
 
-  if (!materialSectionMatch || materialSectionMatch.index === undefined) warnings.push("未找到“给定材料/给定资料”章节。解析结果不可直接导入。");
-  if (!taskSectionMatch || taskSectionMatch.index === undefined) warnings.push("未找到“作答要求”章节。解析结果不可直接导入。");
+  const materialStart = materialSectionMatch?.index !== undefined
+    ? materialSectionMatch.index + materialSectionMatch[0].length
+    : inferred.materialStart;
+  const taskBoundary = taskSectionMatch?.index !== undefined
+    ? taskSectionMatch.index
+    : inferred.taskStart;
+  const taskStart = taskSectionMatch?.index !== undefined
+    ? taskSectionMatch.index + taskSectionMatch[0].length
+    : inferred.taskStart;
 
-  const materialStart = materialSectionMatch?.index === undefined ? 0 : materialSectionMatch.index + materialSectionMatch[0].length;
-  const taskStart = taskSectionMatch?.index === undefined ? normalized.length : taskSectionMatch.index + taskSectionMatch[0].length;
-  const materialText = normalized.slice(materialStart, taskSectionMatch?.index ?? normalized.length);
-  const taskText = trimSiteFooter(normalized.slice(taskStart));
+  if (materialStart === null) warnings.push("未找到明确材料章节或可验证的“材料N”序列。解析结果不可直接导入。");
+  if (taskStart === null) warnings.push("未找到“作答要求”章节，也无法可靠推断连续题号边界。解析结果不可直接导入。");
+
+  const materialText = materialStart === null
+    ? ""
+    : normalized.slice(materialStart, taskBoundary ?? normalized.length);
+  const taskText = taskStart === null ? "" : trimSiteFooter(normalized.slice(taskStart));
   const materials = parseMaterials(materialText);
   const tasks = parseTasks(taskText);
 
