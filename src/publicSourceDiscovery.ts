@@ -1,5 +1,4 @@
-import { isTauri } from "@tauri-apps/api/core";
-import { invoke } from "@tauri-apps/api/core";
+import { isTauri, invoke } from "@tauri-apps/api/core";
 import type { PublicSourceProvider } from "./publicSourceProviders";
 import { publicSourceStore, type PublicSourceCandidate } from "./publicSourceStore";
 
@@ -16,7 +15,8 @@ const REGION_NAMES = [
 ];
 
 const VARIANT_PATTERNS = [
-  "副省级", "省级", "地市级", "市地级", "行政执法", "县乡", "县级", "乡镇", "省市", "A卷", "B卷", "C卷", "通用卷", "普通选调"
+  "副省级", "省部级", "省级", "地市级", "市地级", "行政执法", "公安", "县乡", "县镇", "县级", "乡镇",
+  "省市", "A卷", "B卷", "C卷", "通用卷", "普通选调", "选调"
 ];
 
 function normalizeWhitespace(value: string): string {
@@ -41,6 +41,7 @@ function inferYear(title: string): number | undefined {
 }
 
 function inferRegion(title: string): string | undefined {
+  if (/(国家公考|国家公务员|国考)/.test(title)) return "国家";
   return REGION_NAMES.find(region => title.includes(region));
 }
 
@@ -50,11 +51,32 @@ function inferPaperVariant(title: string): string | undefined {
 }
 
 function looksLikeShenlunTitle(title: string): boolean {
-  return title.includes("申论") && /(真题|试卷|考试|公考|公务员|联考|国考|省考|题)/.test(title);
+  return title.includes("申论") && /(真题|试卷|考试|公考|公务员|联考|国考|省考|题|卷)/.test(title);
 }
 
 function sourceKindFromUrl(url: URL): "public-web" | "public-pdf" {
   return /\.pdf(?:$|[?#])/i.test(url.href) ? "public-pdf" : "public-web";
+}
+
+function dedupeCandidates(candidates: PublicSourceCandidate[]): PublicSourceCandidate[] {
+  const byUrl = new Map<string, PublicSourceCandidate>();
+  for (const candidate of candidates) {
+    const previous = byUrl.get(candidate.sourceUrl);
+    if (!previous) {
+      byUrl.set(candidate.sourceUrl, candidate);
+      continue;
+    }
+    byUrl.set(candidate.sourceUrl, {
+      ...previous,
+      ...candidate,
+      metadata: { ...(previous.metadata ?? {}), ...(candidate.metadata ?? {}) }
+    });
+  }
+  return [...byUrl.values()];
+}
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise(resolve => window.setTimeout(resolve, milliseconds));
 }
 
 export async function fetchPublicSourceText(url: string): Promise<PublicSourceFetchResponse> {
@@ -112,17 +134,20 @@ export function discoverShenlunCandidatesFromHtml(
     if (seen.has(sourceUrl)) continue;
     seen.add(sourceUrl);
 
-    const recallVersion = /(网友|考生|回忆)(?:版|整理)?/.test(title);
+    const recallVersion = /(网友|考生|回忆|站友)(?:版|整理|提供)?/.test(title);
+    const year = inferYear(title);
+    const region = inferRegion(title);
+    const paperVariant = inferPaperVariant(title);
     results.push({
       id: stableId(provider.id, sourceUrl),
       providerId: provider.id,
       title,
       sourceUrl,
-      ...(inferYear(title) ? { year: inferYear(title) } : {}),
-      ...(inferRegion(title) ? { region: inferRegion(title) } : {}),
-      ...(inferPaperVariant(title) ? { paperVariant: inferPaperVariant(title) } : {}),
+      ...(year ? { year } : {}),
+      ...(region ? { region } : {}),
+      ...(paperVariant ? { paperVariant } : {}),
       sourceKind: sourceKindFromUrl(url),
-      accessNote: recallVersion ? "标题标记为网友/考生回忆来源。" : "公开可访问来源候选，导入前需核验正文与题型。",
+      accessNote: recallVersion ? "标题标记为网友/考生/站友回忆来源。" : "公开可访问来源候选，导入前需核验正文与题型。",
       discoveredAt,
       status: "discovered",
       metadata: {
@@ -134,9 +159,49 @@ export function discoverShenlunCandidatesFromHtml(
   return results;
 }
 
+export function discoverSecondaryIndexUrls(
+  provider: PublicSourceProvider,
+  html: string,
+  fetchedUrl = provider.indexUrl
+): string[] {
+  if (provider.traversal !== "shenlun-region-pages") return [];
+  const document = new DOMParser().parseFromString(html, "text/html");
+  const baseUrl = new URL(fetchedUrl);
+  const allowedHost = new URL(provider.indexUrl).host;
+  const urls = new Set<string>();
+
+  for (const anchor of Array.from(document.querySelectorAll<HTMLAnchorElement>("a[href]"))) {
+    let url: URL;
+    try {
+      url = new URL(anchor.getAttribute("href") ?? "", baseUrl);
+    } catch {
+      continue;
+    }
+    if (url.host !== allowedHost || url.pathname !== "/paper") continue;
+    if (url.searchParams.get("cls") !== "申论" || !url.searchParams.get("province")) continue;
+    url.hash = "";
+    urls.add(url.toString());
+    if (urls.size >= provider.maxIndexPages - 1) break;
+  }
+  return [...urls];
+}
+
 export async function discoverProviderCandidates(provider: PublicSourceProvider): Promise<PublicSourceCandidate[]> {
-  const response = await fetchPublicSourceText(provider.indexUrl);
-  const candidates = discoverShenlunCandidatesFromHtml(provider, response.body, response.url);
+  const root = await fetchPublicSourceText(provider.indexUrl);
+  const allCandidates = discoverShenlunCandidatesFromHtml(provider, root.body, root.url);
+  const secondaryUrls = discoverSecondaryIndexUrls(provider, root.body, root.url);
+
+  for (const [index, indexUrl] of secondaryUrls.entries()) {
+    try {
+      if (index > 0) await delay(80);
+      const response = await fetchPublicSourceText(indexUrl);
+      allCandidates.push(...discoverShenlunCandidatesFromHtml(provider, response.body, response.url));
+    } catch (error) {
+      console.warn("Skipping one public source index page after fetch failure.", indexUrl, error);
+    }
+  }
+
+  const candidates = dedupeCandidates(allCandidates);
   for (const candidate of candidates) {
     await publicSourceStore.upsertCandidate(candidate);
   }
