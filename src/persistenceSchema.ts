@@ -1,7 +1,7 @@
-export const STORAGE_SCHEMA_VERSION = 6;
+export const STORAGE_SCHEMA_VERSION = 7;
 
-// 运行时数据库的结构镜像。正式迁移文件位于 src-tauri/migrations/0001..0006。
-export const SQLITE_SCHEMA_V6 = `
+// 运行时数据库的结构镜像。正式迁移文件位于 src-tauri/migrations/0001..0007。
+export const SQLITE_SCHEMA_V7 = `
 PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS app_meta (
@@ -118,6 +118,15 @@ CREATE TABLE IF NOT EXISTS question_sources (
   is_recall_version INTEGER NOT NULL DEFAULT 0 CHECK (is_recall_version IN (0, 1))
 );
 
+CREATE TABLE IF NOT EXISTS public_source_question_links (
+  candidate_id TEXT NOT NULL REFERENCES public_source_candidates(id) ON DELETE CASCADE,
+  question_id TEXT NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
+  task_index INTEGER NOT NULL CHECK (task_index >= 0),
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (candidate_id, question_id),
+  UNIQUE (candidate_id, task_index)
+);
+
 CREATE INDEX IF NOT EXISTS idx_training_question ON training_records(question_id);
 CREATE INDEX IF NOT EXISTS idx_training_submitted ON training_records(submitted_at DESC);
 CREATE INDEX IF NOT EXISTS idx_benchmark_drafts_created ON benchmark_drafts(created_at DESC);
@@ -127,4 +136,5 @@ CREATE INDEX IF NOT EXISTS idx_training_practice_meta_created ON training_practi
 CREATE INDEX IF NOT EXISTS idx_public_source_candidates_provider ON public_source_candidates(provider_id, year DESC);
 CREATE INDEX IF NOT EXISTS idx_public_source_candidates_status ON public_source_candidates(status, discovered_at DESC);
 CREATE INDEX IF NOT EXISTS idx_question_sources_url ON question_sources(source_url);
+CREATE INDEX IF NOT EXISTS idx_public_source_question_links_question ON public_source_question_links(question_id);
 `;
