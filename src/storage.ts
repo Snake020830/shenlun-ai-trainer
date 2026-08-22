@@ -38,6 +38,8 @@ interface QuestionRow {
   tags_json: string;
   source: string;
   created_at: string;
+  reference_answer_content: string | null;
+  reference_answer_source: string | null;
 }
 
 interface MaterialRow {
@@ -116,12 +118,15 @@ async function getDatabase(): Promise<Database | null> {
 async function upsertQuestion(db: Database, question: Question) {
   await db.execute(
     `INSERT INTO questions
-      (id, title, year, region, type, difficulty, score, word_limit, prompt, tags_json, source, created_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+      (id, title, year, region, type, difficulty, score, word_limit, prompt, tags_json, source, created_at,
+       reference_answer_content, reference_answer_source)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
      ON CONFLICT(id) DO UPDATE SET
        title=excluded.title, year=excluded.year, region=excluded.region, type=excluded.type,
        difficulty=excluded.difficulty, score=excluded.score, word_limit=excluded.word_limit,
-       prompt=excluded.prompt, tags_json=excluded.tags_json, source=excluded.source`,
+       prompt=excluded.prompt, tags_json=excluded.tags_json, source=excluded.source,
+       reference_answer_content=excluded.reference_answer_content,
+       reference_answer_source=excluded.reference_answer_source`,
     [
       question.id,
       question.title,
@@ -134,7 +139,9 @@ async function upsertQuestion(db: Database, question: Question) {
       question.prompt,
       JSON.stringify(question.tags),
       question.source ?? "local",
-      question.createdAt ?? new Date().toISOString()
+      question.createdAt ?? new Date().toISOString(),
+      question.referenceAnswer?.content ?? null,
+      question.referenceAnswer?.source ?? null
     ]
   );
   await db.execute("DELETE FROM materials WHERE question_id = $1", [question.id]);
@@ -194,6 +201,8 @@ async function migrateLegacyLocalStorage(db: Database) {
 
 function createQuestion(input: LocalQuestionInput): Question {
   const now = new Date().toISOString();
+  const referenceAnswerContent = input.referenceAnswerContent?.trim();
+  const referenceAnswerSource = input.referenceAnswerSource?.trim();
   return {
     id: `local-${crypto.randomUUID()}`,
     title: input.title.trim(),
@@ -205,6 +214,9 @@ function createQuestion(input: LocalQuestionInput): Question {
     wordLimit: input.wordLimit,
     prompt: input.prompt.trim(),
     tags: input.tags,
+    referenceAnswer: referenceAnswerContent
+      ? { content: referenceAnswerContent, ...(referenceAnswerSource ? { source: referenceAnswerSource } : {}) }
+      : undefined,
     source: "local",
     createdAt: now,
     materials: input.materialText
@@ -351,7 +363,7 @@ export const persistence = {
 
     const questionRows = await db.select<QuestionRow[]>(
       `SELECT id, title, year, region, type, difficulty, score, word_limit, prompt,
-              tags_json, source, created_at
+              tags_json, source, created_at, reference_answer_content, reference_answer_source
        FROM questions WHERE source = 'local' ORDER BY created_at DESC`
     );
     const materialRows = await db.select<MaterialRow[]>(
@@ -376,6 +388,12 @@ export const persistence = {
       wordLimit: row.word_limit,
       prompt: row.prompt,
       tags: JSON.parse(row.tags_json) as string[],
+      referenceAnswer: row.reference_answer_content
+        ? {
+            content: row.reference_answer_content,
+            ...(row.reference_answer_source ? { source: row.reference_answer_source } : {})
+          }
+        : undefined,
       source: row.source === "builtin" ? "builtin" : "local",
       createdAt: row.created_at,
       materials: (materialsByQuestion.get(row.id) ?? []).map(material => ({
