@@ -32,6 +32,9 @@ export function createRemoteWorkflowProvider(
       if (!transport.config.enabled) {
         throw new Error("Remote grading provider is disabled.");
       }
+      if (question.type === "文章写作") {
+        throw new Error("文章写作暂不使用当前“小题材料点→rubric→逐点映射”远程评分流程。请等待专用作文论证评分 workflow；系统不会用小题规则生成误导性作文分数。");
+      }
 
       const materialIds = new Set(question.materials.map(item => item.id));
       const extractionResponse = await transport.completeJson<unknown>(buildMaterialExtractionRequest(question));
