@@ -3,9 +3,11 @@ import type Database from "@tauri-apps/plugin-sql";
 
 const DATABASE_URL = "sqlite:shenlun-trainer.db";
 const ANNOTATION_KEY_PREFIX = "shenlun:practice-annotations:v1:";
+const INK_KEY_PREFIX = "shenlun:practice-ink:v1:";
 const META_KEY = "shenlun:training-practice-meta:v1";
 
 export type PracticeHighlightColor = "yellow" | "blue" | "green" | "pink";
+export type PracticeInkColor = "graphite" | "blue" | "red";
 
 export interface PracticeTextAnnotation {
   id: string;
@@ -14,6 +16,20 @@ export interface PracticeTextAnnotation {
   end: number;
   type: "highlight" | "underline";
   color?: PracticeHighlightColor;
+}
+
+export interface PracticeInkPoint {
+  offset: number;
+  dx: number;
+  dy: number;
+}
+
+export interface PracticeInkStroke {
+  id: string;
+  materialId: string;
+  color: PracticeInkColor;
+  width: number;
+  points: PracticeInkPoint[];
 }
 
 export interface TrainingPracticeMeta {
@@ -25,6 +41,10 @@ export interface TrainingPracticeMeta {
 
 interface AnnotationRow {
   annotations_json: string;
+}
+
+interface InkRow {
+  strokes_json: string;
 }
 
 let databasePromise: Promise<Database> | null = null;
@@ -70,6 +90,33 @@ function validateAnnotations(annotations: PracticeTextAnnotation[]): void {
   }
 }
 
+function validateInkStrokes(strokes: PracticeInkStroke[]): void {
+  if (strokes.length > 500) throw new Error("Practice ink stroke count exceeded the safety limit.");
+  const seen = new Set<string>();
+  const colors = new Set<PracticeInkColor>(["graphite", "blue", "red"]);
+  for (const stroke of strokes) {
+    if (!stroke.id.trim()) throw new Error("Practice ink stroke id is required.");
+    if (seen.has(stroke.id)) throw new Error(`Duplicate practice ink stroke id: ${stroke.id}.`);
+    seen.add(stroke.id);
+    if (!stroke.materialId.trim()) throw new Error(`Practice ink stroke ${stroke.id} materialId is required.`);
+    if (!colors.has(stroke.color)) throw new Error(`Practice ink stroke ${stroke.id} has an unsupported color.`);
+    if (!Number.isFinite(stroke.width) || stroke.width < 1 || stroke.width > 12) {
+      throw new Error(`Practice ink stroke ${stroke.id} has an invalid width.`);
+    }
+    if (stroke.points.length < 2 || stroke.points.length > 5000) {
+      throw new Error(`Practice ink stroke ${stroke.id} has an invalid point count.`);
+    }
+    for (const point of stroke.points) {
+      if (!Number.isInteger(point.offset) || point.offset < 0) {
+        throw new Error(`Practice ink stroke ${stroke.id} contains an invalid character offset.`);
+      }
+      if (!Number.isFinite(point.dx) || !Number.isFinite(point.dy) || Math.abs(point.dx) > 2048 || Math.abs(point.dy) > 2048) {
+        throw new Error(`Practice ink stroke ${stroke.id} contains an invalid relative coordinate.`);
+      }
+    }
+  }
+}
+
 export async function getPracticeAnnotations(questionId: string): Promise<PracticeTextAnnotation[]> {
   if (!questionId.trim()) return [];
   const db = await getDatabase();
@@ -104,6 +151,52 @@ export async function savePracticeAnnotations(questionId: string, annotations: P
        annotations_json=excluded.annotations_json,
        updated_at=excluded.updated_at`,
     [questionId, JSON.stringify(annotations), new Date().toISOString()]
+  );
+}
+
+export async function getPracticeInkStrokes(questionId: string): Promise<PracticeInkStroke[]> {
+  if (!questionId.trim()) return [];
+  const db = await getDatabase();
+  if (!db) {
+    const parsed = readJson<PracticeInkStroke[]>(`${INK_KEY_PREFIX}${questionId}`, []);
+    try {
+      validateInkStrokes(parsed);
+      return parsed;
+    } catch (error) {
+      console.error("Stored practice ink strokes are invalid.", error);
+      return [];
+    }
+  }
+  const rows = await db.select<InkRow[]>(
+    "SELECT strokes_json FROM practice_ink_strokes WHERE question_id = $1 LIMIT 1",
+    [questionId]
+  );
+  if (!rows[0]) return [];
+  try {
+    const parsed = JSON.parse(rows[0].strokes_json) as PracticeInkStroke[];
+    validateInkStrokes(parsed);
+    return parsed;
+  } catch (error) {
+    console.error("Stored practice ink strokes are invalid.", error);
+    return [];
+  }
+}
+
+export async function savePracticeInkStrokes(questionId: string, strokes: PracticeInkStroke[]): Promise<void> {
+  if (!questionId.trim()) throw new Error("questionId is required when saving practice ink strokes.");
+  validateInkStrokes(strokes);
+  const db = await getDatabase();
+  if (!db) {
+    localStorage.setItem(`${INK_KEY_PREFIX}${questionId}`, JSON.stringify(strokes));
+    return;
+  }
+  await db.execute(
+    `INSERT INTO practice_ink_strokes (question_id, strokes_json, updated_at)
+     VALUES ($1,$2,$3)
+     ON CONFLICT(question_id) DO UPDATE SET
+       strokes_json=excluded.strokes_json,
+       updated_at=excluded.updated_at`,
+    [questionId, JSON.stringify(strokes), new Date().toISOString()]
   );
 }
 
