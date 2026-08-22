@@ -25,6 +25,12 @@ export function validateBenchmarkCase(testCase: GradingBenchmarkCase): Benchmark
     errors.push("question wordLimit must be a positive integer");
   }
 
+  if (testCase.annotationStatus === undefined) {
+    warnings.push("annotationStatus is missing; evaluation must treat the case as a draft");
+  } else if (testCase.annotationStatus === "draft") {
+    warnings.push("case is an annotation draft and must not be used for evaluation metrics");
+  }
+
   const materialIds = testCase.question.materials.map(item => item.id);
   for (const id of duplicates(materialIds)) errors.push(`duplicate material id: ${id}`);
   const materialIdSet = new Set(materialIds);
@@ -66,6 +72,15 @@ export function validateBenchmarkCase(testCase: GradingBenchmarkCase): Benchmark
     }
   }
 
+  if (testCase.annotationStatus === "adjudicated") {
+    if (!testCase.gold.materialPoints.length) errors.push("adjudicated case must contain gold material points");
+    if (!testCase.gold.rubric.length) errors.push("adjudicated case must contain a gold rubric");
+    if (!testCase.gold.mappings.length) errors.push("adjudicated case must contain gold mappings");
+    if (!testCase.provenance?.annotatedAt?.trim()) {
+      warnings.push("adjudicated case should record provenance.annotatedAt");
+    }
+  }
+
   const assessorIds = testCase.gold.humanScores.map(item => item.assessorId);
   for (const id of duplicates(assessorIds)) warnings.push(`duplicate human score assessor id: ${id}`);
   if (!testCase.gold.humanScores.length) {
@@ -76,6 +91,13 @@ export function validateBenchmarkCase(testCase: GradingBenchmarkCase): Benchmark
     if (!Number.isFinite(observation.score) || observation.score < 0 || observation.score > testCase.question.maxScore) {
       errors.push(`human score from ${observation.assessorId || "unknown assessor"} is outside 0..maxScore`);
     }
+  }
+
+  if (testCase.split === "debug" && testCase.gold.humanScores.length) {
+    warnings.push("debug case contains human score observations; score calibration must ignore debug cases");
+  }
+  if ((testCase.split === "calibration" || testCase.split === "holdout") && !testCase.gold.humanScores.length) {
+    warnings.push(`${testCase.split} case has no human score observation`);
   }
 
   if (testCase.question.referenceAnswer?.content !== undefined && !testCase.question.referenceAnswer.content.trim()) {
