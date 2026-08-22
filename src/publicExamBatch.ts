@@ -4,8 +4,8 @@ import { importPublicExam, previewPublicExam } from "./publicExamImporter";
 import { isRecentPublicExamYear } from "./publicSourceDiscovery";
 import { publicSourceStore, type PublicSourceCandidate } from "./publicSourceStore";
 
-export const PUBLIC_EXAM_AUDIT_VERSION = "public-exam-audit@0.1.0";
-export const PUBLIC_EXAM_BATCH_STATE_VERSION = "public-exam-batch@0.1.0";
+export const PUBLIC_EXAM_AUDIT_VERSION = "public-exam-audit@0.2.0";
+export const PUBLIC_EXAM_BATCH_STATE_VERSION = "public-exam-batch@0.2.0";
 
 export interface PublicExamAuditMetadata {
   version: typeof PUBLIC_EXAM_AUDIT_VERSION;
