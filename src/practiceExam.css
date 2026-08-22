@@ -1,14 +1,14 @@
 .exam-practice-shell {
-  --exam-paper: #f7f1e4;
-  --exam-paper-deep: #f2ead9;
-  --exam-ink: #262722;
-  --exam-muted: #737064;
-  --exam-rule: rgba(99, 88, 65, .16);
-  --answer-cell: 30px;
+  --reader-bg: #fbfaf7;
+  --reader-toolbar: #f7f7f4;
+  --reader-ink: #30343a;
+  --reader-muted: #8a8d92;
+  --reader-line: #e5e4df;
+  --answer-cell: 32px;
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background: #eceae3;
+  background: #f2f2ef;
 }
 
 .exam-practice-shell > .practice-grid {
@@ -16,15 +16,23 @@
   min-height: 0;
 }
 
+.exam-practice-shell .practice-grid.right-hidden {
+  grid-template-columns: minmax(560px, 1.35fr) minmax(430px, 1fr);
+}
+
+.exam-practice-shell .practice-grid:not(.right-hidden) {
+  grid-template-columns: minmax(430px, 1.05fr) minmax(410px, .9fr) minmax(300px, .62fr);
+}
+
 .exam-practice-header {
   flex: 0 0 58px;
-  background: #f3f0e8;
-  border-bottom-color: #d9d4c8;
+  background: #fff;
+  border-bottom: 1px solid #e7e7e4;
 }
 
 .practice-title-block strong {
-  font-family: "Songti SC", "STSong", "SimSun", "Noto Serif SC", serif;
-  letter-spacing: .01em;
+  font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", system-ui, sans-serif;
+  letter-spacing: 0;
 }
 
 .practice-header-actions {
@@ -36,21 +44,21 @@
 
 .exam-timer {
   height: 34px;
-  border: 1px solid #d4d0c5;
+  border: 1px solid #dedfdf;
   border-radius: 8px;
-  background: #faf8f2;
+  background: #fff;
   padding: 0 5px 0 9px;
   display: flex;
   align-items: center;
   gap: 7px;
-  color: #59584f;
+  color: #666b72;
   font-variant-numeric: tabular-nums;
 }
 
 .exam-timer.running {
-  border-color: #9eb3a3;
-  color: #305b43;
-  background: #f3f7f2;
+  border-color: #aebcc7;
+  color: #39576b;
+  background: #f5f9fc;
 }
 
 .exam-timer strong {
@@ -71,160 +79,266 @@
 }
 
 .exam-timer button:hover {
-  background: rgba(55, 102, 78, .09);
+  background: #f0f2f4;
 }
 
 .demo-question-notice {
   flex: 0 0 auto;
   min-height: 30px;
   padding: 7px 16px;
-  border-bottom: 1px solid #e0d8c8;
-  background: #fff7df;
-  color: #7a6030;
+  border-bottom: 1px solid #eee6d7;
+  background: #fff9ea;
+  color: #80683b;
   font-size: 11px;
   text-align: center;
 }
 
 .exam-materials-pane {
-  background: var(--exam-paper);
+  min-width: 0;
+  display: grid;
+  grid-template-rows: 42px 42px minmax(0, 1fr);
+  background: var(--reader-bg);
 }
 
-.exam-pane-title {
-  height: 48px;
-  background: #f0eadc;
-  border-bottom-color: #d9d0bd;
-  color: #46453e;
+.material-navigation {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--reader-line);
+  background: #fff;
 }
 
-.annotation-toolbar {
-  min-height: 42px;
-  padding: 6px 12px;
+.material-tabs {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.material-tabs button {
+  flex: 0 0 auto;
+  height: 31px;
+  padding: 0 10px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: #747980;
+  font-size: 12px;
+}
+
+.material-tabs button:hover {
+  color: #44566d;
+  background: #f7f8fa;
+}
+
+.material-tabs button.active {
+  color: #356fd2;
+  border-bottom-color: #4f7fe3;
+  font-weight: 700;
+}
+
+.material-nav-stepper {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   gap: 5px;
-  border-bottom: 1px solid #ded4c0;
-  background: #f5efe2;
+  color: #92969c;
+  font-size: 10px;
+}
+
+.material-nav-stepper button {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid #e2e3e5;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  background: #fff;
+  color: #737980;
+}
+
+.material-nav-stepper button:disabled {
+  opacity: .35;
+}
+
+.annotation-toolbar {
+  min-width: 0;
+  padding: 5px 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-bottom: 1px solid var(--reader-line);
+  background: var(--reader-toolbar);
+}
+
+.annotation-tool-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 6px;
+  color: #5c6269;
+  font-size: 11px;
 }
 
 .annotation-toolbar button {
-  height: 29px;
+  height: 30px;
   border: 1px solid transparent;
   border-radius: 6px;
   background: transparent;
-  color: #686458;
+  color: #6f747a;
   padding: 0 8px;
   display: inline-flex;
   align-items: center;
   gap: 5px;
   font-size: 11px;
+  white-space: nowrap;
 }
 
 .annotation-toolbar button:hover:not(:disabled) {
-  background: rgba(255,255,255,.5);
-  border-color: #d4c8af;
+  background: #fff;
+  border-color: #dfe1e4;
 }
 
 .annotation-toolbar button.active {
-  color: #315b43;
-  background: #e3ece2;
-  border-color: #abc0ad;
+  color: #2e66c4;
+  background: #eef4ff;
+  border-color: #cad9f7;
 }
 
 .annotation-toolbar button:disabled {
-  opacity: .4;
+  opacity: .35;
   cursor: not-allowed;
 }
 
-.annotation-toolbar small {
+.material-font-controls {
   margin-left: auto;
-  color: #918c7d;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  color: #8a8e94;
   font-size: 10px;
 }
 
+.material-font-controls > span {
+  min-width: 20px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.material-font-controls button {
+  padding: 0 5px;
+}
+
 .exam-paper-scroll {
-  height: calc(100% - 90px);
+  min-height: 0;
+  height: auto;
   overflow: auto;
-  padding: 30px 34px 76px;
-  background:
-    radial-gradient(circle at 20% 10%, rgba(117,95,56,.025), transparent 28%),
-    linear-gradient(var(--exam-paper), var(--exam-paper));
+  padding: 28px clamp(26px, 4vw, 58px) 80px;
+  background: var(--reader-bg);
 }
 
 .exam-material {
   position: relative;
-  margin: 0 0 34px;
-  padding: 0 0 30px;
-  border-bottom: 1px solid var(--exam-rule);
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 0;
+  border: 0;
 }
 
-.exam-material:last-child {
-  border-bottom: 0;
+.exam-material + .exam-material {
+  margin-top: 52px;
+  padding-top: 44px;
+  border-top: 1px dashed #d9d9d5;
 }
 
 .material-label {
   display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  margin-bottom: 13px;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 18px;
 }
 
 .material-label > span {
-  color: #315b43;
-  font-family: "Songti SC", "STSong", "SimSun", "Noto Serif SC", serif;
-  font-size: 13px;
+  color: #4d535a;
+  font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", system-ui, sans-serif;
+  font-size: 16px;
   font-weight: 700;
 }
 
-.material-label small {
-  color: #969080;
-  font-size: 10px;
+.material-label i {
+  flex: 1;
+  height: 1px;
+  background: #ecece8;
 }
 
 .exam-material p {
   margin: 0;
-  color: var(--exam-ink);
-  font-family: "Songti SC", "STSong", "SimSun", "Noto Serif SC", serif;
-  font-size: 16px;
+  color: var(--reader-ink);
+  font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", system-ui, sans-serif;
+  font-size: var(--material-font-size, 19px);
   font-weight: 400;
-  line-height: 2.05;
-  letter-spacing: .025em;
+  line-height: 1.92;
+  letter-spacing: .01em;
   text-align: justify;
   text-justify: inter-ideograph;
-  text-indent: 2em;
+  white-space: pre-line;
   user-select: text;
+  cursor: text;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.material-highlight,
+.material-underline {
+  cursor: pointer;
+  border-radius: 2px;
 }
 
 .material-highlight {
-  background: linear-gradient(transparent 19%, rgba(241, 208, 91, .45) 19%, rgba(241, 208, 91, .45) 86%, transparent 86%);
-  border-radius: 2px;
+  background: rgba(82, 162, 241, .28);
 }
 
 .material-underline {
   text-decoration-line: underline;
-  text-decoration-color: rgba(48, 88, 65, .72);
-  text-decoration-thickness: 1.5px;
+  text-decoration-color: #5281d1;
+  text-decoration-thickness: 2px;
   text-underline-offset: 4px;
 }
 
+.material-mark-selected {
+  outline: 2px solid rgba(77, 121, 218, .38);
+  outline-offset: 2px;
+}
+
 .exam-answer-pane {
+  min-width: 0;
   min-height: 0;
-  background: #f0eee8;
+  background: #fff;
 }
 
 .exam-prompt-box {
-  padding: 16px 22px;
-  background: #f6f3ec;
-  border-bottom-color: #dcd7ca;
+  padding: 14px 18px;
+  background: #fff;
+  border-bottom: 1px solid #e7e8ea;
 }
 
 .exam-prompt-box > span {
-  color: #315b43;
+  color: #7a7e84;
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .exam-prompt-box p {
-  color: #44463f;
-  font-family: "Songti SC", "STSong", "SimSun", "Noto Serif SC", serif;
+  margin: 8px 0 0;
+  color: #353a40;
+  font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
   font-size: 13px;
+  font-weight: 500;
   line-height: 1.75;
 }
 
@@ -232,16 +346,16 @@
   min-height: 0;
   display: grid;
   grid-template-rows: 34px minmax(0, 1fr);
-  padding: 14px 16px 16px;
-  background: #e9e7df;
+  padding: 12px 14px 14px;
+  background: #fff;
 }
 
 .answer-paper-label {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 4px;
-  color: #65645b;
+  padding: 0 2px;
+  color: #656b72;
 }
 
 .answer-paper-label span {
@@ -251,70 +365,98 @@
 
 .answer-paper-label small {
   font-size: 10px;
-  color: #99958a;
+  color: #a0a4a9;
+}
+
+.grid-answer-stage {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid #efb3bd;
+  border-radius: 10px;
+  background: #fffdfd;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.8);
+}
+
+.answer-grid-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-color: #fffdfd;
+  background-image:
+    linear-gradient(to right, rgba(229, 125, 143, .34) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(229, 125, 143, .34) 1px, transparent 1px);
+  background-size: var(--answer-cell) var(--answer-cell);
+  background-position: -1px -1px;
 }
 
 .answer-pane .grid-answer-input {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
   min-height: 0;
   resize: none;
-  border: 1px solid #cfc5b2;
-  border-radius: 3px;
+  border: 0;
   outline: 0;
-  padding: 16px 17px;
-  color: #242620;
-  font-family: "FangSong", "STFangsong", "SimSun", monospace;
-  font-size: 17px;
+  padding: 7px 7px 40px;
+  overflow: auto;
+  color: #2f3338;
+  font-family: "SimSun", "Songti SC", "Microsoft YaHei", monospace;
+  font-size: 18px;
   font-weight: 400;
   line-height: var(--answer-cell);
-  letter-spacing: 13px;
-  caret-color: #315b43;
-  background-color: #fffdf5;
-  background-image:
-    linear-gradient(to right, rgba(151, 88, 70, .18) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(151, 88, 70, .18) 1px, transparent 1px);
-  background-size: var(--answer-cell) var(--answer-cell);
-  background-position: 16px 16px;
-  box-shadow: inset 0 0 24px rgba(92, 69, 39, .035);
-  overflow: auto;
+  letter-spacing: 14px;
+  caret-color: #355ed0;
+  background: transparent !important;
+  box-shadow: none !important;
+  white-space: pre-wrap;
 }
 
 .answer-pane .grid-answer-input:focus {
-  border-color: #a89576;
-  box-shadow: inset 0 0 24px rgba(92, 69, 39, .035), 0 0 0 2px rgba(83, 105, 82, .08);
-}
-
-.answer-pane .grid-answer-input::placeholder {
-  color: #aaa397;
-  letter-spacing: normal;
-  font-family: "Songti SC", "STSong", "SimSun", serif;
-  font-size: 13px;
+  background: transparent !important;
+  box-shadow: inset 0 0 0 2px rgba(76, 111, 213, .12) !important;
 }
 
 .answer-pane .grid-answer-input:disabled {
-  opacity: .72;
+  opacity: .65;
 }
 
 .exam-answer-footer {
-  background: #f7f4ed;
-  border-top-color: #d8d2c6;
+  background: #fff;
+  border-top: 1px solid #e8e9eb;
 }
 
 .exam-answer-footer > span:nth-child(2) {
   font-variant-numeric: tabular-nums;
-  color: #55584f;
+  color: #62676d;
 }
 
-@media (max-width: 1180px) {
+.review-pane {
+  border-left: 1px solid #e6e7e8;
+}
+
+@media (max-width: 1280px) {
+  .exam-practice-shell .practice-grid.right-hidden {
+    grid-template-columns: minmax(500px, 1.15fr) minmax(420px, 1fr);
+  }
+
   .exam-paper-scroll {
-    padding-left: 24px;
-    padding-right: 24px;
+    padding-left: 28px;
+    padding-right: 28px;
   }
 
   .exam-material p {
-    font-size: 15px;
+    line-height: 1.86;
   }
 
-  .annotation-toolbar small {
+  .annotation-toolbar button span {
+    display: none;
+  }
+
+  .annotation-tool-group strong {
     display: none;
   }
 }
