@@ -42,6 +42,13 @@ describe("public exam catalog grouping", () => {
     expect(groupPublicExamCandidates([a, b])).toHaveLength(2);
   });
 
+  it("does not merge upper/lower-half sessions that share year, region and paper variant", () => {
+    const first = candidate({ id: "first", title: "2025年重庆市上半年公考《申论》题（A卷）", sourceUrl: "https://gwy.gkzhenti.cn/paper/first", year: 2025, region: "重庆", paperVariant: "A卷" });
+    const second = candidate({ id: "second", title: "2025年重庆市下半年公考《申论》题（A卷）", sourceUrl: "https://gwy.gkzhenti.cn/paper/second", year: 2025, region: "重庆", paperVariant: "A卷" });
+    expect(publicExamIdentityKey(first)).not.toBe(publicExamIdentityKey(second));
+    expect(groupPublicExamCandidates([first, second])).toHaveLength(2);
+  });
+
   it("normalizes equivalent variant wording without collapsing distinct variants", () => {
     const executive = candidate({ id: "x", title: "2025年广东省公考《申论》题（行政执法卷）", sourceUrl: "https://gwy.gkzhenti.cn/paper/x", year: 2025, region: "广东", paperVariant: "行政执法卷" });
     const executiveShort = candidate({ id: "y", title: "2025年广东省公考《申论》题（行政执法）", sourceUrl: "https://gwy.gkzhenti.cn/paper/y", year: 2025, region: "广东", paperVariant: "行政执法" });
