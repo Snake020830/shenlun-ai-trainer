@@ -7,8 +7,6 @@ import type {
   TaxonomyQualityMetrics
 } from "./types";
 
-const STATUSES = ["hit", "partial", "missed"] as const;
-
 function emptyConfusion(): MappingConfusionCounts {
   return {
     hit: { hit: 0, partial: 0, missed: 0 },
@@ -22,7 +20,8 @@ function safeRatio(numerator: number, denominator: number): number | null {
 }
 
 function harmonicMean(precision: number | null, recall: number | null): number | null {
-  if (precision === null || recall === null || precision + recall === 0) return null;
+  if (precision === null || recall === null) return null;
+  if (precision + recall === 0) return 0;
   return 2 * precision * recall / (precision + recall);
 }
 
