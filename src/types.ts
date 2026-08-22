@@ -93,6 +93,8 @@ export interface StructuredMaterialInput {
 }
 
 export interface LocalQuestionInput {
+  /** Optional deterministic id for structured/imported sources. Manual imports omit it. */
+  id?: string;
   title: string;
   year: number;
   region: string;
@@ -101,9 +103,9 @@ export interface LocalQuestionInput {
   score: number;
   wordLimit: number;
   prompt: string;
-  /** Manual/compatibility persistence path. Public importers preserve the whole exam material order here. */
+  /** Manual/compatibility persistence path. Structured importers should also provide materials[]. */
   materialText: string;
-  /** Reserved structured import path for the later PDF/OCR/storage upgrade. */
+  /** Authoritative structured material path for public/PDF/OCR imports. */
   materials?: StructuredMaterialInput[];
   tags: string[];
   referenceAnswerContent?: string;
