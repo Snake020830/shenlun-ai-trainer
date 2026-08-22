@@ -32,6 +32,7 @@ const CHINESE_NUMBERS: Record<string, number> = {
 };
 
 const CHINESE_ORDINAL = "[一二三四五六七八九十]";
+const NUMBER_TOKEN = "[0-9０-９一二三四五六七八九十]+";
 const TASK_EXPLICIT = new RegExp(`^\\s*(?:第\\s*)?(${CHINESE_ORDINAL})\\s*题\\s*(?:[、.．:：])?\\s*(.*)$`, "u");
 const TASK_CHINESE_PUNCT = new RegExp(`^\\s*(${CHINESE_ORDINAL})\\s*[、.．:：]\\s*(.*)$`, "u");
 const TASK_CHINESE_PAREN = new RegExp(`^\\s*[（(]\\s*(${CHINESE_ORDINAL})\\s*[）)]\\s*(.*)$`, "u");
@@ -167,8 +168,18 @@ function extractWordLimit(text: string): number | null {
   return null;
 }
 
+function addMaterialRange(result: Set<number>, startToken: string, endToken: string): void {
+  const start = normalizeNumberToken(startToken);
+  const end = normalizeNumberToken(endToken);
+  if (!start || !end || end < start || end - start > 20) return;
+  for (let value = start; value <= end; value += 1) result.add(value);
+}
+
 function extractMaterialNumbers(text: string): number[] {
   const result = new Set<number>();
+  const rangePattern = new RegExp(`(?:给定)?(?:资料|材料)\\s*[“\"']?\\s*(${NUMBER_TOKEN})\\s*(?:[～~—-]|至)\\s*(${NUMBER_TOKEN})`, "gu");
+  for (const match of text.matchAll(rangePattern)) addMaterialRange(result, match[1], match[2]);
+
   const patterns = [
     /给定资料\s*[“"']?\s*([0-9０-９一二三四五六七八九十]+)/gu,
     /给定材料\s*[“"']?\s*([0-9０-９一二三四五六七八九十]+)/gu,
@@ -185,10 +196,10 @@ function extractMaterialNumbers(text: string): number[] {
 }
 
 export function inferPublicQuestionType(prompt: string): QuestionType {
-  if (/(写一篇文章|撰写一篇|自拟题目|自选角度.*写|文章)/u.test(prompt)) return "文章写作";
-  if (/(拟写|撰写|提案|讲话稿|发言稿|通知|建议书|工作方案|简报|公开信|倡议书|回复|汇报|调查报告)/u.test(prompt)) return "贯彻执行";
+  if (/(写一篇文章|撰写一篇|自拟题目|自选角度.*写|议论性文章|议论文|文章)/u.test(prompt)) return "文章写作";
+  if (/(拟写|撰写|提案|讲话稿|发言稿|发言|通知|建议书|工作方案|简报|公开信|倡议书|回复|汇报|调查报告|短评|感谢信|新闻稿|宣传稿|编者按|导言)/u.test(prompt)) return "贯彻执行";
   if (/(提出.*(?:建议|对策|措施)|给出.*(?:建议|对策)|怎么办|如何解决|进一步.*建议|改进建议)/u.test(prompt)) return "提出对策";
-  if (/(分析|理解|谈谈.*(?:含义|关系|认识)|解释|评价|评述|为什么|观点)/u.test(prompt)) return "综合分析";
+  if (/(分析|理解|谈谈.*(?:含义|关系|认识)|解释|评价|评析|评述|为什么|观点)/u.test(prompt)) return "综合分析";
   return "概括归纳";
 }
 
@@ -209,6 +220,74 @@ function parseMaterials(text: string): ParsedPublicExamMaterial[] {
   return materials;
 }
 
+function taskFromBody(bodyInput: string, taskIndex: number, ordinal: string): ParsedPublicExamTask | null {
+  const body = normalizeText(bodyInput);
+  if (!body) return null;
+  const requirementIndex = body.search(/(?:^|\n)要求[：:]/u);
+  const prompt = normalizeText(requirementIndex >= 0 ? body.slice(0, requirementIndex) : body);
+  const requirements = normalizeText(
+    requirementIndex >= 0
+      ? body.slice(requirementIndex).replace(/^\s*(?:要求[：:]\s*)+/u, "")
+      : ""
+  );
+  if (!prompt) return null;
+
+  const combined = `${prompt}\n${requirements}`;
+  const score = extractScore(combined);
+  const wordLimit = extractWordLimit(combined);
+  const materialNumbers = extractMaterialNumbers(prompt);
+  const questionType = inferPublicQuestionType(prompt);
+  const warnings: string[] = [];
+  const hasNestedScoredSubQuestions = /(?:^|\n)\s*\d{1,2}[.．、]\s*[^\n]*[（(]\s*\d{1,3}\s*分\s*[）)]/u.test(body);
+  if (hasNestedScoredSubQuestions) warnings.push("检测到大题内嵌多个计分小问；当前版本不自动拆分，需人工核验。");
+  if (!score) warnings.push("未识别分值，导入前必须人工确认。");
+  if (!wordLimit) {
+    if (/(?:不少于|至少)\s*\d{2,4}\s*字/u.test(combined)) {
+      warnings.push("仅识别到最低字数要求，没有可靠的答题上限；当前版本不自动导入。");
+    } else {
+      warnings.push("未识别字数限制，导入前必须人工确认。");
+    }
+  }
+  if (!materialNumbers.length && questionType !== "文章写作") warnings.push("未识别明确材料编号；默认导入整卷材料，需人工核验。");
+  const tags = ["公开真题", questionType];
+  if (/(成效.*建议|建议.*成效|问题.*建议|概括.*提出|原因.*对策|分析.*对策)/u.test(prompt)) tags.push("复合题");
+
+  return {
+    taskIndex,
+    ordinal,
+    prompt,
+    requirements,
+    score,
+    wordLimit,
+    materialNumbers,
+    questionType,
+    tags,
+    warnings
+  };
+}
+
+function parseHeadinglessScoredTasks(cleanText: string): ParsedPublicExamTask[] {
+  const lines = cleanText.split("\n");
+  const scoreLines = lines
+    .map((line, index) => ({ line, index }))
+    .filter(item => hasScoreMarker(item.line));
+
+  if (scoreLines.length < 2) return [];
+  if (scoreLines.some(item => /^\s*(?:\d{1,2}[.．、]|[（(]\s*\d{1,2}\s*[）)])/.test(item.line))) return [];
+
+  const tasks: ParsedPublicExamTask[] = [];
+  for (let position = 0; position < scoreLines.length; position += 1) {
+    const current = scoreLines[position];
+    const next = scoreLines[position + 1];
+    const body = normalizeText(lines.slice(current.index, next?.index ?? lines.length).join("\n"));
+    if (!/(?:^|\n)要求[：:]/u.test(body)) return [];
+    const task = taskFromBody(body, position, String(position + 1));
+    if (!task) return [];
+    tasks.push(task);
+  }
+  return tasks;
+}
+
 function parseTasks(text: string): ParsedPublicExamTask[] {
   const cleanText = trimSiteFooter(text);
   const lines = cleanText.split("\n");
@@ -216,53 +295,16 @@ function parseTasks(text: string): ParsedPublicExamTask[] {
     .map((line, index) => ({ index, heading: parseTaskHeading(line) }))
     .filter((item): item is { index: number; heading: ParsedTaskHeading } => Boolean(item.heading));
 
+  if (!headings.length) return parseHeadinglessScoredTasks(cleanText);
+
   return headings.map((current, position) => {
     const next = headings[position + 1];
     const tailLines = lines.slice(current.index + 1, next?.index ?? lines.length);
     const rawBody = current.heading.inlinePrompt
       ? [current.heading.inlinePrompt, ...tailLines].join("\n")
       : tailLines.join("\n");
-    const body = normalizeText(rawBody);
-    const requirementIndex = body.search(/(?:^|\n)要求[：:]/u);
-    const prompt = normalizeText(requirementIndex >= 0 ? body.slice(0, requirementIndex) : body);
-    const requirements = normalizeText(
-      requirementIndex >= 0
-        ? body.slice(requirementIndex).replace(/^\s*(?:要求[：:]\s*)+/u, "")
-        : ""
-    );
-    const combined = `${prompt}\n${requirements}`;
-    const score = extractScore(combined);
-    const wordLimit = extractWordLimit(combined);
-    const materialNumbers = extractMaterialNumbers(prompt);
-    const questionType = inferPublicQuestionType(prompt);
-    const warnings: string[] = [];
-    const hasNestedScoredSubQuestions = /(?:^|\n)\s*\d{1,2}[.．、]\s*[^\n]*[（(]\s*\d{1,3}\s*分\s*[）)]/u.test(body);
-    if (hasNestedScoredSubQuestions) warnings.push("检测到大题内嵌多个计分小问；当前版本不自动拆分，需人工核验。");
-    if (!score) warnings.push("未识别分值，导入前必须人工确认。");
-    if (!wordLimit) {
-      if (/(?:不少于|至少)\s*\d{2,4}\s*字/u.test(combined)) {
-        warnings.push("仅识别到最低字数要求，没有可靠的答题上限；当前版本不自动导入。");
-      } else {
-        warnings.push("未识别字数限制，导入前必须人工确认。");
-      }
-    }
-    if (!materialNumbers.length && questionType !== "文章写作") warnings.push("未识别明确材料编号；默认导入整卷材料，需人工核验。");
-    const tags = ["公开真题", questionType];
-    if (/(成效.*建议|建议.*成效|问题.*建议|概括.*提出|原因.*对策|分析.*对策)/u.test(prompt)) tags.push("复合题");
-
-    return {
-      taskIndex: position,
-      ordinal: current.heading.ordinal,
-      prompt,
-      requirements,
-      score,
-      wordLimit,
-      materialNumbers,
-      questionType,
-      tags,
-      warnings
-    };
-  }).filter(task => task.prompt.length > 0);
+    return taskFromBody(rawBody, position, current.heading.ordinal);
+  }).filter((task): task is ParsedPublicExamTask => Boolean(task));
 }
 
 function inferSectionBoundaries(normalized: string): { materialStart: number | null; taskStart: number | null } {
