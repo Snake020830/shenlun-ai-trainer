@@ -1,5 +1,7 @@
 import { isTauri } from "@tauri-apps/api/core";
 import type Database from "@tauri-apps/plugin-sql";
+import { createBenchmarkDraft } from "./grading/benchmark/createDraft";
+import type { GradingBenchmarkCase } from "./grading/benchmark/types";
 import type {
   Difficulty,
   Draft,
@@ -14,6 +16,7 @@ const DATABASE_URL = "sqlite:shenlun-trainer.db";
 const DRAFT_KEY = "shenlun:drafts:v1";
 const HISTORY_KEY = "shenlun:history:v1";
 const QUESTIONS_KEY = "shenlun:questions:v1";
+const BENCHMARK_DRAFTS_KEY = "shenlun:benchmark-drafts:v1";
 const PUBLIC_SETTINGS_KEY = "shenlun:public-settings:v1";
 const LEGACY_MIGRATION_KEY = "legacy_localstorage_migrated_v1";
 const PUBLIC_SETTING_PREFIX = "public:";
@@ -68,6 +71,13 @@ interface TrainingRow {
   submitted_at_display: string;
 }
 
+interface BenchmarkDraftRow {
+  case_id: string;
+  training_record_id: string;
+  case_json: string;
+  created_at: string;
+}
+
 function readJson<T>(key: string, fallback: T): T {
   try {
     const value = localStorage.getItem(key);
@@ -88,6 +98,67 @@ function parseReview(value: string | null): MockReview | undefined {
   } catch {
     return undefined;
   }
+}
+
+function parseBenchmarkCase(value: string): GradingBenchmarkCase | null {
+  try {
+    return JSON.parse(value) as GradingBenchmarkCase;
+  } catch {
+    return null;
+  }
+}
+
+function parseTags(value: string): string[] {
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return Array.isArray(parsed) ? parsed.filter(item => typeof item === "string") as string[] : [];
+  } catch {
+    return [];
+  }
+}
+
+function questionFromRows(row: QuestionRow, materials: MaterialRow[]): Question {
+  return {
+    id: row.id,
+    title: row.title,
+    year: row.year,
+    region: row.region,
+    type: row.type as QuestionType,
+    difficulty: row.difficulty as Difficulty,
+    score: row.score,
+    wordLimit: row.word_limit,
+    prompt: row.prompt,
+    tags: parseTags(row.tags_json),
+    referenceAnswer: row.reference_answer_content
+      ? {
+          content: row.reference_answer_content,
+          ...(row.reference_answer_source ? { source: row.reference_answer_source } : {})
+        }
+      : undefined,
+    source: row.source === "builtin" ? "builtin" : "local",
+    createdAt: row.created_at,
+    materials: materials
+      .sort((left, right) => left.sort_order - right.sort_order)
+      .map(material => ({
+        id: material.id,
+        label: material.label,
+        content: material.content
+      }))
+  };
+}
+
+function trainingRecordFromRow(row: TrainingRow): TrainingRecord {
+  return {
+    id: row.id,
+    questionId: row.question_id,
+    title: row.title_snapshot,
+    score: row.score,
+    maxScore: row.max_score,
+    answer: row.answer,
+    review: parseReview(row.review_json),
+    submittedAtIso: row.submitted_at,
+    submittedAt: row.submitted_at_display
+  };
 }
 
 function assertPublicSettingKey(key: string): void {
@@ -151,6 +222,93 @@ async function upsertQuestion(db: Database, question: Question) {
        VALUES ($1,$2,$3,$4,$5)`,
       [material.id, question.id, material.label, material.content, index]
     );
+  }
+}
+
+async function loadQuestionById(db: Database, questionId: string): Promise<Question | null> {
+  const questionRows = await db.select<QuestionRow[]>(
+    `SELECT id, title, year, region, type, difficulty, score, word_limit, prompt,
+            tags_json, source, created_at, reference_answer_content, reference_answer_source
+     FROM questions WHERE id = $1 LIMIT 1`,
+    [questionId]
+  );
+  const row = questionRows[0];
+  if (!row) return null;
+  const materials = await db.select<MaterialRow[]>(
+    `SELECT id, question_id, label, content, sort_order
+     FROM materials WHERE question_id = $1 ORDER BY sort_order`,
+    [questionId]
+  );
+  return questionFromRows(row, materials);
+}
+
+function buildTrainingBenchmarkDraft(question: Question, record: TrainingRecord): GradingBenchmarkCase {
+  return createBenchmarkDraft(question, record.answer, {
+    caseId: `practice-${record.id}`,
+    source: `training-record:${record.id}`,
+    tags: ["real-practice"],
+    createdAt: record.submittedAtIso ?? record.submittedAt
+  });
+}
+
+async function insertBenchmarkDraftIfMissing(
+  db: Database | null,
+  question: Question,
+  record: TrainingRecord
+): Promise<GradingBenchmarkCase> {
+  const testCase = buildTrainingBenchmarkDraft(question, record);
+  if (!db) {
+    const existing = readJson<GradingBenchmarkCase[]>(BENCHMARK_DRAFTS_KEY, []);
+    const found = existing.find(item => item.id === testCase.id);
+    if (found) return found;
+    writeJson(BENCHMARK_DRAFTS_KEY, [testCase, ...existing]);
+    return testCase;
+  }
+
+  await db.execute(
+    `INSERT OR IGNORE INTO benchmark_drafts
+       (case_id, training_record_id, case_json, created_at)
+     VALUES ($1,$2,$3,$4)`,
+    [
+      testCase.id,
+      record.id,
+      JSON.stringify(testCase),
+      record.submittedAtIso ?? new Date().toISOString()
+    ]
+  );
+  const rows = await db.select<BenchmarkDraftRow[]>(
+    `SELECT case_id, training_record_id, case_json, created_at
+     FROM benchmark_drafts WHERE training_record_id = $1 LIMIT 1`,
+    [record.id]
+  );
+  const stored = rows[0] ? parseBenchmarkCase(rows[0].case_json) : null;
+  return stored ?? testCase;
+}
+
+async function backfillLocalBenchmarkDrafts(): Promise<void> {
+  const questions = readJson<Question[]>(QUESTIONS_KEY, []);
+  const questionById = new Map(questions.filter(item => item.source !== "builtin").map(item => [item.id, item]));
+  const records = readJson<TrainingRecord[]>(HISTORY_KEY, []);
+  for (const record of records) {
+    const question = questionById.get(record.questionId);
+    if (!question) continue;
+    await insertBenchmarkDraftIfMissing(null, question, record);
+  }
+}
+
+async function backfillSqliteBenchmarkDrafts(db: Database): Promise<void> {
+  const rows = await db.select<TrainingRow[]>(
+    `SELECT tr.id, tr.question_id, tr.title_snapshot, tr.score, tr.max_score, tr.answer,
+            tr.review_json, tr.submitted_at, tr.submitted_at_display
+     FROM training_records tr
+     INNER JOIN questions q ON q.id = tr.question_id
+     WHERE q.source = 'local'
+     ORDER BY tr.submitted_at DESC`
+  );
+  for (const row of rows) {
+    const question = await loadQuestionById(db, row.question_id);
+    if (!question) continue;
+    await insertBenchmarkDraftIfMissing(db, question, trainingRecordFromRow(row));
   }
 }
 
@@ -230,8 +388,12 @@ function createQuestion(input: LocalQuestionInput): Question {
 export const persistence = {
   async initialize(): Promise<"sqlite" | "localStorage"> {
     const db = await getDatabase();
-    if (!db) return "localStorage";
+    if (!db) {
+      await backfillLocalBenchmarkDrafts();
+      return "localStorage";
+    }
     await migrateLegacyLocalStorage(db);
+    await backfillSqliteBenchmarkDrafts(db);
     return "sqlite";
   },
 
@@ -319,17 +481,7 @@ export const persistence = {
               submitted_at, submitted_at_display
        FROM training_records ORDER BY submitted_at DESC LIMIT 200`
     );
-    return rows.map(row => ({
-      id: row.id,
-      questionId: row.question_id,
-      title: row.title_snapshot,
-      score: row.score,
-      maxScore: row.max_score,
-      answer: row.answer,
-      review: parseReview(row.review_json),
-      submittedAtIso: row.submitted_at,
-      submittedAt: row.submitted_at_display
-    }));
+    return rows.map(trainingRecordFromRow);
   },
 
   async addHistory(record: TrainingRecord): Promise<void> {
@@ -337,8 +489,15 @@ export const persistence = {
     if (!db) {
       const records = readJson<TrainingRecord[]>(HISTORY_KEY, []);
       writeJson(HISTORY_KEY, [record, ...records].slice(0, 200));
+      try {
+        const question = readJson<Question[]>(QUESTIONS_KEY, []).find(item => item.id === record.questionId && item.source !== "builtin");
+        if (question) await insertBenchmarkDraftIfMissing(null, question, record);
+      } catch (error) {
+        console.error("Benchmark draft capture failed; training history was still saved.", error);
+      }
       return;
     }
+
     await db.execute(
       `INSERT INTO training_records
        (id, question_id, title_snapshot, score, max_score, answer, review_json, submitted_at, submitted_at_display)
@@ -355,6 +514,56 @@ export const persistence = {
         record.submittedAt
       ]
     );
+
+    try {
+      const question = await loadQuestionById(db, record.questionId);
+      if (question?.source === "local") await insertBenchmarkDraftIfMissing(db, question, record);
+    } catch (error) {
+      console.error("Benchmark draft capture failed; training history was still saved.", error);
+    }
+  },
+
+  async listBenchmarkDrafts(): Promise<GradingBenchmarkCase[]> {
+    const db = await getDatabase();
+    if (!db) return readJson<GradingBenchmarkCase[]>(BENCHMARK_DRAFTS_KEY, []);
+    const rows = await db.select<BenchmarkDraftRow[]>(
+      `SELECT case_id, training_record_id, case_json, created_at
+       FROM benchmark_drafts ORDER BY created_at DESC`
+    );
+    return rows.map(row => parseBenchmarkCase(row.case_json)).filter((item): item is GradingBenchmarkCase => Boolean(item));
+  },
+
+  async captureBenchmarkDraftFromHistory(recordId: string): Promise<GradingBenchmarkCase | null> {
+    const db = await getDatabase();
+    if (!db) {
+      const existing = readJson<GradingBenchmarkCase[]>(BENCHMARK_DRAFTS_KEY, [])
+        .find(item => item.provenance?.source === `training-record:${recordId}`);
+      if (existing) return existing;
+      const record = readJson<TrainingRecord[]>(HISTORY_KEY, []).find(item => item.id === recordId);
+      if (!record) return null;
+      const question = readJson<Question[]>(QUESTIONS_KEY, []).find(item => item.id === record.questionId && item.source !== "builtin");
+      return question ? insertBenchmarkDraftIfMissing(null, question, record) : null;
+    }
+
+    const existingRows = await db.select<BenchmarkDraftRow[]>(
+      `SELECT case_id, training_record_id, case_json, created_at
+       FROM benchmark_drafts WHERE training_record_id = $1 LIMIT 1`,
+      [recordId]
+    );
+    const existing = existingRows[0] ? parseBenchmarkCase(existingRows[0].case_json) : null;
+    if (existing) return existing;
+
+    const recordRows = await db.select<TrainingRow[]>(
+      `SELECT id, question_id, title_snapshot, score, max_score, answer, review_json,
+              submitted_at, submitted_at_display
+       FROM training_records WHERE id = $1 LIMIT 1`,
+      [recordId]
+    );
+    const row = recordRows[0];
+    if (!row) return null;
+    const question = await loadQuestionById(db, row.question_id);
+    if (!question || question.source !== "local") return null;
+    return insertBenchmarkDraftIfMissing(db, question, trainingRecordFromRow(row));
   },
 
   async listImportedQuestions(): Promise<Question[]> {
@@ -377,31 +586,7 @@ export const persistence = {
       materialsByQuestion.set(material.question_id, group);
     }
 
-    return questionRows.map(row => ({
-      id: row.id,
-      title: row.title,
-      year: row.year,
-      region: row.region,
-      type: row.type as QuestionType,
-      difficulty: row.difficulty as Difficulty,
-      score: row.score,
-      wordLimit: row.word_limit,
-      prompt: row.prompt,
-      tags: JSON.parse(row.tags_json) as string[],
-      referenceAnswer: row.reference_answer_content
-        ? {
-            content: row.reference_answer_content,
-            ...(row.reference_answer_source ? { source: row.reference_answer_source } : {})
-          }
-        : undefined,
-      source: row.source === "builtin" ? "builtin" : "local",
-      createdAt: row.created_at,
-      materials: (materialsByQuestion.get(row.id) ?? []).map(material => ({
-        id: material.id,
-        label: material.label,
-        content: material.content
-      }))
-    }));
+    return questionRows.map(row => questionFromRows(row, materialsByQuestion.get(row.id) ?? []));
   },
 
   async addImportedQuestion(input: LocalQuestionInput): Promise<Question> {
@@ -418,4 +603,4 @@ export const persistence = {
 };
 
 // Desktop runtime uses SQLite through Tauri's SQL plugin. Browser-only Vite development
-// falls back to localStorage so UI work remains lightweight and does not require a Rust shell.
+// keeps a localStorage fallback so the UI remains easy to run without a desktop shell.
