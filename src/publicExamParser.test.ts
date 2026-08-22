@@ -47,6 +47,9 @@ const fixture = `
 五、
 给定资料反映了事物间的“互补”关系。请联系实际，自选角度，自拟题目，写一篇文章。（35分）
 要求：观点明确；参考给定资料但不拘泥；字数1000-1200字。
+欢迎使用公开真题库（https://gwy.gkzhenti.cn）
+备案编号：浙ICP备00000000号
+网站版本：v20260406
 `;
 
 describe("parseGkzhentiExamText", () => {
@@ -87,21 +90,28 @@ describe("parseGkzhentiExamText", () => {
     expect(exam.tasks[0].requirements).toContain("全面、准确、有条理");
   });
 
-  it("is importable only when the page structure and every required numeric field are complete", () => {
+  it("removes website footer text from the final essay requirement", () => {
+    const exam = parseGkzhentiExamText(fixture, candidate);
+    expect(exam.tasks[4].requirements).toContain("1000-1200字");
+    expect(exam.tasks[4].requirements).not.toContain("欢迎使用公开真题库");
+    expect(exam.tasks[4].requirements).not.toContain("备案编号");
+  });
+
+  it("is importable only when the page structure and every task-level warning is resolved", () => {
     expect(canImportParsedPublicExam(parseGkzhentiExamText(fixture, candidate))).toBe(true);
 
-    const broken = parseGkzhentiExamText(`二、给定材料\n材料1\n正文。\n三、作答要求\n一、\n概括材料内容。`, candidate);
+    const broken = parseGkzhentiExamText(`二、给定材料\n材料1\n正文。\n三、作答要求\n一、\n概括材料内容。（10分）\n要求：不超过200字。`, candidate);
     expect(canImportParsedPublicExam(broken)).toBe(false);
-    expect(broken.tasks[0].warnings.length).toBeGreaterThan(0);
+    expect(broken.tasks[0].warnings).toContain("未识别明确材料编号；默认导入整卷材料，需人工核验。");
   });
 });
 
 describe("inferPublicQuestionType", () => {
   it("uses conservative rule-based task classification", () => {
-    expect(inferPublicQuestionType("请概括主要做法。")) .toBe("概括归纳");
-    expect(inferPublicQuestionType("分析这一现象产生的原因。")) .toBe("综合分析");
-    expect(inferPublicQuestionType("针对问题提出进一步改进建议。")) .toBe("提出对策");
-    expect(inferPublicQuestionType("拟写一份工作简报。")) .toBe("贯彻执行");
-    expect(inferPublicQuestionType("自选角度，自拟题目，写一篇文章。")) .toBe("文章写作");
+    expect(inferPublicQuestionType("请概括主要做法。")).toBe("概括归纳");
+    expect(inferPublicQuestionType("分析这一现象产生的原因。")).toBe("综合分析");
+    expect(inferPublicQuestionType("针对问题提出进一步改进建议。")).toBe("提出对策");
+    expect(inferPublicQuestionType("拟写一份工作简报。")).toBe("贯彻执行");
+    expect(inferPublicQuestionType("自选角度，自拟题目，写一篇文章。")).toBe("文章写作");
   });
 });
