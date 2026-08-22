@@ -46,10 +46,13 @@ export interface BenchmarkQuestionSnapshot {
   referenceAnswer?: { content: string; source?: string };
 }
 
+export type BenchmarkAnnotationStatus = "draft" | "adjudicated";
+
 export interface GradingBenchmarkCase {
   schemaVersion: "0.1.0";
   id: string;
   tags: string[];
+  annotationStatus?: BenchmarkAnnotationStatus;
   question: BenchmarkQuestionSnapshot;
   answer: string;
   gold: {
