@@ -359,6 +359,10 @@ async function migrateLegacyLocalStorage(db: Database) {
 
 function createQuestion(input: LocalQuestionInput): Question {
   const now = new Date().toISOString();
+  const requestedId = input.id?.trim();
+  if (requestedId && !/^[A-Za-z0-9._:-]{1,220}$/.test(requestedId)) {
+    throw new Error("Structured question id contains unsupported characters.");
+  }
   const referenceAnswerContent = input.referenceAnswerContent?.trim();
   const referenceAnswerSource = input.referenceAnswerSource?.trim();
   const structuredMaterials = input.materials
@@ -377,7 +381,7 @@ function createQuestion(input: LocalQuestionInput): Question {
         .map((content, index) => ({ id: `m${index + 1}`, label: `材料 ${index + 1}`, content }));
 
   return {
-    id: `local-${crypto.randomUUID()}`,
+    id: requestedId || `local-${crypto.randomUUID()}`,
     title: input.title.trim(),
     year: input.year,
     region: input.region.trim() || "本地导入",
