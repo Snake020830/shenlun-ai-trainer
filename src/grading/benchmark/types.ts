@@ -100,9 +100,14 @@ export interface BenchmarkModelRun {
   mappings: BenchmarkModelRunMapping[];
   providerId?: string;
   model?: string;
+  protocol?: string;
+  reasoningEffort?: string;
   rulesetVersion?: string;
+  workflowVersion: string;
+  promptsetVersion: string;
   scoringPolicy?: string;
   generatedAt?: string;
+  referenceCrossCheckUsed: boolean;
 }
 
 export type RubricAlignmentRelation = "match" | "acceptable-merge" | "acceptable-split";
