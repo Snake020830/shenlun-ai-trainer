@@ -49,6 +49,7 @@ const testCase: GradingBenchmarkCase = {
 
 const prediction: AlignedBenchmarkPrediction = {
   caseId: "case-1",
+  runId: "run-1",
   predictedScore: 12,
   predictedRubricPointIds: ["p1", "p2"],
   rubricAlignments: [
@@ -56,8 +57,8 @@ const prediction: AlignedBenchmarkPrediction = {
     { goldRubricPointIds: ["r2"], predictedRubricPointIds: ["p2"], relation: "match" }
   ],
   mappings: [
-    { goldRubricPointId: "r1", predictedRubricPointId: "p1", predictedStatus: "hit", predictedErrorCodes: [] },
-    { goldRubricPointId: "r2", predictedRubricPointId: "p2", predictedStatus: "partial", predictedErrorCodes: ["PARTIAL_COVERAGE"] }
+    { goldRubricPointId: "r1", predictedRubricPointIds: ["p1"], predictedStatus: "hit", predictedErrorCodes: [] },
+    { goldRubricPointId: "r2", predictedRubricPointIds: ["p2"], predictedStatus: "partial", predictedErrorCodes: ["PARTIAL_COVERAGE"] }
   ]
 };
 
@@ -94,12 +95,13 @@ describe("grading benchmark", () => {
   it("detects a gold rubric point omitted by the model", () => {
     const incomplete: AlignedBenchmarkPrediction = {
       ...prediction,
+      runId: "run-incomplete",
       predictedRubricPointIds: ["p1"],
       rubricAlignments: [
         { goldRubricPointIds: ["r1"], predictedRubricPointIds: ["p1"], relation: "match" }
       ],
       mappings: [
-        { goldRubricPointId: "r1", predictedRubricPointId: "p1", predictedStatus: "hit", predictedErrorCodes: [] }
+        { goldRubricPointId: "r1", predictedRubricPointIds: ["p1"], predictedStatus: "hit", predictedErrorCodes: [] }
       ]
     };
     const rubric = calculateRubricQuality(testCase, incomplete);
@@ -110,6 +112,24 @@ describe("grading benchmark", () => {
     expect(mapping.mappingCoverage).toBe(0.5);
     expect(mapping.exactStatusAccuracy).toBe(1);
     expect(hasCompleteAlignment(testCase, incomplete)).toBe(false);
+  });
+
+  it("supports an acceptable split without losing mapping provenance", () => {
+    const splitPrediction: AlignedBenchmarkPrediction = {
+      ...prediction,
+      runId: "run-split",
+      predictedRubricPointIds: ["p1a", "p1b", "p2"],
+      rubricAlignments: [
+        { goldRubricPointIds: ["r1"], predictedRubricPointIds: ["p1a", "p1b"], relation: "acceptable-split" },
+        { goldRubricPointIds: ["r2"], predictedRubricPointIds: ["p2"], relation: "match" }
+      ],
+      mappings: [
+        { goldRubricPointId: "r1", predictedRubricPointIds: ["p1a", "p1b"], predictedStatus: "hit", predictedErrorCodes: [] },
+        { goldRubricPointId: "r2", predictedRubricPointIds: ["p2"], predictedStatus: "partial", predictedErrorCodes: ["PARTIAL_COVERAGE"] }
+      ]
+    };
+    expect(calculateRubricQuality(testCase, splitPrediction).recall).toBe(1);
+    expect(calculateMappingQuality(testCase, splitPrediction).mappingCoverage).toBe(1);
   });
 
   it("computes status confusion after explicit gold alignment", () => {
@@ -156,9 +176,22 @@ describe("grading benchmark", () => {
     expect(() => calculateScoreCalibration([debug], [prediction])).toThrow("not in calibration/holdout split");
   });
 
+  it("fails closed when answer mapping provenance disagrees with rubric alignment", () => {
+    const wrongLinks: AlignedBenchmarkPrediction = {
+      ...prediction,
+      runId: "run-wrong-links",
+      mappings: [
+        { ...prediction.mappings[0], predictedRubricPointIds: ["p2"] },
+        prediction.mappings[1]
+      ]
+    };
+    expect(() => calculateMappingQuality(testCase, wrongLinks)).toThrow("does not match its rubric alignment group");
+  });
+
   it("fails closed on duplicate rubric alignment rows", () => {
     const duplicate: AlignedBenchmarkPrediction = {
       ...prediction,
+      runId: "run-duplicate",
       mappings: [prediction.mappings[0], prediction.mappings[0]]
     };
     expect(() => calculateMappingQuality(testCase, duplicate)).toThrow("Duplicate aligned prediction");
@@ -167,7 +200,7 @@ describe("grading benchmark", () => {
   });
 
   it("fails closed on duplicate score predictions for one case", () => {
-    expect(() => calculateScoreCalibration([testCase], [prediction, { ...prediction }]))
+    expect(() => calculateScoreCalibration([testCase], [prediction, { ...prediction, runId: "run-2" }]))
       .toThrow("Duplicate score prediction");
   });
 });
