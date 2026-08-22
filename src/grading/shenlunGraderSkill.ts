@@ -1,6 +1,11 @@
 import type { StructuredReview } from "../types";
 import type { GradingWorkflowArtifacts } from "./artifacts";
-import { GRADING_RULESET_VERSION, type GradingRequest } from "./contracts";
+import {
+  createGradingService,
+  GRADING_RULESET_VERSION,
+  type GradingProvider,
+  type GradingRequest
+} from "./contracts";
 import { resolveGradingService } from "./serviceResolver";
 
 export const SHENLUN_GRADER_SKILL_VERSION = "shenlun-grader-skill@0.1.0";
@@ -91,9 +96,11 @@ function scoreInterpretation(review: StructuredReview, providerKind: "mock" | "r
   return "ai-diagnostic-uncalibrated";
 }
 
-export async function runShenlunGraderSkill(request: GradingRequest): Promise<ShenlunGraderResult> {
+async function executeShenlunGraderSkill(
+  request: GradingRequest,
+  service: ReturnType<typeof createGradingService>
+): Promise<ShenlunGraderResult> {
   const preflight = preflightShenlunGrading(request);
-  const service = await resolveGradingService();
   const output = await service.gradeDetailed(request);
   const warnings = validateSkillArtifacts(output.artifacts, service.provider.kind, preflight);
 
@@ -117,9 +124,21 @@ export async function runShenlunGraderSkill(request: GradingRequest): Promise<Sh
   };
 }
 
+export async function runShenlunGraderSkillWithProvider(
+  request: GradingRequest,
+  provider: GradingProvider
+): Promise<ShenlunGraderResult> {
+  return executeShenlunGraderSkill(request, createGradingService(provider));
+}
+
+export async function runShenlunGraderSkill(request: GradingRequest): Promise<ShenlunGraderResult> {
+  return executeShenlunGraderSkill(request, await resolveGradingService());
+}
+
 export const shenlunGraderSkill = {
   id: "shenlun-grader",
   version: SHENLUN_GRADER_SKILL_VERSION,
   run: runShenlunGraderSkill,
+  runWithProvider: runShenlunGraderSkillWithProvider,
   preflight: preflightShenlunGrading
 };
