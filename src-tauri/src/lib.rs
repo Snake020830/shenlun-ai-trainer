@@ -44,6 +44,12 @@ pub fn run() {
             sql: include_str!("../migrations/0006_public_question_sources.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 7,
+            description: "link_public_exam_sources_to_multiple_questions",
+            sql: include_str!("../migrations/0007_public_source_question_links.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     tauri::Builder::default()
