@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { RemoteProviderPublicConfig } from "./config";
 import { decodeRemoteJson, encodeRemoteCall } from "./protocol";
 
-function config(protocol: RemoteProviderPublicConfig["protocol"]): RemoteProviderPublicConfig {
+function config(protocol: RemoteProviderPublicConfig["protocol"], overrides: Partial<RemoteProviderPublicConfig> = {}): RemoteProviderPublicConfig {
   return {
     id: "test",
     label: "Test",
@@ -11,7 +11,9 @@ function config(protocol: RemoteProviderPublicConfig["protocol"]): RemoteProvide
     baseUrl: "https://api.example.com/v1",
     model: "model-x",
     secretRef: "secret-x",
-    timeoutMs: 30_000
+    timeoutMs: 30_000,
+    reasoningEffort: "provider-default",
+    ...overrides
   };
 }
 
@@ -19,8 +21,7 @@ const request = {
   instructions: "return JSON",
   input: "data",
   schemaName: "test_schema",
-  jsonSchema: { type: "object", properties: { ok: { type: "boolean" } } },
-  temperature: 0
+  jsonSchema: { type: "object", properties: { ok: { type: "boolean" } } }
 };
 
 describe("remote protocol codec", () => {
@@ -28,6 +29,7 @@ describe("remote protocol codec", () => {
     const call = encodeRemoteCall(config("openai-responses"), request);
     expect(call.url).toBe("https://api.example.com/v1/responses");
     expect(call.body.store).toBe(false);
+    expect(call.body.reasoning).toBeUndefined();
     expect(call.body.text).toEqual({
       format: {
         type: "json_schema",
@@ -36,6 +38,15 @@ describe("remote protocol codec", () => {
         strict: false
       }
     });
+  });
+
+  it("adds reasoning effort only to Responses when explicitly configured", () => {
+    const responses = encodeRemoteCall(config("openai-responses", { reasoningEffort: "high" }), request);
+    expect(responses.body.reasoning).toEqual({ effort: "high" });
+
+    const chat = encodeRemoteCall(config("openai-chat-completions", { reasoningEffort: "high" }), request);
+    expect(chat.body.reasoning).toBeUndefined();
+    expect(chat.body.reasoning_effort).toBeUndefined();
   });
 
   it("encodes Chat Completions with store=false and json_schema", () => {
