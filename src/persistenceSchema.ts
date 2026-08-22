@@ -1,7 +1,7 @@
-export const STORAGE_SCHEMA_VERSION = 4;
+export const STORAGE_SCHEMA_VERSION = 5;
 
-// 运行时数据库的结构镜像。正式迁移文件位于 src-tauri/migrations/0001..0004。
-export const SQLITE_SCHEMA_V4 = `
+// 运行时数据库的结构镜像。正式迁移文件位于 src-tauri/migrations/0001..0005。
+export const SQLITE_SCHEMA_V5 = `
 PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS app_meta (
@@ -75,9 +75,23 @@ CREATE TABLE IF NOT EXISTS benchmark_alignments (
   PRIMARY KEY (case_id, run_id)
 );
 
+CREATE TABLE IF NOT EXISTS practice_annotations (
+  question_id TEXT PRIMARY KEY,
+  annotations_json TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS training_practice_meta (
+  training_record_id TEXT PRIMARY KEY REFERENCES training_records(id) ON DELETE CASCADE,
+  elapsed_seconds INTEGER NOT NULL CHECK (elapsed_seconds >= 0),
+  annotation_count INTEGER NOT NULL DEFAULT 0 CHECK (annotation_count >= 0),
+  created_at TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_training_question ON training_records(question_id);
 CREATE INDEX IF NOT EXISTS idx_training_submitted ON training_records(submitted_at DESC);
 CREATE INDEX IF NOT EXISTS idx_benchmark_drafts_created ON benchmark_drafts(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_benchmark_model_runs_case ON benchmark_model_runs(case_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_benchmark_alignments_run ON benchmark_alignments(run_id);
+CREATE INDEX IF NOT EXISTS idx_training_practice_meta_created ON training_practice_meta(created_at DESC);
 `;
