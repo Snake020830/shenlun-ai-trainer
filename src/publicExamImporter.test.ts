@@ -1,31 +1,25 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ParsedPublicExam } from "./publicExamParser";
 import type { PublicSourceCandidate, PublicSourceQuestionLink } from "./publicSourceStore";
-import type { Question } from "./types";
+import type { LocalQuestionInput, Question } from "./types";
 
 const state = vi.hoisted(() => ({
   links: [] as PublicSourceQuestionLink[],
   created: [] as Question[],
+  questionById: new Map<string, Question>(),
   savedSources: [] as string[],
   markedImported: 0
 }));
 
 vi.mock("./storage", () => ({
   persistence: {
-    addImportedQuestion: vi.fn(async (input: {
-      title: string;
-      year: number;
-      region: string;
-      type: Question["type"];
-      difficulty: Question["difficulty"];
-      score: number;
-      wordLimit: number;
-      prompt: string;
-      materialText: string;
-      tags: string[];
-    }) => {
+    addImportedQuestion: vi.fn(async (input: LocalQuestionInput) => {
+      const id = input.id ?? `question-${state.created.length + 1}`;
+      const materials = input.materials?.length
+        ? input.materials.map((material, index) => ({ id: `m${index + 1}`, label: material.label, content: material.content }))
+        : input.materialText.split(/\n\s*\n/).map((content, index) => ({ id: `m${index + 1}`, label: `材料 ${index + 1}`, content }));
       const question: Question = {
-        id: `question-${state.created.length + 1}`,
+        id,
         title: input.title,
         year: input.year,
         region: input.region,
@@ -34,10 +28,11 @@ vi.mock("./storage", () => ({
         score: input.score,
         wordLimit: input.wordLimit,
         prompt: input.prompt,
-        materials: input.materialText.split(/\n\s*\n/).map((content, index) => ({ id: `m${index + 1}`, label: `材料 ${index + 1}`, content })),
+        materials,
         tags: input.tags,
         source: "local"
       };
+      state.questionById.set(id, question);
       state.created.push(question);
       return question;
     })
@@ -52,14 +47,15 @@ vi.mock("./publicSourceStore", async importOriginal => {
       listCandidateQuestionLinks: vi.fn(async () => [...state.links].sort((a, b) => a.taskIndex - b.taskIndex)),
       saveQuestionSource: vi.fn(async (source: { questionId: string }) => { state.savedSources.push(source.questionId); }),
       linkCandidateQuestion: vi.fn(async (link: PublicSourceQuestionLink) => {
-        state.links.push(link);
+        const existing = state.links.find(item => item.candidateId === link.candidateId && item.taskIndex === link.taskIndex);
+        if (!existing) state.links.push(link);
       }),
       markCandidateImported: vi.fn(async () => { state.markedImported += 1; })
     }
   };
 });
 
-import { importPublicExam } from "./publicExamImporter";
+import { importPublicExam, publicQuestionId } from "./publicExamImporter";
 
 const candidate: PublicSourceCandidate = {
   id: "candidate-1",
@@ -79,7 +75,7 @@ const exam: ParsedPublicExam = {
   title: candidate.title,
   warnings: [],
   materials: [
-    { sourceNumber: 1, label: "材料1", content: "材料一正文。" },
+    { sourceNumber: 1, label: "材料1", content: "材料一第一段。\n\n材料一第二段。" },
     { sourceNumber: 2, label: "材料2", content: "材料二正文。" }
   ],
   tasks: [
@@ -92,16 +88,30 @@ const exam: ParsedPublicExam = {
 beforeEach(() => {
   state.links.length = 0;
   state.created.length = 0;
+  state.questionById.clear();
   state.savedSources.length = 0;
   state.markedImported = 0;
 });
 
+describe("publicQuestionId", () => {
+  it("is stable for the same source/task and different across tasks", () => {
+    expect(publicQuestionId(candidate.id, 0)).toBe("publicq:candidate-1:task:1");
+    expect(publicQuestionId(candidate.id, 0)).toBe(publicQuestionId(candidate.id, 0));
+    expect(publicQuestionId(candidate.id, 1)).not.toBe(publicQuestionId(candidate.id, 0));
+  });
+});
+
 describe("importPublicExam", () => {
-  it("imports every task as its own local question while keeping the whole material corpus", async () => {
+  it("imports every task as its own deterministic local question while keeping the whole material corpus", async () => {
     const result = await importPublicExam({ candidate, exam, retrievedAt: "2026-08-22T13:30:00+08:00" });
-    expect(result.newlyImportedQuestionIds).toHaveLength(3);
+    expect(result.newlyImportedQuestionIds).toEqual([
+      "publicq:candidate-1:task:1",
+      "publicq:candidate-1:task:2",
+      "publicq:candidate-1:task:3"
+    ]);
     expect(state.created).toHaveLength(3);
     expect(state.created[0].materials).toHaveLength(2);
+    expect(state.created[0].materials[0]).toEqual({ id: "m1", label: "材料1", content: "材料一第一段。\n\n材料一第二段。" });
     expect(state.created[1].materials).toHaveLength(2);
     expect(state.created[2].materials).toHaveLength(2);
     expect(state.links.map(item => item.taskIndex)).toEqual([0, 1, 2]);
@@ -111,15 +121,40 @@ describe("importPublicExam", () => {
 
   it("resumes a partially imported exam without duplicating already linked tasks", async () => {
     state.links.push(
-      { candidateId: candidate.id, questionId: "existing-1", taskIndex: 0, createdAt: "2026-08-22T13:00:00+08:00" },
-      { candidateId: candidate.id, questionId: "existing-2", taskIndex: 1, createdAt: "2026-08-22T13:01:00+08:00" }
+      { candidateId: candidate.id, questionId: "publicq:candidate-1:task:1", taskIndex: 0, createdAt: "2026-08-22T13:00:00+08:00" },
+      { candidateId: candidate.id, questionId: "publicq:candidate-1:task:2", taskIndex: 1, createdAt: "2026-08-22T13:01:00+08:00" }
     );
     const result = await importPublicExam({ candidate, exam, retrievedAt: "2026-08-22T13:30:00+08:00" });
-    expect(result.reusedQuestionIds).toEqual(["existing-1", "existing-2"]);
-    expect(result.newlyImportedQuestionIds).toHaveLength(1);
+    expect(result.reusedQuestionIds).toEqual(["publicq:candidate-1:task:1", "publicq:candidate-1:task:2"]);
+    expect(result.newlyImportedQuestionIds).toEqual(["publicq:candidate-1:task:3"]);
     expect(state.created).toHaveLength(1);
     expect(state.links).toHaveLength(3);
     expect(state.markedImported).toBe(1);
+  });
+
+  it("uses the same deterministic question id when a prior question write exists but its source link was lost", async () => {
+    const deterministicId = publicQuestionId(candidate.id, 0);
+    state.questionById.set(deterministicId, {
+      id: deterministicId,
+      title: "partial previous write",
+      year: 2025,
+      region: "国家",
+      type: "概括归纳",
+      difficulty: "进阶",
+      score: 10,
+      wordLimit: 200,
+      prompt: "old",
+      materials: [],
+      tags: [],
+      source: "local"
+    });
+
+    await importPublicExam({ candidate, exam, retrievedAt: "2026-08-22T13:30:00+08:00" });
+
+    expect(state.created[0].id).toBe(deterministicId);
+    expect(state.questionById.get(deterministicId)?.prompt).toContain("根据给定资料1");
+    expect([...state.questionById.keys()].filter(id => id === deterministicId)).toHaveLength(1);
+    expect(state.links.find(item => item.taskIndex === 0)?.questionId).toBe(deterministicId);
   });
 
   it("fails closed before writing questions when parsed structure is incomplete", async () => {
