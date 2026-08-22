@@ -15,41 +15,18 @@ import {
   Underline
 } from "lucide-react";
 import { gradingService } from "./grading";
+import {
+  getPracticeAnnotations,
+  savePracticeAnnotations,
+  saveTrainingPracticeMeta,
+  type PracticeTextAnnotation
+} from "./practiceSessionStore";
 import ReferenceCrossCheckPanel from "./ReferenceCrossCheckPanel";
 import { persistence } from "./storage";
 import type { MockReview, Question, TrainingRecord } from "./types";
 import "./practiceExam.css";
 
-interface TextAnnotation {
-  id: string;
-  materialId: string;
-  start: number;
-  end: number;
-  type: "highlight" | "underline";
-}
-
-type AnnotationMode = TextAnnotation["type"] | null;
-
-const annotationKey = (questionId: string) => `shenlun:practice-annotations:v1:${questionId}`;
-
-function readAnnotations(questionId: string): TextAnnotation[] {
-  try {
-    const raw = localStorage.getItem(annotationKey(questionId));
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as unknown;
-    return Array.isArray(parsed) ? parsed as TextAnnotation[] : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeAnnotations(questionId: string, annotations: TextAnnotation[]) {
-  try {
-    localStorage.setItem(annotationKey(questionId), JSON.stringify(annotations));
-  } catch (error) {
-    console.error("Failed to persist material annotations.", error);
-  }
-}
+type AnnotationMode = PracticeTextAnnotation["type"] | null;
 
 function formatElapsed(totalSeconds: number): string {
   const hours = Math.floor(totalSeconds / 3600);
@@ -67,7 +44,7 @@ function selectionOffset(root: HTMLElement, node: Node, offset: number): number 
   return range.toString().length;
 }
 
-function renderAnnotatedText(content: string, annotations: TextAnnotation[]) {
+function renderAnnotatedText(content: string, annotations: PracticeTextAnnotation[]) {
   if (!annotations.length) return content;
   const boundaries = new Set<number>([0, content.length]);
   for (const item of annotations) {
@@ -109,14 +86,28 @@ export default function PracticeWorkspace({ question, onExit, onSubmitted }: { q
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [timerRunning, setTimerRunning] = useState(false);
   const [annotationMode, setAnnotationMode] = useState<AnnotationMode>(null);
-  const [annotations, setAnnotations] = useState<TextAnnotation[]>(() => readAnnotations(question.id));
+  const [annotations, setAnnotations] = useState<PracticeTextAnnotation[]>([]);
+  const [annotationsLoaded, setAnnotationsLoaded] = useState(false);
   const chars = answer.replace(/\s/g, "").length;
   const totalMaterialChars = useMemo(() => question.materials.reduce((sum, item) => sum + item.content.replace(/\s/g, "").length, 0), [question.materials]);
 
   useEffect(() => {
-    setAnnotations(readAnnotations(question.id));
+    let cancelled = false;
+    setAnnotationsLoaded(false);
+    setAnnotations([]);
     setElapsedSeconds(0);
     setTimerRunning(false);
+    getPracticeAnnotations(question.id)
+      .then(stored => {
+        if (cancelled) return;
+        setAnnotations(stored);
+        setAnnotationsLoaded(true);
+      })
+      .catch(error => {
+        console.error("Failed to load practice annotations.", error);
+        if (!cancelled) setAnnotationsLoaded(true);
+      });
+    return () => { cancelled = true; };
   }, [question.id]);
 
   useEffect(() => {
@@ -126,8 +117,13 @@ export default function PracticeWorkspace({ question, onExit, onSubmitted }: { q
   }, [timerRunning]);
 
   useEffect(() => {
-    writeAnnotations(question.id, annotations);
-  }, [annotations, question.id]);
+    if (!annotationsLoaded) return;
+    const timer = window.setTimeout(() => {
+      void savePracticeAnnotations(question.id, annotations)
+        .catch(error => console.error("Failed to persist material annotations.", error));
+    }, 200);
+    return () => window.clearTimeout(timer);
+  }, [annotations, annotationsLoaded, question.id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -169,6 +165,11 @@ export default function PracticeWorkspace({ question, onExit, onSubmitted }: { q
       const now = new Date();
       const record: TrainingRecord = { id: crypto.randomUUID(), questionId: question.id, title: question.title, score: result.score, maxScore: result.maxScore, submittedAt: now.toLocaleString("zh-CN"), submittedAtIso: now.toISOString(), answer, review: result };
       await persistence.addHistory(record);
+      try {
+        await saveTrainingPracticeMeta(record.id, elapsedSeconds, annotations.length, now.toISOString());
+      } catch (error) {
+        console.error("Training record was saved, but practice timing metadata failed.", error);
+      }
       onSubmitted(record);
     } catch (error) {
       console.error("Failed to grade or save training record.", error);
@@ -218,7 +219,7 @@ export default function PracticeWorkspace({ question, onExit, onSubmitted }: { q
           <button className={annotationMode === "highlight" ? "active" : ""} onClick={() => setAnnotationMode(mode => mode === "highlight" ? null : "highlight")}><Highlighter size={15}/><span>记号笔</span></button>
           <button className={annotationMode === "underline" ? "active" : ""} onClick={() => setAnnotationMode(mode => mode === "underline" ? null : "underline")}><Underline size={15}/><span>下划线</span></button>
           <button disabled={!annotations.length} onClick={() => setAnnotations([])}><Eraser size={15}/><span>清除标记</span></button>
-          <small>{annotationMode ? "选中材料文字即可标记" : "选择工具后，再拖选原文"}</small>
+          <small>{!annotationsLoaded ? "正在读取标记…" : annotationMode ? "选中材料文字即可标记" : "选择工具后，再拖选原文"}</small>
         </div>
         <div className="material-scroll exam-paper-scroll">{question.materials.map(block => {
           const blockAnnotations = annotations.filter(item => item.materialId === block.id);
