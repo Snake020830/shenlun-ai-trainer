@@ -69,6 +69,10 @@ export interface StructuredReview {
   generatedAt?: string;
   scoringPolicy?: string;
   calibrationStatus?: "mock" | "uncalibrated" | "validated";
+  /** Product-level grading facade provenance. Historical snapshots may omit it. */
+  skillVersion?: string;
+  scoreInterpretation?: "mock-diagnostic" | "ai-diagnostic-uncalibrated" | "validated";
+  skillWarnings?: string[];
 }
 
 // Backward-compatible alias for V0.1 files and historical review snapshots.
