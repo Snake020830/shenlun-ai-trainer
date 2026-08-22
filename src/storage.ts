@@ -361,6 +361,21 @@ function createQuestion(input: LocalQuestionInput): Question {
   const now = new Date().toISOString();
   const referenceAnswerContent = input.referenceAnswerContent?.trim();
   const referenceAnswerSource = input.referenceAnswerSource?.trim();
+  const structuredMaterials = input.materials
+    ?.map((material, index) => ({
+      id: `m${index + 1}`,
+      label: material.label.trim() || `材料 ${index + 1}`,
+      content: material.content.trim()
+    }))
+    .filter(material => material.content.length > 0);
+  const materials = structuredMaterials?.length
+    ? structuredMaterials
+    : input.materialText
+        .split(/\n\s*\n/)
+        .map(block => block.trim())
+        .filter(Boolean)
+        .map((content, index) => ({ id: `m${index + 1}`, label: `材料 ${index + 1}`, content }));
+
   return {
     id: `local-${crypto.randomUUID()}`,
     title: input.title.trim(),
@@ -377,11 +392,7 @@ function createQuestion(input: LocalQuestionInput): Question {
       : undefined,
     source: "local",
     createdAt: now,
-    materials: input.materialText
-      .split(/\n\s*\n/)
-      .map(block => block.trim())
-      .filter(Boolean)
-      .map((content, index) => ({ id: `m${index + 1}`, label: `材料 ${index + 1}`, content }))
+    materials
   };
 }
 
@@ -432,23 +443,10 @@ export const persistence = {
     );
   },
 
-  async removePublicSetting(key: string): Promise<void> {
-    assertPublicSettingKey(key);
-    const db = await getDatabase();
-    if (!db) {
-      const settings = readJson<Record<string, unknown>>(PUBLIC_SETTINGS_KEY, {});
-      delete settings[key];
-      writeJson(PUBLIC_SETTINGS_KEY, settings);
-      return;
-    }
-    await db.execute("DELETE FROM app_meta WHERE key = $1", [key]);
-  },
-
   async getDraft(questionId: string): Promise<Draft | null> {
     const db = await getDatabase();
     if (!db) {
-      const drafts = readJson<Record<string, Draft>>(DRAFT_KEY, {});
-      return drafts[questionId] ?? null;
+      return readJson<Record<string, Draft>>(DRAFT_KEY, {})[questionId] ?? null;
     }
     const rows = await db.select<DraftRow[]>(
       "SELECT question_id, answer, updated_at FROM drafts WHERE question_id = $1 LIMIT 1",
@@ -461,9 +459,9 @@ export const persistence = {
   async saveDraft(draft: Draft): Promise<void> {
     const db = await getDatabase();
     if (!db) {
-      const drafts = readJson<Record<string, Draft>>(DRAFT_KEY, {});
-      drafts[draft.questionId] = draft;
-      writeJson(DRAFT_KEY, drafts);
+      const all = readJson<Record<string, Draft>>(DRAFT_KEY, {});
+      all[draft.questionId] = draft;
+      writeJson(DRAFT_KEY, all);
       return;
     }
     await db.execute(
@@ -477,9 +475,8 @@ export const persistence = {
     const db = await getDatabase();
     if (!db) return readJson<TrainingRecord[]>(HISTORY_KEY, []);
     const rows = await db.select<TrainingRow[]>(
-      `SELECT id, question_id, title_snapshot, score, max_score, answer, review_json,
-              submitted_at, submitted_at_display
-       FROM training_records ORDER BY submitted_at DESC LIMIT 200`
+      `SELECT id, question_id, title_snapshot, score, max_score, answer, review_json, submitted_at, submitted_at_display
+       FROM training_records ORDER BY submitted_at DESC`
     );
     return rows.map(trainingRecordFromRow);
   },
@@ -487,19 +484,16 @@ export const persistence = {
   async addHistory(record: TrainingRecord): Promise<void> {
     const db = await getDatabase();
     if (!db) {
-      const records = readJson<TrainingRecord[]>(HISTORY_KEY, []);
-      writeJson(HISTORY_KEY, [record, ...records].slice(0, 200));
-      try {
-        const question = readJson<Question[]>(QUESTIONS_KEY, []).find(item => item.id === record.questionId && item.source !== "builtin");
-        if (question) await insertBenchmarkDraftIfMissing(null, question, record);
-      } catch (error) {
-        console.error("Benchmark draft capture failed; training history was still saved.", error);
-      }
+      const all = readJson<TrainingRecord[]>(HISTORY_KEY, []);
+      const next = [record, ...all.filter(item => item.id !== record.id)];
+      writeJson(HISTORY_KEY, next);
+      const questions = readJson<Question[]>(QUESTIONS_KEY, []);
+      const question = questions.find(item => item.id === record.questionId && item.source !== "builtin");
+      if (question) await insertBenchmarkDraftIfMissing(null, question, record);
       return;
     }
-
     await db.execute(
-      `INSERT INTO training_records
+      `INSERT OR REPLACE INTO training_records
        (id, question_id, title_snapshot, score, max_score, answer, review_json, submitted_at, submitted_at_display)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
       [
@@ -510,97 +504,76 @@ export const persistence = {
         record.maxScore,
         record.answer,
         record.review ? JSON.stringify(record.review) : null,
-        record.submittedAtIso ?? new Date().toISOString(),
+        record.submittedAtIso ?? record.submittedAt,
         record.submittedAt
       ]
     );
-
-    try {
-      const question = await loadQuestionById(db, record.questionId);
-      if (question?.source === "local") await insertBenchmarkDraftIfMissing(db, question, record);
-    } catch (error) {
-      console.error("Benchmark draft capture failed; training history was still saved.", error);
-    }
-  },
-
-  async listBenchmarkDrafts(): Promise<GradingBenchmarkCase[]> {
-    const db = await getDatabase();
-    if (!db) return readJson<GradingBenchmarkCase[]>(BENCHMARK_DRAFTS_KEY, []);
-    const rows = await db.select<BenchmarkDraftRow[]>(
-      `SELECT case_id, training_record_id, case_json, created_at
-       FROM benchmark_drafts ORDER BY created_at DESC`
-    );
-    return rows.map(row => parseBenchmarkCase(row.case_json)).filter((item): item is GradingBenchmarkCase => Boolean(item));
-  },
-
-  async captureBenchmarkDraftFromHistory(recordId: string): Promise<GradingBenchmarkCase | null> {
-    const db = await getDatabase();
-    if (!db) {
-      const existing = readJson<GradingBenchmarkCase[]>(BENCHMARK_DRAFTS_KEY, [])
-        .find(item => item.provenance?.source === `training-record:${recordId}`);
-      if (existing) return existing;
-      const record = readJson<TrainingRecord[]>(HISTORY_KEY, []).find(item => item.id === recordId);
-      if (!record) return null;
-      const question = readJson<Question[]>(QUESTIONS_KEY, []).find(item => item.id === record.questionId && item.source !== "builtin");
-      return question ? insertBenchmarkDraftIfMissing(null, question, record) : null;
-    }
-
-    const existingRows = await db.select<BenchmarkDraftRow[]>(
-      `SELECT case_id, training_record_id, case_json, created_at
-       FROM benchmark_drafts WHERE training_record_id = $1 LIMIT 1`,
-      [recordId]
-    );
-    const existing = existingRows[0] ? parseBenchmarkCase(existingRows[0].case_json) : null;
-    if (existing) return existing;
-
-    const recordRows = await db.select<TrainingRow[]>(
-      `SELECT id, question_id, title_snapshot, score, max_score, answer, review_json,
-              submitted_at, submitted_at_display
-       FROM training_records WHERE id = $1 LIMIT 1`,
-      [recordId]
-    );
-    const row = recordRows[0];
-    if (!row) return null;
-    const question = await loadQuestionById(db, row.question_id);
-    if (!question || question.source !== "local") return null;
-    return insertBenchmarkDraftIfMissing(db, question, trainingRecordFromRow(row));
+    const question = await loadQuestionById(db, record.questionId);
+    if (question && question.source !== "builtin") await insertBenchmarkDraftIfMissing(db, question, record);
   },
 
   async listImportedQuestions(): Promise<Question[]> {
     const db = await getDatabase();
     if (!db) return readJson<Question[]>(QUESTIONS_KEY, []);
-
     const questionRows = await db.select<QuestionRow[]>(
       `SELECT id, title, year, region, type, difficulty, score, word_limit, prompt,
               tags_json, source, created_at, reference_answer_content, reference_answer_source
-       FROM questions WHERE source = 'local' ORDER BY created_at DESC`
+       FROM questions ORDER BY created_at DESC`
     );
     const materialRows = await db.select<MaterialRow[]>(
-      `SELECT id, question_id, label, content, sort_order
-       FROM materials ORDER BY question_id, sort_order`
+      "SELECT id, question_id, label, content, sort_order FROM materials ORDER BY question_id, sort_order"
     );
-    const materialsByQuestion = new Map<string, MaterialRow[]>();
+    const byQuestion = new Map<string, MaterialRow[]>();
     for (const material of materialRows) {
-      const group = materialsByQuestion.get(material.question_id) ?? [];
-      group.push(material);
-      materialsByQuestion.set(material.question_id, group);
+      const list = byQuestion.get(material.question_id) ?? [];
+      list.push(material);
+      byQuestion.set(material.question_id, list);
     }
-
-    return questionRows.map(row => questionFromRows(row, materialsByQuestion.get(row.id) ?? []));
+    return questionRows.map(row => questionFromRows(row, byQuestion.get(row.id) ?? []));
   },
 
   async addImportedQuestion(input: LocalQuestionInput): Promise<Question> {
     const question = createQuestion(input);
     const db = await getDatabase();
     if (!db) {
-      const existing = readJson<Question[]>(QUESTIONS_KEY, []);
-      writeJson(QUESTIONS_KEY, [question, ...existing]);
+      const all = readJson<Question[]>(QUESTIONS_KEY, []);
+      writeJson(QUESTIONS_KEY, [question, ...all.filter(item => item.id !== question.id)]);
       return question;
     }
     await upsertQuestion(db, question);
     return question;
+  },
+
+  async listBenchmarkDrafts(): Promise<GradingBenchmarkCase[]> {
+    const db = await getDatabase();
+    if (!db) {
+      await backfillLocalBenchmarkDrafts();
+      return readJson<GradingBenchmarkCase[]>(BENCHMARK_DRAFTS_KEY, []);
+    }
+    await backfillSqliteBenchmarkDrafts(db);
+    const rows = await db.select<BenchmarkDraftRow[]>(
+      `SELECT case_id, training_record_id, case_json, created_at
+       FROM benchmark_drafts ORDER BY created_at DESC`
+    );
+    return rows.map(row => parseBenchmarkCase(row.case_json)).filter(Boolean) as GradingBenchmarkCase[];
+  },
+
+  async saveBenchmarkDraft(testCase: GradingBenchmarkCase): Promise<void> {
+    if (!testCase.id.trim()) throw new Error("Benchmark case id is required.");
+    if (!testCase.provenance?.trainingRecordId?.trim()) throw new Error("Benchmark draft must retain its trainingRecordId provenance.");
+    const serialized = JSON.stringify(testCase);
+    const db = await getDatabase();
+    if (!db) {
+      const existing = readJson<GradingBenchmarkCase[]>(BENCHMARK_DRAFTS_KEY, []);
+      const next = [testCase, ...existing.filter(item => item.id !== testCase.id)];
+      writeJson(BENCHMARK_DRAFTS_KEY, next);
+      return;
+    }
+    await db.execute(
+      `INSERT INTO benchmark_drafts (case_id, training_record_id, case_json, created_at)
+       VALUES ($1,$2,$3,$4)
+       ON CONFLICT(case_id) DO UPDATE SET case_json=excluded.case_json`,
+      [testCase.id, testCase.provenance.trainingRecordId, serialized, testCase.provenance.createdAt]
+    );
   }
 };
-
-// Desktop runtime uses SQLite through Tauri's SQL plugin. Browser-only Vite development
-// keeps a localStorage fallback so the UI remains easy to run without a desktop shell.
