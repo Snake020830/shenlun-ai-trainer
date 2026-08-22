@@ -37,4 +37,23 @@ describe("review assembler", () => {
     expect(review.points[1].evidence).toContain("174项审批事项下沉");
     expect(review.points[1].errorCodes).toEqual(["PARTIAL_COVERAGE"]);
   });
+
+  it("attaches reference cross-check findings without changing the diagnostic score", () => {
+    const withReference: GradingWorkflowArtifacts = {
+      ...artifacts,
+      referenceCrossCheck: {
+        source: "老师批改稿",
+        blindRubricMissingDimensions: ["老师答案提示还应关注协同机制"],
+        referenceOnlyDimensions: [],
+        mergeDifferences: ["老师答案将机构整合与审批下沉合并"],
+        notes: ["差异仅用于复核"]
+      }
+    };
+
+    const baseline = assembleReview(20, artifacts, equalRubricDiagnosticPolicy);
+    const reviewed = assembleReview(20, withReference, equalRubricDiagnosticPolicy);
+    expect(reviewed.score).toBe(baseline.score);
+    expect(reviewed.referenceCrossCheck?.source).toBe("老师批改稿");
+    expect(reviewed.summary).toContain("不自动改变本次得分");
+  });
 });
