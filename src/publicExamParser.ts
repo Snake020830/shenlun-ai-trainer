@@ -227,5 +227,5 @@ export function parseGkzhentiExamHtml(html: string, candidate?: PublicSourceCand
 export function canImportParsedPublicExam(exam: ParsedPublicExam): boolean {
   if (exam.warnings.length) return false;
   if (!exam.materials.length || !exam.tasks.length) return false;
-  return exam.tasks.every(task => task.score !== null && task.wordLimit !== null);
+  return exam.tasks.every(task => task.score !== null && task.wordLimit !== null && task.warnings.length === 0);
 }
