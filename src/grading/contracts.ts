@@ -34,6 +34,12 @@ function assertString(value: unknown, field: string): asserts value is string {
   if (typeof value !== "string") throw new Error(`Invalid grading result: ${field} must be a string.`);
 }
 
+function assertStringArray(value: unknown, field: string): asserts value is string[] {
+  if (!Array.isArray(value) || !value.every(item => typeof item === "string")) {
+    throw new Error(`Invalid grading result: ${field} must contain strings only.`);
+  }
+}
+
 export function validateReview(review: StructuredReview, expectedMaxScore: number): StructuredReview {
   if (!Number.isFinite(review.score) || !Number.isFinite(review.maxScore)) {
     throw new Error("Invalid grading result: score fields must be finite numbers.");
@@ -61,9 +67,17 @@ export function validateReview(review: StructuredReview, expectedMaxScore: numbe
       throw new Error(`Invalid grading result: points[${index}].status is unsupported.`);
     }
     if (point.suggestion !== undefined) assertString(point.suggestion, `points[${index}].suggestion`);
-    if (point.errorCodes !== undefined && !point.errorCodes.every(code => typeof code === "string")) {
-      throw new Error(`Invalid grading result: points[${index}].errorCodes must contain strings only.`);
+    if (point.errorCodes !== undefined) assertStringArray(point.errorCodes, `points[${index}].errorCodes`);
+  }
+
+  if (review.referenceCrossCheck) {
+    if (review.referenceCrossCheck.source !== undefined) {
+      assertString(review.referenceCrossCheck.source, "referenceCrossCheck.source");
     }
+    assertStringArray(review.referenceCrossCheck.blindRubricMissingDimensions, "referenceCrossCheck.blindRubricMissingDimensions");
+    assertStringArray(review.referenceCrossCheck.referenceOnlyDimensions, "referenceCrossCheck.referenceOnlyDimensions");
+    assertStringArray(review.referenceCrossCheck.mergeDifferences, "referenceCrossCheck.mergeDifferences");
+    assertStringArray(review.referenceCrossCheck.notes, "referenceCrossCheck.notes");
   }
 
   return review;
