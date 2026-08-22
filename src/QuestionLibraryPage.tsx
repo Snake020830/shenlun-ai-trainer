@@ -4,7 +4,7 @@ import { BookOpen, ChevronRight, Download, Eye, FileText, Globe2, Plus, RefreshC
 import { canImportParsedPublicExam } from "./publicExamParser";
 import { importPublicExam, previewPublicExam, type PublicExamPreview } from "./publicExamImporter";
 import { discoverProviderCandidates } from "./publicSourceDiscovery";
-import { getPublicSourceProvider, PUBLIC_SOURCE_PROVIDERS } from "./publicSourceProviders";
+import { getPublicSourceProvider } from "./publicSourceProviders";
 import { publicSourceStore, type PublicSourceCandidate } from "./publicSourceStore";
 import type { Question } from "./types";
 import "./questionLibrary.css";
@@ -26,7 +26,7 @@ function PublicExamBrowser({ onImported }: { onImported: () => Promise<void> | v
   const [regionFilter, setRegionFilter] = useState("all");
   const [page, setPage] = useState(1);
   const [busy, setBusy] = useState<string | null>(null);
-  const [status, setStatus] = useState("只加载公开整卷的来源目录；正文在你选择某一卷时才读取。" );
+  const [status, setStatus] = useState("只加载公开整卷的来源目录；正文在你选择某一卷时才读取。");
   const [preview, setPreview] = useState<PublicExamPreview | null>(null);
   const [confirmed, setConfirmed] = useState(false);
 
@@ -88,10 +88,10 @@ function PublicExamBrowser({ onImported }: { onImported: () => Promise<void> | v
     try {
       const result = await importPublicExam(preview);
       await reload();
-      await onImported();
-      setStatus(`已导入：新增 ${result.newlyImportedQuestionIds.length} 道题${result.reusedQuestionIds.length ? `，已有 ${result.reusedQuestionIds.length} 道直接复用` : ""}。现在可切回“已入库题目”开始作答。`);
+      setStatus(`已导入：新增 ${result.newlyImportedQuestionIds.length} 道题${result.reusedQuestionIds.length ? `，已有 ${result.reusedQuestionIds.length} 道直接复用` : ""}。`);
       setPreview(null);
       setConfirmed(false);
+      await onImported();
     } catch (error) {
       console.error("Failed to import public exam.", error);
       setStatus(error instanceof Error ? error.message : "整卷导入失败。");
@@ -168,6 +168,12 @@ export default function QuestionLibraryPage({
   const [query, setQuery] = useState("");
   const filtered = allQuestions.filter(question => `${question.title}${question.type}${question.tags.join("")}`.toLowerCase().includes(query.trim().toLowerCase()));
 
+  async function finishPublicImport() {
+    await onRefreshImported();
+    setTab("ready");
+    setQuery("");
+  }
+
   return <main className="page page-wide question-library-page">
     <header className="page-header compact"><div><p className="eyebrow">题库</p><h1>真题先核验，再进入训练</h1><p>已入库题目可以直接作答；公开整卷只保存目录，选中后按需读取并结构化导入。</p></div><button className="primary" onClick={onImport}><Plus size={16}/>手工导入</button></header>
 
@@ -177,6 +183,6 @@ export default function QuestionLibraryPage({
       <div className="toolbar"><div className="search-box"><Search size={17}/><input value={query} onChange={event => setQuery(event.target.value)} placeholder="搜索题目、题型或标签"/></div><span className="library-count">{filtered.length} 题</span></div>
       <div className="question-grid">{filtered.map(question => <article className="question-card" key={question.id}><div className="question-top"><span className="library-difficulty">{difficultyLabel(question)}</span><span>{question.source === "local" ? `${question.year} · ${question.region}` : "功能演示"}</span></div><h3>{question.title}</h3><p>{question.prompt}</p><div className="tag-row">{question.tags.map(tag => <span key={tag}>#{tag}</span>)}</div><footer><span><FileText size={14}/>{question.type} · {question.score} 分 · {question.wordLimit} 字</span><button onClick={() => onStart(question)}>开始训练 <ChevronRight size={16}/></button></footer></article>)}</div>
       {!filtered.length && <div className="public-library-empty">没有符合条件的已入库题目。</div>}
-    </> : <PublicExamBrowser onImported={onRefreshImported}/>}
+    </> : <PublicExamBrowser onImported={finishPublicImport}/>}
   </main>;
 }
