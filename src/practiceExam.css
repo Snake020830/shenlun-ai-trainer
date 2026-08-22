@@ -5,6 +5,7 @@
   --reader-muted: #8a8d92;
   --reader-line: #e5e4df;
   --answer-cell: 32px;
+  --answer-font-size: 18px;
   height: 100vh;
   display: flex;
   flex-direction: column;
@@ -280,7 +281,7 @@
   margin: 0;
   color: #30343a;
   font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
-  font-size: var(--material-font-size, 17px);
+  font-size: 17px;
   font-weight: 500;
   line-height: 1.95;
   letter-spacing: 0;
@@ -379,17 +380,15 @@
   box-shadow: inset 0 0 0 1px rgba(255,255,255,.8);
 }
 
+/* The separate layer only provides the paper base. The grid itself lives on the
+   scrollable textarea with background-attachment: local so text and cells share
+   exactly the same scroll coordinate system. */
 .answer-grid-layer {
   position: absolute;
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background-color: #fffdfd;
-  background-image:
-    linear-gradient(to right, rgba(229, 125, 143, .34) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(229, 125, 143, .34) 1px, transparent 1px);
-  background-size: var(--answer-cell) var(--answer-cell);
-  background-position: -1px -1px;
+  background: #fffdfd;
 }
 
 .answer-pane .grid-answer-input {
@@ -401,22 +400,35 @@
   resize: none;
   border: 0;
   outline: 0;
-  padding: 7px 7px 40px;
+  padding: 0 7px 40px;
   overflow: auto;
   color: #2f3338;
-  font-family: "SimSun", "Songti SC", "Microsoft YaHei", monospace;
-  font-size: 18px;
+  font-family: "SimSun", "FangSong", "Songti SC", "Microsoft YaHei", monospace;
+  font-size: var(--answer-font-size);
   font-weight: 400;
   line-height: var(--answer-cell);
-  letter-spacing: 14px;
+  letter-spacing: calc(var(--answer-cell) - var(--answer-font-size));
+  font-variant-east-asian: full-width;
+  tab-size: 1;
   caret-color: #355ed0;
-  background: transparent !important;
+  background-color: transparent !important;
+  background-image:
+    linear-gradient(to right, rgba(229, 125, 143, .34) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(229, 125, 143, .34) 1px, transparent 1px) !important;
+  background-size: var(--answer-cell) var(--answer-cell) !important;
+  background-position: -1px -1px !important;
+  background-attachment: local !important;
   box-shadow: none !important;
   white-space: pre-wrap;
+  word-break: break-all;
+  overflow-wrap: anywhere;
 }
 
 .answer-pane .grid-answer-input:focus {
-  background: transparent !important;
+  background-color: transparent !important;
+  background-image:
+    linear-gradient(to right, rgba(229, 125, 143, .34) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(229, 125, 143, .34) 1px, transparent 1px) !important;
   box-shadow: inset 0 0 0 2px rgba(76, 111, 213, .12) !important;
 }
 
