@@ -95,6 +95,7 @@ export default function PracticeWorkspace({ question, onExit, onSubmitted }: { q
     let cancelled = false;
     setAnnotationsLoaded(false);
     setAnnotations([]);
+    setAnnotationMode(null);
     setElapsedSeconds(0);
     setTimerRunning(false);
     getPracticeAnnotations(question.id)
@@ -180,7 +181,7 @@ export default function PracticeWorkspace({ question, onExit, onSubmitted }: { q
   }
 
   function annotateSelection(materialId: string, event: React.MouseEvent<HTMLElement>) {
-    if (!annotationMode) return;
+    if (!annotationMode || !annotationsLoaded) return;
     const root = event.currentTarget;
     const selection = window.getSelection();
     if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return;
@@ -216,9 +217,9 @@ export default function PracticeWorkspace({ question, onExit, onSubmitted }: { q
       <section className="materials-pane exam-materials-pane">
         <div className="pane-title exam-pane-title"><BookOpenText size={18}/><strong>给定资料</strong><span>{question.materials.length} 则 · 约 {totalMaterialChars} 字</span></div>
         <div className="annotation-toolbar" aria-label="材料标注工具">
-          <button className={annotationMode === "highlight" ? "active" : ""} onClick={() => setAnnotationMode(mode => mode === "highlight" ? null : "highlight")}><Highlighter size={15}/><span>记号笔</span></button>
-          <button className={annotationMode === "underline" ? "active" : ""} onClick={() => setAnnotationMode(mode => mode === "underline" ? null : "underline")}><Underline size={15}/><span>下划线</span></button>
-          <button disabled={!annotations.length} onClick={() => setAnnotations([])}><Eraser size={15}/><span>清除标记</span></button>
+          <button disabled={!annotationsLoaded} className={annotationMode === "highlight" ? "active" : ""} onClick={() => setAnnotationMode(mode => mode === "highlight" ? null : "highlight")}><Highlighter size={15}/><span>记号笔</span></button>
+          <button disabled={!annotationsLoaded} className={annotationMode === "underline" ? "active" : ""} onClick={() => setAnnotationMode(mode => mode === "underline" ? null : "underline")}><Underline size={15}/><span>下划线</span></button>
+          <button disabled={!annotationsLoaded || !annotations.length} onClick={() => setAnnotations([])}><Eraser size={15}/><span>清除标记</span></button>
           <small>{!annotationsLoaded ? "正在读取标记…" : annotationMode ? "选中材料文字即可标记" : "选择工具后，再拖选原文"}</small>
         </div>
         <div className="material-scroll exam-paper-scroll">{question.materials.map(block => {
