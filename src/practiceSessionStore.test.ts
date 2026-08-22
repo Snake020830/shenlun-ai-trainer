@@ -28,17 +28,26 @@ beforeEach(() => {
 });
 
 describe("practice session store", () => {
-  it("persists text annotations per question", async () => {
+  it("persists text annotations and highlighter colors per question", async () => {
     const annotations: PracticeTextAnnotation[] = [
-      { id: "a1", materialId: "m1", start: 2, end: 8, type: "highlight" },
-      { id: "a2", materialId: "m2", start: 0, end: 4, type: "underline" }
+      { id: "a1", materialId: "m1", start: 2, end: 8, type: "highlight", color: "yellow" },
+      { id: "a2", materialId: "m2", start: 0, end: 4, type: "underline" },
+      { id: "a3", materialId: "m2", start: 5, end: 9, type: "highlight", color: "pink" }
     ];
     await savePracticeAnnotations("q1", annotations);
     expect(await getPracticeAnnotations("q1")).toEqual(annotations);
     expect(await getPracticeAnnotations("q2")).toEqual([]);
   });
 
-  it("rejects invalid ranges and duplicate annotation ids", async () => {
+  it("keeps legacy highlights without an explicit color valid", async () => {
+    const annotations: PracticeTextAnnotation[] = [
+      { id: "legacy", materialId: "m1", start: 0, end: 3, type: "highlight" }
+    ];
+    await savePracticeAnnotations("q1", annotations);
+    expect(await getPracticeAnnotations("q1")).toEqual(annotations);
+  });
+
+  it("rejects invalid ranges, duplicate ids and invalid highlight metadata", async () => {
     await expect(savePracticeAnnotations("q1", [
       { id: "a1", materialId: "m1", start: 5, end: 5, type: "highlight" }
     ])).rejects.toThrow("invalid text range");
@@ -47,6 +56,14 @@ describe("practice session store", () => {
       { id: "a1", materialId: "m1", start: 0, end: 2, type: "highlight" },
       { id: "a1", materialId: "m1", start: 3, end: 5, type: "underline" }
     ])).rejects.toThrow("Duplicate practice annotation id");
+
+    await expect(savePracticeAnnotations("q1", [
+      { id: "a2", materialId: "m1", start: 0, end: 2, type: "highlight", color: "purple" as never }
+    ])).rejects.toThrow("unsupported highlight color");
+
+    await expect(savePracticeAnnotations("q1", [
+      { id: "a3", materialId: "m1", start: 0, end: 2, type: "underline", color: "yellow" }
+    ])).rejects.toThrow("cannot attach a highlight color");
   });
 
   it("stores timing metadata independently for each submitted training record", async () => {
