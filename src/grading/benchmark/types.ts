@@ -72,10 +72,45 @@ export interface BenchmarkValidationResult {
   warnings: string[];
 }
 
+export interface AlignedPredictionMapping {
+  goldRubricPointId: string;
+  predictedStatus: ReviewPoint["status"];
+  predictedErrorCodes: string[];
+  predictedRubricPointId?: string;
+  alignmentConfidence?: "high" | "medium" | "low";
+  alignmentNotes?: string;
+}
+
+export interface AlignedBenchmarkPrediction {
+  caseId: string;
+  predictedScore: number;
+  mappings: AlignedPredictionMapping[];
+  providerId?: string;
+  model?: string;
+  rulesetVersion?: string;
+  scoringPolicy?: string;
+}
+
 export interface MappingConfusionCounts {
   hit: { hit: number; partial: number; missed: number };
   partial: { hit: number; partial: number; missed: number };
   missed: { hit: number; partial: number; missed: number };
+}
+
+export interface MappingQualityMetrics {
+  alignedPointCount: number;
+  exactStatusAccuracy: number | null;
+  confusion: MappingConfusionCounts;
+}
+
+export interface TaxonomyQualityMetrics {
+  labelDecisionCount: number;
+  truePositive: number;
+  falsePositive: number;
+  falseNegative: number;
+  microPrecision: number | null;
+  microRecall: number | null;
+  microF1: number | null;
 }
 
 export interface ScoreCalibrationMetrics {
@@ -84,4 +119,5 @@ export interface ScoreCalibrationMetrics {
   meanAbsoluteError: number | null;
   rootMeanSquaredError: number | null;
   meanSignedError: number | null;
+  normalizedMeanAbsoluteError: number | null;
 }
