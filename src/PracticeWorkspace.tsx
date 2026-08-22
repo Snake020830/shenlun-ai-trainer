@@ -34,11 +34,18 @@ import "./practiceExam.css";
 type AnnotationMode = PracticeTextAnnotation["type"] | null;
 type MaterialView = "single" | "all";
 
-const MATERIAL_FONT_KEY = "shenlun:material-font-size:v1";
+const MATERIAL_FONT_KEY = "shenlun:material-font-size:v2";
+const MATERIAL_FONT_MIN = 15;
+const MATERIAL_FONT_MAX = 22;
+const MATERIAL_FONT_DEFAULT = 17;
+
+function clampMaterialFontSize(value: number): number {
+  return Math.min(MATERIAL_FONT_MAX, Math.max(MATERIAL_FONT_MIN, Math.round(value)));
+}
 
 function readMaterialFontSize(): number {
   const raw = Number(localStorage.getItem(MATERIAL_FONT_KEY));
-  return Number.isFinite(raw) && raw >= 16 && raw <= 24 ? raw : 19;
+  return Number.isFinite(raw) ? clampMaterialFontSize(raw) : MATERIAL_FONT_DEFAULT;
 }
 
 function formatElapsed(totalSeconds: number): string {
@@ -266,6 +273,19 @@ export default function PracticeWorkspace({ question, onExit, onSubmitted }: { q
     setSelectedAnnotationId(null);
   }
 
+  function changeMaterialFontSize(delta: number) {
+    setMaterialFontSize(current => {
+      const next = clampMaterialFontSize(current + delta);
+      localStorage.setItem(MATERIAL_FONT_KEY, String(next));
+      return next;
+    });
+  }
+
+  function resetMaterialFontSize() {
+    localStorage.setItem(MATERIAL_FONT_KEY, String(MATERIAL_FONT_DEFAULT));
+    setMaterialFontSize(MATERIAL_FONT_DEFAULT);
+  }
+
   const persistenceStatus = submitError ?? (draftLoaded ? "已自动保存" : "正在读取草稿…");
   const isDemo = question.source !== "local";
 
@@ -294,15 +314,20 @@ export default function PracticeWorkspace({ question, onExit, onSubmitted }: { q
           <button disabled={!annotationsLoaded} className={annotationMode === "underline" ? "active" : ""} onClick={() => setAnnotationMode(mode => mode === "underline" ? null : "underline")}><Underline size={15}/><span>下划线</span></button>
           <button disabled={!annotations.length} onClick={undoLastAnnotation}><Undo2 size={15}/><span>撤销</span></button>
           <button disabled={!selectedAnnotationId} onClick={deleteSelectedAnnotation}><Trash2 size={15}/><span>删除当前</span></button>
-          <div className="material-font-controls"><button disabled={materialFontSize <= 16} onClick={() => setMaterialFontSize(size => Math.max(16, size - 1))}><Minus size={13}/><span>A</span></button><span>{materialFontSize}</span><button disabled={materialFontSize >= 24} onClick={() => setMaterialFontSize(size => Math.min(24, size + 1))}><Plus size={13}/><span>A</span></button></div>
+          <div className="material-font-controls">
+            <button type="button" disabled={materialFontSize <= MATERIAL_FONT_MIN} onClick={() => changeMaterialFontSize(-1)} aria-label="减小材料字号"><Minus size={13}/><span>A</span></button>
+            <span className="material-font-value" aria-live="polite">{materialFontSize}px</span>
+            <button type="button" disabled={materialFontSize >= MATERIAL_FONT_MAX} onClick={() => changeMaterialFontSize(1)} aria-label="增大材料字号"><Plus size={13}/><span>A</span></button>
+            <button type="button" className="material-font-reset" disabled={materialFontSize === MATERIAL_FONT_DEFAULT} onClick={resetMaterialFontSize}>默认</button>
+          </div>
         </div>
-        <div className="material-scroll exam-paper-scroll" style={{ "--material-font-size": `${materialFontSize}px` } as React.CSSProperties}>
+        <div className="material-scroll exam-paper-scroll">
           {visibleMaterials.map((block, visibleIndex) => {
             const blockAnnotations = annotations.filter(item => item.materialId === block.id);
             const trueIndex = question.materials.findIndex(item => item.id === block.id);
             return <article className="material exam-material" key={block.id}>
               <div className="material-label"><span>材料{trueIndex + 1}</span>{materialView === "all" && visibleIndex > 0 ? <i/> : null}</div>
-              <p onMouseUp={event => annotateSelection(block.id, event)} onClick={() => setSelectedAnnotationId(null)}>{renderAnnotatedText(block.content, blockAnnotations, selectedAnnotationId, setSelectedAnnotationId)}</p>
+              <p style={{ fontSize: `${materialFontSize}px` }} onMouseUp={event => annotateSelection(block.id, event)} onClick={() => setSelectedAnnotationId(null)}>{renderAnnotatedText(block.content, blockAnnotations, selectedAnnotationId, setSelectedAnnotationId)}</p>
             </article>;
           })}
         </div>
