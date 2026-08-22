@@ -6,10 +6,16 @@ export async function gradeAnswer(request: GradingRequest) {
   return service.grade(request);
 }
 
-// Backward-compatible facade for the current Practice page. Its grade() method resolves
+export async function gradeAnswerDetailed(request: GradingRequest) {
+  const service = await resolveGradingService();
+  return service.gradeDetailed(request);
+}
+
+// Backward-compatible facade for the current Practice page. Both methods resolve
 // the active provider on every submission, so settings changes take effect without restart.
 export const gradingService = {
-  grade: gradeAnswer
+  grade: gradeAnswer,
+  gradeDetailed: gradeAnswerDetailed
 };
 
 export * from "./contracts";
