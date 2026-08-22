@@ -31,6 +31,12 @@ pub fn run() {
             sql: include_str!("../migrations/0004_benchmark_runs_alignments.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 5,
+            description: "add_practice_annotations_and_timing",
+            sql: include_str!("../migrations/0005_practice_sessions.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     tauri::Builder::default()
