@@ -18,7 +18,7 @@ export interface PublicExamImportResult {
 }
 
 function buildWholeExamMaterialText(exam: ParsedPublicExam): string {
-  return exam.materials
+  return [...exam.materials]
     .sort((left, right) => left.sourceNumber - right.sourceNumber)
     .map(material => material.content.replace(/\n\s*\n+/g, "\n").trim())
     .filter(Boolean)
@@ -47,8 +47,11 @@ function questionInputForTask(candidate: PublicSourceCandidate, exam: ParsedPubl
     score: task.score,
     wordLimit: task.wordLimit,
     prompt: taskPrompt(task),
+    // Compatibility fallback only. Structured materials below are the authoritative path.
     materialText: buildWholeExamMaterialText(exam),
-    materials: exam.materials.map(material => ({ label: material.label, content: material.content })),
+    materials: [...exam.materials]
+      .sort((left, right) => left.sourceNumber - right.sourceNumber)
+      .map(material => ({ label: material.label, content: material.content })),
     tags: [
       ...task.tags,
       ...(candidate.paperVariant ? [candidate.paperVariant] : []),
@@ -70,8 +73,9 @@ export async function previewPublicExam(candidate: PublicSourceCandidate): Promi
   if (candidate.sourceKind !== "public-web") {
     throw new Error("当前整卷自动解析仅支持公开 HTML 页面；PDF 将走独立 PDF 导入流程。");
   }
-  if (candidate.providerId !== "gkzhenti-public") {
-    throw new Error("当前仅对“公开真题库”启用结构化整卷解析；其他来源先用于发现与交叉核验。");
+  const provider = getPublicSourceProvider(candidate.providerId);
+  if (provider?.role !== "primary-structured") {
+    throw new Error("该来源当前只用于发现或交叉核验，尚未通过结构化整卷解析验证。" );
   }
   const response = await fetchPublicSourceText(candidate.sourceUrl);
   const exam = parseGkzhentiExamHtml(response.body, candidate);
@@ -85,6 +89,10 @@ export async function importPublicExam(preview: PublicExamPreview): Promise<Publ
   }
 
   const provider = getPublicSourceProvider(candidate.providerId);
+  if (provider?.role !== "primary-structured") {
+    throw new Error("只有经过结构化页面验证的主来源才能自动写入正式题库。" );
+  }
+
   const existingLinks = await publicSourceStore.listCandidateQuestionLinks(candidate.id);
   const linksByTask = new Map(existingLinks.map(link => [link.taskIndex, link]));
   const importedQuestions: Question[] = [];
@@ -105,7 +113,7 @@ export async function importPublicExam(preview: PublicExamPreview): Promise<Publ
     await publicSourceStore.saveQuestionSource({
       questionId: question.id,
       sourceKind: "public-web",
-      sourceName: provider?.name ?? candidate.providerId,
+      sourceName: provider.name,
       sourceUrl: candidate.sourceUrl,
       sourceTitle: candidate.title,
       retrievedAt,
