@@ -90,6 +90,30 @@ const missingSectionHeadingsFixture = `
 要求：观点明确，字数1000-1200字。
 `;
 
+const jiangsuHeadinglessFixture = `
+2018年江苏省公考《申论》真题（A类）
+二、给定材料
+材料1
+材料一正文。
+材料2
+材料二正文。
+材料3
+材料三正文。
+材料4
+材料四正文。
+材料5
+材料五正文。
+三、作答要求
+“给定资料3～5”列举的事例体现了心系他人的一些优良品质，请分别概括这些优良品质的具体表现。（15分）
+要求：紧扣给定资料，准确全面，条理清楚。篇幅不超过200字。
+“给定资料4”中展示了不同观点。对此，请谈谈你的看法。（20分）
+要求：准确全面，分析透彻，观点正确。篇幅250字左右。
+请以“给定资料5”中李阿姨女儿的名义，给刘医生所在医院写一封感谢信。（25分）
+要求：（1）内容完整，条理清晰；（2）情感真挚，有感染力；（3）篇幅400字左右。
+请结合对材料中一句话的理解，联系实际，自拟标题，写一篇议论文。（40分）
+要求：（1）观点明确；（2）结构完整；（3）篇幅1000字左右。
+`;
+
 describe("parseGkzhentiExamText", () => {
   it("extracts the full material corpus without losing natural paragraph breaks", () => {
     const exam = parseGkzhentiExamText(fixture, candidate);
@@ -132,6 +156,20 @@ describe("parseGkzhentiExamText", () => {
     expect(exam.tasks[1].tags).toContain("复合题");
     expect(exam.tasks[2].questionType).toBe("文章写作");
     expect(exam.tasks[2].wordLimit).toBe(1000);
+    expect(canImportParsedPublicExam(exam)).toBe(true);
+  });
+
+  it("supports recent Jiangsu papers whose task section has no explicit task ordinals", () => {
+    const exam = parseGkzhentiExamText(jiangsuHeadinglessFixture, candidate);
+    expect(exam.warnings).toEqual([]);
+    expect(exam.tasks).toHaveLength(4);
+    expect(exam.tasks[0].score).toBe(15);
+    expect(exam.tasks[0].wordLimit).toBe(200);
+    expect(exam.tasks[0].materialNumbers).toEqual([3, 4, 5]);
+    expect(exam.tasks[1].questionType).toBe("综合分析");
+    expect(exam.tasks[2].questionType).toBe("贯彻执行");
+    expect(exam.tasks[2].wordLimit).toBe(400);
+    expect(exam.tasks[3].questionType).toBe("文章写作");
     expect(canImportParsedPublicExam(exam)).toBe(true);
   });
 
@@ -182,6 +220,8 @@ describe("inferPublicQuestionType", () => {
     expect(inferPublicQuestionType("分析这一现象产生的原因。")).toBe("综合分析");
     expect(inferPublicQuestionType("针对问题提出进一步改进建议。")).toBe("提出对策");
     expect(inferPublicQuestionType("拟写一份工作简报。")).toBe("贯彻执行");
+    expect(inferPublicQuestionType("围绕新闻报道写一则短评。")).toBe("贯彻执行");
+    expect(inferPublicQuestionType("给医院写一封感谢信。")).toBe("贯彻执行");
     expect(inferPublicQuestionType("自选角度，自拟题目，写一篇文章。")).toBe("文章写作");
   });
 });
