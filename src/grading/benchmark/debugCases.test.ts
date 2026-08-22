@@ -9,11 +9,12 @@ const cases = [jqhCaseJson, nmyCaseJson, fpCaseJson] as GradingBenchmarkCase[];
 
 describe("repository debug benchmark fixtures", () => {
   it.each(cases.map(testCase => [testCase.id, testCase] as const))(
-    "%s is structurally valid and intentionally excluded from score calibration",
+    "%s is adjudicated for structure/mapping checks but excluded from score calibration",
     (_id, testCase) => {
       const result = validateBenchmarkCase(testCase);
       expect(result.errors).toEqual([]);
       expect(result.valid).toBe(true);
+      expect(testCase.annotationStatus).toBe("adjudicated");
       expect(testCase.split).toBe("debug");
       expect(testCase.gold.humanScores).toEqual([]);
       expect(result.warnings).toContain("case has no human score observation; score calibration metrics cannot use it");
