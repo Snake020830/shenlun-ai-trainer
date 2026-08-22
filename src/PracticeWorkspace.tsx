@@ -21,7 +21,16 @@ import {
   Underline,
   Undo2
 } from "lucide-react";
+import { errorMessage } from "./errorMessage";
 import { gradingService } from "./grading";
+import {
+  answerSheetCapacity,
+  answerSheetMarkers,
+  answerSheetRows,
+  countExamGridCells,
+  EXAM_GRID_COLUMNS,
+  recommendedPracticeSeconds
+} from "./practiceExamModel";
 import { anchorInkPoint, distanceToInkStroke, resolveInkPolyline } from "./practiceInkAnchors";
 import {
   getPracticeAnnotations,
@@ -43,9 +52,9 @@ type InkMode = "pen" | "eraser" | null;
 type MaterialView = "single" | "all";
 
 const MATERIAL_FONT_KEY = "shenlun:material-font-size:v2";
-const MATERIAL_FONT_MIN = 15;
-const MATERIAL_FONT_MAX = 22;
-const MATERIAL_FONT_DEFAULT = 17;
+const MATERIAL_FONT_MIN = 16;
+const MATERIAL_FONT_MAX = 24;
+const MATERIAL_FONT_DEFAULT = 18;
 const HIGHLIGHT_COLORS: Array<{ value: PracticeHighlightColor; label: string }> = [
   { value: "yellow", label: "黄色" },
   { value: "blue", label: "蓝色" },
@@ -62,10 +71,11 @@ function readMaterialFontSize(): number {
   return Number.isFinite(raw) ? clampMaterialFontSize(raw) : MATERIAL_FONT_DEFAULT;
 }
 
-function formatElapsed(totalSeconds: number): string {
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
+function formatDuration(totalSeconds: number): string {
+  const safeSeconds = Math.max(0, Math.floor(totalSeconds));
+  const hours = Math.floor(safeSeconds / 3600);
+  const minutes = Math.floor((safeSeconds % 3600) / 60);
+  const seconds = safeSeconds % 60;
   return hours > 0
     ? `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`
     : `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
@@ -300,14 +310,18 @@ function ReviewPanel({ review }: { review: MockReview }) {
 }
 
 export default function PracticeWorkspace({ question, onExit, onSubmitted }: { question: Question; onExit: () => void; onSubmitted: (record: TrainingRecord) => void }) {
+  const countdownSeconds = useMemo(
+    () => recommendedPracticeSeconds(question.wordLimit, question.type),
+    [question.type, question.wordLimit]
+  );
   const [answer, setAnswer] = useState("");
   const [review, setReview] = useState<MockReview | null>(null);
   const [rightOpen, setRightOpen] = useState(false);
   const [draftLoaded, setDraftLoaded] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const [timerRunning, setTimerRunning] = useState(false);
+  const [remainingSeconds, setRemainingSeconds] = useState(countdownSeconds);
+  const [timerRunning, setTimerRunning] = useState(true);
   const [annotationMode, setAnnotationMode] = useState<AnnotationMode>(null);
   const [inkMode, setInkMode] = useState<InkMode>(null);
   const [highlightColor, setHighlightColor] = useState<PracticeHighlightColor>("yellow");
@@ -320,6 +334,13 @@ export default function PracticeWorkspace({ question, onExit, onSubmitted }: { q
   const [materialView, setMaterialView] = useState<MaterialView>("single");
   const [materialFontSize, setMaterialFontSize] = useState(readMaterialFontSize);
   const chars = answer.replace(/\s/g, "").length;
+  const elapsedSeconds = Math.max(0, countdownSeconds - remainingSeconds);
+  const overtimeSeconds = Math.max(0, -remainingSeconds);
+  const gridCells = countExamGridCells(answer);
+  const gridRows = answerSheetRows(question.wordLimit);
+  const gridCapacity = answerSheetCapacity(question.wordLimit);
+  const gridMarkers = answerSheetMarkers(question.wordLimit);
+  const gridStyle = { "--answer-rows": gridRows } as React.CSSProperties;
   const activeMaterialIndex = Math.max(0, question.materials.findIndex(item => item.id === activeMaterialId));
   const visibleMaterials = useMemo(
     () => materialView === "all" ? question.materials : question.materials.filter(item => item.id === activeMaterialId),
@@ -337,8 +358,8 @@ export default function PracticeWorkspace({ question, onExit, onSubmitted }: { q
     setSelectedAnnotationId(null);
     setActiveMaterialId(question.materials[0]?.id ?? "");
     setMaterialView("single");
-    setElapsedSeconds(0);
-    setTimerRunning(false);
+    setRemainingSeconds(countdownSeconds);
+    setTimerRunning(true);
     Promise.all([
       getPracticeAnnotations(question.id).catch(error => {
         console.error("Failed to load practice annotations.", error);
@@ -356,7 +377,7 @@ export default function PracticeWorkspace({ question, onExit, onSubmitted }: { q
       setInkLoaded(true);
     });
     return () => { cancelled = true; };
-  }, [question.id, question.materials]);
+  }, [countdownSeconds, question.id, question.materials]);
 
   useEffect(() => {
     localStorage.setItem(MATERIAL_FONT_KEY, String(materialFontSize));
@@ -364,7 +385,7 @@ export default function PracticeWorkspace({ question, onExit, onSubmitted }: { q
 
   useEffect(() => {
     if (!timerRunning) return;
-    const timer = window.setInterval(() => setElapsedSeconds(value => value + 1), 1000);
+    const timer = window.setInterval(() => setRemainingSeconds(value => value - 1), 1000);
     return () => window.clearInterval(timer);
   }, [timerRunning]);
 
@@ -435,7 +456,8 @@ export default function PracticeWorkspace({ question, onExit, onSubmitted }: { q
       onSubmitted(record);
     } catch (error) {
       console.error("Failed to grade or save training record.", error);
-      setSubmitError("批改未完成，请重试");
+      setRightOpen(true);
+      setSubmitError(`批改失败：${errorMessage(error, "未知错误，请重试。")}`);
     } finally {
       setSubmitting(false);
     }
@@ -514,13 +536,14 @@ export default function PracticeWorkspace({ question, onExit, onSubmitted }: { q
 
   const persistenceStatus = submitError ?? (draftLoaded ? "已自动保存" : "正在读取草稿…");
   const isDemo = question.source !== "local";
+  const timerText = remainingSeconds >= 0 ? formatDuration(remainingSeconds) : `+${formatDuration(overtimeSeconds)}`;
 
   return <div className="practice-shell exam-practice-shell">
     <header className="practice-header exam-practice-header">
       <button className="text-button" onClick={onExit}>← 返回题库</button>
       <div className="practice-title-block"><strong>{question.title}</strong><span>{question.type} · {question.score} 分 · ≤ {question.wordLimit} 字</span></div>
       <div className="practice-header-actions">
-        <div className={`exam-timer ${timerRunning ? "running" : ""}`}><Clock3 size={16}/><strong>{formatElapsed(elapsedSeconds)}</strong><button title={timerRunning ? "暂停计时" : "开始计时"} onClick={() => setTimerRunning(value => !value)}>{timerRunning ? <Pause size={14}/> : <Play size={14}/>}</button><button title="计时归零" onClick={() => { setTimerRunning(false); setElapsedSeconds(0); }}><RotateCcw size={13}/></button></div>
+        <div className={`exam-timer ${timerRunning ? "running" : ""} ${remainingSeconds < 0 ? "overtime" : ""}`}><Clock3 size={16}/><strong>{timerText}</strong><small>{Math.round(countdownSeconds / 60)} 分钟建议</small><button title={timerRunning ? "暂停倒计时" : "继续倒计时"} onClick={() => setTimerRunning(value => !value)}>{timerRunning ? <Pause size={14}/> : <Play size={14}/>}</button><button title="重新开始本题倒计时" onClick={() => { setRemainingSeconds(countdownSeconds); setTimerRunning(true); }}><RotateCcw size={13}/></button></div>
         <button className="icon-button" title={rightOpen ? "收起批改栏" : "展开批改栏"} onClick={() => setRightOpen(value => !value)}>{rightOpen ? <PanelRightClose size={19}/> : <PanelRightOpen size={19}/>}</button>
       </div>
     </header>
@@ -582,13 +605,17 @@ export default function PracticeWorkspace({ question, onExit, onSubmitted }: { q
       <section className="answer-pane exam-answer-pane">
         <div className="prompt-box exam-prompt-box"><span>题目要求</span><p>{question.prompt}</p></div>
         <div className="grid-answer-wrap">
-          <div className="answer-paper-label"><span>你的作答</span><small>稿纸网格会始终保留</small></div>
-          <div className="grid-answer-stage">
+          <div className="answer-paper-label"><span>你的作答</span><small>每行 {EXAM_GRID_COLUMNS} 格 · 共 {gridRows} 行 · 按本题字数上限生成</small></div>
+          <div className="grid-answer-stage" style={gridStyle}>
             <div className="answer-grid-layer" aria-hidden="true"/>
+            <div className="answer-grid-markers" aria-hidden="true">
+              {gridMarkers.map(marker => <span key={marker} style={{ top: `${Math.min(100, marker / gridCapacity * 100)}%` }}>{marker}字线</span>)}
+            </div>
             <textarea className="grid-answer-input" spellCheck={false} value={answer} onChange={event => setAnswer(event.target.value)} placeholder={draftLoaded ? "" : "正在读取本地草稿……"} disabled={!draftLoaded}/>
           </div>
+          <div className="answer-sheet-hint"><span>字数 {chars}/{question.wordLimit}</span><span>稿纸占格 {gridCells}/{gridCapacity}</span><small>稿纸占格为书写模拟：常见数字两位一格，1. / 1、等短序号按一格；评分字数仍按提交文本独立统计。</small></div>
         </div>
-        <div className="answer-footer exam-answer-footer"><span className={chars > question.wordLimit ? "over-limit" : ""}>{chars} / {question.wordLimit} 字</span><span>{formatElapsed(elapsedSeconds)}</span><span className={submitError ? "over-limit" : ""}>{persistenceStatus}</span><button className="primary" disabled={chars < 10 || !draftLoaded || submitting} onClick={submit}><Sparkles size={16}/>{submitting ? "批改中…" : "提交批改"}</button></div>
+        <div className="answer-footer exam-answer-footer"><span className={chars > question.wordLimit ? "over-limit" : ""}>{chars} / {question.wordLimit} 字</span><span className={remainingSeconds < 0 ? "over-limit" : ""}>{timerText}</span><span className={submitError ? "over-limit" : ""} title={submitError ?? undefined}>{persistenceStatus}</span><button className="primary" disabled={chars < 10 || !draftLoaded || submitting} onClick={submit}><Sparkles size={16}/>{submitting ? "批改中…" : "提交批改"}</button></div>
       </section>
       {rightOpen && <aside className="review-pane">{review ? <ReviewPanel review={review}/> : <BeforeReview question={question}/>}</aside>}
     </div>
