@@ -1,65 +1,128 @@
 # DEVLOG
 
-## V0.1 — product shell
+## V0.1 — product shell + remote grading foundation
 
-### 已完成
+### 产品闭环
 
 - 建立 Tauri 2 + React + TypeScript + Vite 工程骨架。
-- 建立桌面端左侧导航与训练信息架构。
-- 完成今日训练、题库、三栏作答工作台、结构化模拟批改。
-- 新增手工题目导入：题型、分值、字数、标签、题干和多段材料可录入本地题库。
-- 每次提交保存 review snapshot，训练记录支持进入详情查看原答案与当次反馈。
-- 错题复盘从 review snapshot 中提取遗漏/部分覆盖要点形成队列。
-- 内置题按各自题型使用不同模拟规则；本地未知题只使用明确标识的通用模拟反馈。
+- 完成今日训练、题库、三栏作答工作台、结构化批改、错题复盘、训练记录详情。
+- 新增手工题目导入：题型、分值、字数、标签、题干、多段材料均可录入。
+- 导题时可选录入老师/机构参考答案；正常作答界面不展示参考答案。
+- 每次提交保存 immutable review snapshot；历史记录不会被未来模型或规则升级静默重算。
 
 ### SQLite 与持久化
 
-- persistence adapter 已全部改为异步接口。
-- Tauri 桌面运行时已接入 `tauri-plugin-sql` SQLite；浏览器开发模式继续使用 localStorage fallback。
-- SQLite V1 包含 `app_meta / questions / materials / drafts / training_records`。
-- `materials` 使用 `(question_id, id)` 复合主键，避免不同题目的材料局部 ID 冲突。
-- 旧 V0.1 localStorage 题目、草稿和训练记录支持首次启动迁移。
-- 迁移完成标记保存在 SQLite `app_meta`，数据库重建后可重新迁移，失败时也允许安全重试。
-- 草稿加载增加“先读后写”门禁，避免异步初始化时空答案覆盖旧草稿。
-- 启动 hydration 与当前会话数据按 ID 合并，避免初始化覆盖启动期间产生的新题目或新记录。
+- persistence adapter 全部异步化。
+- Tauri 桌面运行时使用 `tauri-plugin-sql` SQLite；浏览器开发模式保留 localStorage fallback。
+- SQLite V1：`app_meta / questions / materials / drafts / training_records`。
+- SQLite V2：`questions` 增加 `reference_answer_content / reference_answer_source`。
+- `materials` 使用 `(question_id, id)` 复合主键。
+- 旧 localStorage 题目、草稿和训练记录支持幂等迁移至 SQLite。
+- 草稿采用“先读后写”门禁，启动 hydration 与当前会话状态按 ID 合并。
+- provider 公开配置存入 `app_meta`；secret-like public setting key 直接拒绝。
 
-### 评分架构
+### 评分规则与 contract
 
-- 新增 `rules/shenlun-grading.md`，冻结模型无关的评分方法论 v0.1.0。
-- 新增 `rules/error-taxonomy.json`，定义遗漏、要素混淆、过度抽象、机制缺失、情态错置等错误类型。
-- 新增 `src/grading/contracts.ts`：`GradingRequest / GradingProvider / StructuredReview` contract 与结果验证。
-- 新增 `src/grading/artifacts.ts`：材料盲抽、rubric、答案映射、字数审计、参考答案交叉验证的中间结构 schema。
-- 新增 `mockProvider` 并让答题提交通过统一 `gradingService`；页面不再直接调用关键词评分器。
-- `StructuredReview` 保存 provider/ruleset/generation provenance；旧 `MockReview` 名称仅保留兼容别名。
-- provider 返回非法结构、越界分数或满分不匹配时 fail closed，不生成训练记录。
-- 明确不保存模型私有 chain-of-thought，只保留可审计的结构化证据和诊断。
+- `rules/shenlun-grading.md`：模型无关评分方法论 v0.1.0。
+- `rules/error-taxonomy.json`：遗漏、部分覆盖、要素混淆、过度抽象、过度合并、机制缺失、情态错置等错误 taxonomy。
+- `StructuredReview` 保存 provider/ruleset/generation/scoring policy provenance。
+- provider 返回非法结构、越界分数、满分不匹配时 fail closed。
+- 不保存模型私有 chain-of-thought，只保存可审计结构化证据和诊断。
 
-### CI
+### 五阶段 remote workflow
 
-- Frontend CI：Node 24，执行 TypeScript + Vite build。
-- Desktop CI：Windows runner + stable Rust，执行前端 build 与 Tauri `cargo check`。
-- 修复过 tsconfig、Node typings、Tauri Windows icon 等真实构建问题。
-- SQLite 初始接线版本已通过 Windows Desktop CI。
-- 两条 workflow 已加入 concurrency，新提交自动取消同分支旧 run。
+已实现：
+
+1. 材料盲抽；
+2. rubric 构造；
+3. 考生答案逐点映射；
+4. 字数与表达审计；
+5. 可选老师/机构参考答案交叉验证。
+
+运行时 validators 会检查：
+
+- material/candidate/rubric ID 唯一性与引用关系；
+- 每个 rubric point 必须存在 mapping；
+- error taxonomy code 必须有效；
+- charCount 必须与真实答案一致；
+- wordLimit 不允许被模型改写；
+- review 输出结构与分值范围必须有效。
+
+### 参考答案隔离
+
+- `questionPayload()` 不包含 `referenceAnswer`。
+- Stage 1–4 完全看不到已保存参考答案。
+- Stage 5 才显式收到 reference answer。
+- 新增回归测试，使用唯一标记验证 Stage 1–4 不泄漏、Stage 5 明确注入。
+- Stage 5 输出进入 StructuredReview snapshot，可在当前批改与历史复盘中查看。
+- Reference cross-check 不回写盲抽 rubric，也不自动改变本次 score。
+
+### Score policy
+
+- 当前 policy：`equal-rubric-diagnostic@0.1.0`。
+- 当前状态：`uncalibrated`。
+- policy 与材料抽取/映射层解耦，未来可基于人工 benchmark 整体替换。
+- UI 与 summary 明确说明当前数值不能解释为正式阅卷分。
+
+### Remote provider 与推理配置
+
+- 支持 OpenAI-compatible Responses API 与 Chat Completions。
+- 默认使用 Responses API，remote provider 默认关闭。
+- Responses 请求显式 `store: false`。
+- 五阶段不再强制 `temperature`。
+- 新增 `reasoningEffort` 公开配置：Provider 默认 / Low / Medium / High / XHigh。
+- `provider-default` 表示请求中完全不发送 reasoning effort。
+- Responses 模式发送 `reasoning: { effort }`；Chat compatibility 暂不发送 reasoning 字段。
+- 设置页会在 Chat 模式禁用推理强度控件，避免假配置。
+
+### 凭据与网络安全
+
+- Rust `keyring` 使用 OS 原生凭据库保存 API key。
+- React 无 API key 读取接口；只允许写入/删除。
+- Rust `secure_post_json` 在发请求时通过 `secretRef` 读取凭据。
+- 使用 reqwest；禁止自动 redirect。
+- 只允许 HTTPS，localhost 开发例外。
+- URL 禁止内嵌 username/password。
+- timeout 1–300 秒；响应体最大 2 MiB。
+- provider HTTP 错误不回显原始 body。
+- provider public config 采用字段 allow-list，`apiKey/bearerToken` 等额外字段无法混入普通持久化。
+
+### 设置页
+
+已启用真正的评分引擎控制页：
+
+- remote 开关；
+- Responses / Chat protocol；
+- model；
+- base URL；
+- reasoning effort；
+- timeout；
+- public config 保存/恢复；
+- API key 写入/删除系统凭据库；
+- 主动连接测试。
+
+浏览器 Vite 模式禁止启用 remote grading。
+
+### CI / 测试
+
+- Frontend CI：Node 24 + Vitest + TypeScript/Vite build。
+- Desktop CI：Windows + Node 24 + stable Rust + frontend build + `cargo check`。
+- keyring + reqwest + Tauri secure commands 已有 Windows `cargo check` 成功记录。
+- concurrency 自动取消同分支过时 run。
+- 单测覆盖 remote protocol、provider config、public config sanitizer、workflow validation、review assembler、score policy、参考答案隔离等关键边界。
 
 ### 当前边界
 
-- 模拟批改仍只用于验证产品交互，不是正式 AI 评分。
-- 规则 contract 已建立，但真实 provider 尚未接入。
-- 设置页暂不放 API key 等无效配置，等安全凭据方案确定后启用。
+- Remote workflow 已具备真实模型调用能力，但当前 score policy 未校准，因此不是正式 AI 阅卷分。
+- 未在用户真实桌面环境完成 API key 写入/连接测试/一次完整五阶段真实 provider 人工验收。
+- 未建立人工批改 benchmark。
+- 未做 PDF/图片/OCR 真题导入、能力画像、自适应推荐、整卷模考。
 
 ### 下一阶段
 
-1. 建立默认关闭的 OpenAI-compatible provider adapter；
-2. 设计凭据安全存储，不把明文 API key 写入普通 SQLite、源码或日志；
-3. 实现五阶段真实评分 workflow；
-4. 加入老师/机构答案的 Stage 5 交叉验证；
-5. 建立人工标注题集，评估评分一致性、遗漏率和错误分类准确率；
-6. 达到验证门槛后才允许真实 AI provider 成为默认评分引擎。
-
-### 尚未完成
-
-- 未接入真实 AI 批改与材料级要点识别。
-- 未接老师/机构答案的评分后对照。
-- 未做 PDF/图片/OCR 真题导入。
-- 未做能力画像、自适应推荐、整卷模考、倒计时与套题管理。
+1. 跑最终 Frontend/Desktop CI，冻结这一版工程基线；
+2. 使用真实桌面环境完成凭据与 provider 端到端验收；
+3. 建立人工标注 benchmark：材料候选点、rubric、答案映射、错误 taxonomy、人工分数；
+4. 比较模型输出与人工 gold set，优先评估遗漏率/错误归类，再校准 score policy；
+5. 只有达到门槛后才把 `calibrationStatus` 从 `uncalibrated` 提升为 `validated`；
+6. 再进入 PDF/OCR、能力画像、自适应推荐等扩展能力。
