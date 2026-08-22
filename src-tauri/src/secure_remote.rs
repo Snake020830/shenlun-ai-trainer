@@ -8,6 +8,7 @@ use serde_json::Value;
 const CREDENTIAL_SERVICE: &str = "shenlun-ai-trainer";
 const MAX_RESPONSE_BYTES: usize = 2 * 1024 * 1024;
 const MAX_SECRET_BYTES: usize = 16 * 1024;
+const MAX_PROVIDER_ERROR_CHARS: usize = 600;
 
 fn validate_secret_ref(secret_ref: &str) -> Result<(), String> {
     let valid_len = !secret_ref.is_empty() && secret_ref.len() <= 96;
@@ -46,6 +47,23 @@ fn validate_remote_url(raw: &str) -> Result<reqwest::Url, String> {
         return Err("Remote provider must use HTTPS except for localhost development.".to_string());
     }
     Ok(url)
+}
+
+fn provider_error_detail(bytes: &[u8]) -> Option<String> {
+    let parsed = serde_json::from_slice::<Value>(bytes).ok();
+    let message = parsed
+        .as_ref()
+        .and_then(|value| value.get("error"))
+        .and_then(|error| error.get("message"))
+        .and_then(Value::as_str)
+        .or_else(|| parsed.as_ref().and_then(|value| value.get("message")).and_then(Value::as_str))
+        .map(str::to_owned)
+        .or_else(|| String::from_utf8(bytes.to_vec()).ok());
+
+    message.map(|value| {
+        let compact = value.split_whitespace().collect::<Vec<_>>().join(" ");
+        compact.chars().take(MAX_PROVIDER_ERROR_CHARS).collect::<String>()
+    }).filter(|value| !value.is_empty())
 }
 
 #[derive(Debug, Deserialize)]
@@ -101,7 +119,7 @@ pub async fn secure_post_json(request: SecurePostRequest) -> Result<SecurePostRe
         .json(&request.body)
         .send()
         .await
-        .map_err(|_| "Remote provider request failed.".to_string())?;
+        .map_err(|error| format!("Remote provider request failed: {}", error))?;
 
     let status = response.status();
     let request_id = response
@@ -111,9 +129,6 @@ pub async fn secure_post_json(request: SecurePostRequest) -> Result<SecurePostRe
         .and_then(|value| value.to_str().ok())
         .map(str::to_owned);
 
-    if !status.is_success() {
-        return Err(format!("Remote provider request failed with HTTP {}.", status.as_u16()));
-    }
     if response.content_length().is_some_and(|length| length as usize > MAX_RESPONSE_BYTES) {
         return Err("Remote provider response exceeded the size limit.".to_string());
     }
@@ -121,12 +136,39 @@ pub async fn secure_post_json(request: SecurePostRequest) -> Result<SecurePostRe
     let bytes = response
         .bytes()
         .await
-        .map_err(|_| "Could not read remote provider response.".to_string())?;
+        .map_err(|error| format!("Could not read remote provider response: {}", error))?;
     if bytes.len() > MAX_RESPONSE_BYTES {
         return Err("Remote provider response exceeded the size limit.".to_string());
     }
+
+    if !status.is_success() {
+        let detail = provider_error_detail(&bytes);
+        return Err(match detail {
+            Some(detail) => format!("Remote provider request failed with HTTP {}: {}", status.as_u16(), detail),
+            None => format!("Remote provider request failed with HTTP {}.", status.as_u16()),
+        });
+    }
+
     let body = serde_json::from_slice::<Value>(&bytes)
         .map_err(|_| "Remote provider returned invalid JSON.".to_string())?;
 
     Ok(SecurePostResponse { body, request_id })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn extracts_provider_error_message() {
+        let detail = provider_error_detail(br#"{\"error\":{\"message\":\"bad request payload\"}}"#);
+        assert_eq!(detail.as_deref(), Some("bad request payload"));
+    }
+
+    #[test]
+    fn truncates_provider_error_detail() {
+        let long = "x".repeat(MAX_PROVIDER_ERROR_CHARS + 100);
+        let detail = provider_error_detail(long.as_bytes()).expect("detail");
+        assert_eq!(detail.chars().count(), MAX_PROVIDER_ERROR_CHARS);
+    }
 }
