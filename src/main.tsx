@@ -4,6 +4,7 @@ import App from "./App";
 import "./styles.css";
 import "./extended.css";
 import "./visualPolish.css";
+import "./publicExamVariants.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
