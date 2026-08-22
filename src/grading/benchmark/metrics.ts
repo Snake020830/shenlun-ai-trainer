@@ -1,5 +1,6 @@
 import type {
-  AlignedBenchmarkPrediction,
+  BenchmarkAlignment,
+  BenchmarkModelRun,
   GradingBenchmarkCase,
   MappingConfusionCounts,
   MappingQualityMetrics,
@@ -7,6 +8,7 @@ import type {
   ScoreCalibrationMetrics,
   TaxonomyQualityMetrics
 } from "./types";
+import type { ReviewPoint } from "../../types";
 
 function emptyConfusion(): MappingConfusionCounts {
   return {
@@ -46,26 +48,52 @@ function sameStringSet(left: string[], right: string[]): boolean {
   return left.every(value => rightSet.has(value));
 }
 
+function validateModelRun(testCase: GradingBenchmarkCase, run: BenchmarkModelRun): void {
+  assertAdjudicated(testCase);
+  if (run.caseId !== testCase.id) throw new Error("Model run caseId does not match benchmark case.");
+  if (!run.runId.trim()) throw new Error("Model run runId is required.");
+  if (run.maxScore !== testCase.question.maxScore) {
+    throw new Error(`Model run maxScore ${run.maxScore} does not match benchmark maxScore ${testCase.question.maxScore}.`);
+  }
+  if (!Number.isFinite(run.predictedScore) || run.predictedScore < 0 || run.predictedScore > run.maxScore) {
+    throw new Error(`Predicted score for ${testCase.id} is outside 0..maxScore.`);
+  }
+
+  const rubricIds = run.rubric.map(item => item.id);
+  assertUniqueStrings(rubricIds, "model-run rubric id");
+  const rubricIdSet = new Set(rubricIds);
+  const mappingIds = run.mappings.map(item => item.predictedRubricPointId);
+  assertUniqueStrings(mappingIds, "model-run mapping rubric id");
+  const mappingIdSet = new Set(mappingIds);
+
+  for (const rubricId of rubricIds) {
+    if (!mappingIdSet.has(rubricId)) throw new Error(`Model run is missing answer mapping for ${rubricId}.`);
+  }
+  for (const mappingId of mappingIds) {
+    if (!rubricIdSet.has(mappingId)) throw new Error(`Model run mapping references unknown rubric ${mappingId}.`);
+  }
+}
+
 function validateRubricAlignment(
   testCase: GradingBenchmarkCase,
-  prediction: AlignedBenchmarkPrediction
+  run: BenchmarkModelRun,
+  alignment: BenchmarkAlignment
 ): {
   coveredGold: Set<string>;
   supportedPredicted: Set<string>;
   predictedByGold: Map<string, string[]>;
 } {
-  assertAdjudicated(testCase);
-  if (prediction.caseId !== testCase.id) throw new Error("Prediction caseId does not match benchmark case.");
-  if (!prediction.runId.trim()) throw new Error("Aligned prediction runId is required.");
-  assertUniqueStrings(prediction.predictedRubricPointIds, "predicted rubric point id");
+  validateModelRun(testCase, run);
+  if (alignment.caseId !== testCase.id) throw new Error("Alignment caseId does not match benchmark case.");
+  if (alignment.runId !== run.runId) throw new Error("Alignment runId does not match model run.");
 
   const goldIds = new Set(testCase.gold.rubric.map(item => item.id));
-  const predictedIds = new Set(prediction.predictedRubricPointIds);
+  const predictedIds = new Set(run.rubric.map(item => item.id));
   const coveredGold = new Set<string>();
   const supportedPredicted = new Set<string>();
   const predictedByGold = new Map<string, string[]>();
 
-  for (const [index, group] of prediction.rubricAlignments.entries()) {
+  for (const [index, group] of alignment.rubricAlignments.entries()) {
     if (!group.goldRubricPointIds.length || !group.predictedRubricPointIds.length) {
       throw new Error(`Rubric alignment group ${index} must include both gold and predicted ids.`);
     }
@@ -89,7 +117,7 @@ function validateRubricAlignment(
       predictedByGold.set(goldId, [...group.predictedRubricPointIds]);
     }
     for (const predictedId of group.predictedRubricPointIds) {
-      if (!predictedIds.has(predictedId)) throw new Error(`Rubric alignment references undeclared predicted rubric ${predictedId}.`);
+      if (!predictedIds.has(predictedId)) throw new Error(`Rubric alignment references unknown model-run rubric ${predictedId}.`);
       if (supportedPredicted.has(predictedId)) throw new Error(`Predicted rubric ${predictedId} appears in multiple alignment groups.`);
       supportedPredicted.add(predictedId);
     }
@@ -98,36 +126,64 @@ function validateRubricAlignment(
   return { coveredGold, supportedPredicted, predictedByGold };
 }
 
-function validateAnswerMappingLinks(
+function validateMappingLinks(
   testCase: GradingBenchmarkCase,
-  prediction: AlignedBenchmarkPrediction,
+  run: BenchmarkModelRun,
+  alignment: BenchmarkAlignment,
   predictedByGold: Map<string, string[]>
 ): void {
-  assertUniqueStrings(prediction.mappings.map(item => item.goldRubricPointId), "aligned prediction");
+  assertUniqueStrings(alignment.mappingLinks.map(item => item.goldRubricPointId), "answer mapping link");
   const goldIds = new Set(testCase.gold.rubric.map(item => item.id));
+  const runRubricIds = new Set(run.rubric.map(item => item.id));
 
-  for (const mapping of prediction.mappings) {
-    if (!goldIds.has(mapping.goldRubricPointId)) {
-      throw new Error(`Aligned prediction references unknown gold rubric ${mapping.goldRubricPointId}.`);
+  for (const link of alignment.mappingLinks) {
+    if (!goldIds.has(link.goldRubricPointId)) {
+      throw new Error(`Answer mapping link references unknown gold rubric ${link.goldRubricPointId}.`);
     }
-    const expectedPredicted = predictedByGold.get(mapping.goldRubricPointId);
+    const expectedPredicted = predictedByGold.get(link.goldRubricPointId);
     if (!expectedPredicted) {
-      throw new Error(`Answer mapping references gold rubric ${mapping.goldRubricPointId} that is not covered by rubric alignment.`);
+      throw new Error(`Answer mapping link references gold rubric ${link.goldRubricPointId} that is not covered by rubric alignment.`);
     }
-    assertUniqueStrings(mapping.predictedRubricPointIds, `predicted mapping id for ${mapping.goldRubricPointId}`);
-    if (!sameStringSet(mapping.predictedRubricPointIds, expectedPredicted)) {
-      throw new Error(`Answer mapping for ${mapping.goldRubricPointId} does not match its rubric alignment group.`);
+    assertUniqueStrings(link.predictedRubricPointIds, `predicted mapping id for ${link.goldRubricPointId}`);
+    for (const predictedId of link.predictedRubricPointIds) {
+      if (!runRubricIds.has(predictedId)) throw new Error(`Answer mapping link references unknown model-run rubric ${predictedId}.`);
+    }
+    if (!sameStringSet(link.predictedRubricPointIds, expectedPredicted)) {
+      throw new Error(`Answer mapping link for ${link.goldRubricPointId} does not match its rubric alignment group.`);
     }
   }
 }
 
+function aggregatePredictedJudgment(
+  run: BenchmarkModelRun,
+  predictedRubricPointIds: string[]
+): { status: ReviewPoint["status"]; errorCodes: string[] } {
+  if (!predictedRubricPointIds.length) throw new Error("Cannot aggregate an empty predicted rubric set.");
+  const mappingById = new Map(run.mappings.map(item => [item.predictedRubricPointId, item]));
+  const mappings = predictedRubricPointIds.map(id => {
+    const mapping = mappingById.get(id);
+    if (!mapping) throw new Error(`Model run is missing answer mapping for ${id}.`);
+    return mapping;
+  });
+
+  const statuses = mappings.map(item => item.status);
+  const status: ReviewPoint["status"] = statuses.every(item => item === "hit")
+    ? "hit"
+    : statuses.every(item => item === "missed")
+      ? "missed"
+      : "partial";
+  const errorCodes = [...new Set(mappings.flatMap(item => item.errorCodes))];
+  return { status, errorCodes };
+}
+
 export function calculateRubricQuality(
   testCase: GradingBenchmarkCase,
-  prediction: AlignedBenchmarkPrediction
+  run: BenchmarkModelRun,
+  alignment: BenchmarkAlignment
 ): RubricQualityMetrics {
-  const { coveredGold, supportedPredicted } = validateRubricAlignment(testCase, prediction);
+  const { coveredGold, supportedPredicted } = validateRubricAlignment(testCase, run, alignment);
   const goldIds = testCase.gold.rubric.map(item => item.id);
-  const predictedIds = prediction.predictedRubricPointIds;
+  const predictedIds = run.rubric.map(item => item.id);
   const recall = safeRatio(coveredGold.size, goldIds.length);
   const precision = safeRatio(supportedPredicted.size, predictedIds.length);
 
@@ -146,37 +202,40 @@ export function calculateRubricQuality(
 
 export function calculateMappingQuality(
   testCase: GradingBenchmarkCase,
-  prediction: AlignedBenchmarkPrediction
+  run: BenchmarkModelRun,
+  alignment: BenchmarkAlignment
 ): MappingQualityMetrics {
-  const { predictedByGold } = validateRubricAlignment(testCase, prediction);
-  validateAnswerMappingLinks(testCase, prediction, predictedByGold);
+  const { predictedByGold } = validateRubricAlignment(testCase, run, alignment);
+  validateMappingLinks(testCase, run, alignment, predictedByGold);
 
   const goldById = new Map(testCase.gold.mappings.map(item => [item.rubricPointId, item]));
   const confusion = emptyConfusion();
   let correct = 0;
 
-  for (const mapping of prediction.mappings) {
-    const gold = goldById.get(mapping.goldRubricPointId);
-    if (!gold) throw new Error(`Gold answer mapping is missing rubric ${mapping.goldRubricPointId}.`);
-    confusion[gold.status][mapping.predictedStatus] += 1;
-    if (gold.status === mapping.predictedStatus) correct += 1;
+  for (const link of alignment.mappingLinks) {
+    const gold = goldById.get(link.goldRubricPointId);
+    if (!gold) throw new Error(`Gold answer mapping is missing rubric ${link.goldRubricPointId}.`);
+    const predicted = aggregatePredictedJudgment(run, link.predictedRubricPointIds);
+    confusion[gold.status][predicted.status] += 1;
+    if (gold.status === predicted.status) correct += 1;
   }
 
   return {
-    alignedPointCount: prediction.mappings.length,
+    alignedPointCount: alignment.mappingLinks.length,
     goldPointCount: testCase.gold.rubric.length,
-    mappingCoverage: safeRatio(prediction.mappings.length, testCase.gold.rubric.length),
-    exactStatusAccuracy: safeRatio(correct, prediction.mappings.length),
+    mappingCoverage: safeRatio(alignment.mappingLinks.length, testCase.gold.rubric.length),
+    exactStatusAccuracy: safeRatio(correct, alignment.mappingLinks.length),
     confusion
   };
 }
 
 export function calculateTaxonomyQuality(
   testCase: GradingBenchmarkCase,
-  prediction: AlignedBenchmarkPrediction
+  run: BenchmarkModelRun,
+  alignment: BenchmarkAlignment
 ): TaxonomyQualityMetrics {
-  const { predictedByGold } = validateRubricAlignment(testCase, prediction);
-  validateAnswerMappingLinks(testCase, prediction, predictedByGold);
+  const { predictedByGold } = validateRubricAlignment(testCase, run, alignment);
+  validateMappingLinks(testCase, run, alignment, predictedByGold);
 
   const goldById = new Map(testCase.gold.mappings.map(item => [item.rubricPointId, item]));
   let truePositive = 0;
@@ -184,11 +243,11 @@ export function calculateTaxonomyQuality(
   let falseNegative = 0;
   let labelDecisionCount = 0;
 
-  for (const mapping of prediction.mappings) {
-    const gold = goldById.get(mapping.goldRubricPointId);
-    if (!gold) throw new Error(`Gold answer mapping is missing rubric ${mapping.goldRubricPointId}.`);
+  for (const link of alignment.mappingLinks) {
+    const gold = goldById.get(link.goldRubricPointId);
+    if (!gold) throw new Error(`Gold answer mapping is missing rubric ${link.goldRubricPointId}.`);
     const expected = new Set(gold.expectedErrorCodes);
-    const predicted = new Set(mapping.predictedErrorCodes);
+    const predicted = new Set(aggregatePredictedJudgment(run, link.predictedRubricPointIds).errorCodes);
     const universe = new Set([...expected, ...predicted]);
     labelDecisionCount += universe.size;
 
@@ -216,14 +275,12 @@ export function calculateTaxonomyQuality(
 
 export function calculateScoreCalibration(
   cases: GradingBenchmarkCase[],
-  predictions: AlignedBenchmarkPrediction[]
+  runs: BenchmarkModelRun[]
 ): ScoreCalibrationMetrics {
-  const predictionsByCase = new Map<string, AlignedBenchmarkPrediction>();
-  for (const prediction of predictions) {
-    if (predictionsByCase.has(prediction.caseId)) {
-      throw new Error(`Duplicate score prediction for benchmark case ${prediction.caseId}.`);
-    }
-    predictionsByCase.set(prediction.caseId, prediction);
+  const runsByCase = new Map<string, BenchmarkModelRun>();
+  for (const run of runs) {
+    if (runsByCase.has(run.caseId)) throw new Error(`Duplicate score model run for benchmark case ${run.caseId}.`);
+    runsByCase.set(run.caseId, run);
   }
 
   const absoluteErrors: number[] = [];
@@ -233,19 +290,16 @@ export function calculateScoreCalibration(
   let observationCount = 0;
 
   for (const testCase of cases) {
-    const prediction = predictionsByCase.get(testCase.id);
-    if (!prediction || !testCase.gold.humanScores.length) continue;
-    assertAdjudicated(testCase);
+    const run = runsByCase.get(testCase.id);
+    if (!run || !testCase.gold.humanScores.length) continue;
+    validateModelRun(testCase, run);
     if (testCase.split !== "calibration" && testCase.split !== "holdout") {
       throw new Error(`Benchmark case ${testCase.id} is not in calibration/holdout split and cannot be used for score calibration.`);
-    }
-    if (!Number.isFinite(prediction.predictedScore) || prediction.predictedScore < 0 || prediction.predictedScore > testCase.question.maxScore) {
-      throw new Error(`Predicted score for ${testCase.id} is outside 0..maxScore.`);
     }
 
     observationCount += testCase.gold.humanScores.length;
     const humanTarget = testCase.gold.humanScores.reduce((sum, item) => sum + item.score, 0) / testCase.gold.humanScores.length;
-    const error = prediction.predictedScore - humanTarget;
+    const error = run.predictedScore - humanTarget;
     absoluteErrors.push(Math.abs(error));
     squaredErrors.push(error * error);
     signedErrors.push(error);
@@ -254,7 +308,6 @@ export function calculateScoreCalibration(
 
   const mean = (values: number[]) => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
   const mse = mean(squaredErrors);
-
   return {
     caseCount: absoluteErrors.length,
     observationCount,
@@ -265,20 +318,27 @@ export function calculateScoreCalibration(
   };
 }
 
-export function hasCompleteRubricAlignment(testCase: GradingBenchmarkCase, prediction: AlignedBenchmarkPrediction): boolean {
+export function hasCompleteRubricAlignment(
+  testCase: GradingBenchmarkCase,
+  run: BenchmarkModelRun,
+  alignment: BenchmarkAlignment
+): boolean {
   try {
-    const metrics = calculateRubricQuality(testCase, prediction);
+    const metrics = calculateRubricQuality(testCase, run, alignment);
     return metrics.unmatchedGoldRubricPointIds.length === 0 && metrics.unmatchedPredictedRubricPointIds.length === 0;
   } catch {
     return false;
   }
 }
 
-export function hasCompleteAlignment(testCase: GradingBenchmarkCase, prediction: AlignedBenchmarkPrediction): boolean {
-  if (!hasCompleteRubricAlignment(testCase, prediction)) return false;
+export function hasCompleteAlignment(
+  testCase: GradingBenchmarkCase,
+  run: BenchmarkModelRun,
+  alignment: BenchmarkAlignment
+): boolean {
+  if (!hasCompleteRubricAlignment(testCase, run, alignment)) return false;
   try {
-    const metrics = calculateMappingQuality(testCase, prediction);
-    return metrics.mappingCoverage === 1;
+    return calculateMappingQuality(testCase, run, alignment).mappingCoverage === 1;
   } catch {
     return false;
   }
