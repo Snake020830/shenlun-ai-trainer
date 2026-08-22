@@ -45,6 +45,14 @@ export interface ReviewPoint {
   errorCodes?: string[];
 }
 
+export interface ReviewReferenceCrossCheck {
+  source?: string;
+  blindRubricMissingDimensions: string[];
+  referenceOnlyDimensions: string[];
+  mergeDifferences: string[];
+  notes: string[];
+}
+
 export interface StructuredReview {
   score: number;
   maxScore: number;
@@ -54,6 +62,7 @@ export interface StructuredReview {
   redundancy: string;
   summary: string;
   points: ReviewPoint[];
+  referenceCrossCheck?: ReviewReferenceCrossCheck;
   engine?: string;
   providerId?: string;
   rulesetVersion?: string;
