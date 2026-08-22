@@ -43,7 +43,7 @@ describe("public source discovery", () => {
     expect(candidates[1]).toMatchObject({
       year: 2025,
       region: "广东",
-      paperVariant: "行政执法卷/行政执法"
+      paperVariant: "行政执法卷"
     });
   });
 
@@ -66,7 +66,8 @@ describe("public source discovery", () => {
     const candidates = discoverShenlunCandidatesFromLinks(provider, [
       { href: "/paper/a", title: "2024年国家公务员考试《申论》卷（副省级）" },
       { href: "/paper/b", title: "2025年公务员多省联考《申论》题（河南县级卷）" },
-      { href: "/paper/c", title: "2025年浙江省公考《申论》题（A卷）" }
+      { href: "/paper/c", title: "2025年浙江省公考《申论》题（A卷）" },
+      { href: "/paper/d", title: "2025年四川省公考《申论》题（县乡、普通选调卷）" }
     ]);
 
     expect(candidates[0].region).toBe("国家");
@@ -75,5 +76,6 @@ describe("public source discovery", () => {
     expect(candidates[1].paperVariant).toContain("县级");
     expect(candidates[2].region).toBe("浙江");
     expect(candidates[2].paperVariant).toBe("A卷");
+    expect(candidates[3].paperVariant).toBe("县乡/普通选调");
   });
 });
