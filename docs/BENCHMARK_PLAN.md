@@ -1,4 +1,4 @@
-# 申论评分 Benchmark / Calibration 方案 v0.1
+# 申论评分 Benchmark / Calibration 方案 v0.2
 
 ## 1. 为什么必须有 benchmark
 
@@ -15,9 +15,38 @@
 
 因此模型、prompt、reasoning effort 和 score policy 都必须在同一套人工 benchmark 上比较。
 
-## 2. Gold case 的最小结构
+## 2. 数据对象严格分三层
 
-每个 case 固定保存：
+### Layer A：Benchmark Case / Human Gold
+
+保存题目快照、真实考生答案以及独立人工标注结果。
+
+case 有明确生命周期：
+
+- `annotationStatus: draft`：只完成题目/答案快照，gold 尚未完成；
+- `annotationStatus: adjudicated`：人工材料点、rubric、答案映射已经完成 adjudication。
+
+任何 evaluation metric 都拒绝使用 draft case。
+
+### Layer B：Benchmark Model Run
+
+保存模型原始输出，不做 gold 化改写：
+
+- 模型自己的 rubric id / title / evidence；
+- 模型自己的 hit / partial / missed；
+- 模型自己的 error codes / diagnosis；
+- predicted score；
+- provider / model / ruleset / scoring policy / generatedAt。
+
+Model Run 是不可变实验记录。人工对齐不得覆盖或修改原始 run。
+
+### Layer C：Human Alignment
+
+在 Model Run 与 Human Gold 之间建立显式对齐。
+
+rubric alignment 与 answer mapping alignment 分开处理，避免把“模型漏 rubric 点”和“考生漏答案点”混为同一错误。
+
+## 3. Gold case 的最小结构
 
 ### 题目快照
 
@@ -61,7 +90,7 @@
 
 允许多个 assessor 独立打分。benchmark 不把第一个人的分数直接当真值；score calibration 默认与该 case 的人工评分均值比较，同时保留原始 observation 以分析阅卷者分歧。
 
-## 3. 数据 split
+## 4. 数据 split
 
 支持：
 
@@ -71,15 +100,27 @@
 
 同一道题的同源答案、轻微改写答案、同一考生的重复版本原则上不得跨 calibration / holdout，以减少信息泄漏。
 
-## 4. Rubric 对齐纪律
+`score calibration` 只接受：
 
-模型生成的 rubric 文本不会机械等于人工 canonical label。
+- `annotationStatus = adjudicated`；
+- split 为 `calibration` 或 `holdout`；
+- 至少存在一个真实 human score observation。
 
-因此正式指标计算前必须建立：
+debug case 即使人为填入分数也不得用于 score calibration。
 
-`predicted rubric point -> gold rubric point`
+## 5. Rubric 对齐纪律
 
-的显式 alignment。
+模型 rubric 文本不会机械等于人工 canonical label，因此不能直接靠标题字符串相等。
+
+每个 Model Run 必须先声明模型生成的全部 `predictedRubricPointIds`，再建立 `rubricAlignments`。
+
+允许三类关系：
+
+- `match`：1 个 gold ↔ 1 个 predicted；
+- `acceptable-merge`：多个 gold ↔ 1 个 predicted；
+- `acceptable-split`：1 个 gold ↔ 多个 predicted。
+
+每个 gold/predicted rubric id 只能进入一个 alignment group，避免重复计数。
 
 alignment 可以由：
 
@@ -87,36 +128,33 @@ alignment 可以由：
 2. 后续独立 alignment judge + 人工复核；
 3. 高置信度规则映射。
 
-完成，但不能直接靠标题字符串相等。
-
-每条 alignment 可记录：
-
-- predictedRubricPointId；
-- goldRubricPointId；
-- confidence：high / medium / low；
-- alignment notes。
-
 低置信度 alignment 不应混入最终自动评价而不做人工检查。
 
-## 5. 核心指标
+## 6. 核心指标
 
-### A. 材料与 rubric 层
+### A. Rubric 质量
 
-首阶段先做人工审计型指标：
+在显式 rubric alignment 后计算：
 
-- 独立信息维度遗漏；
-- 无材料依据的新增维度；
-- 过度合并；
-- 不合理拆分；
-- 要素类型错误；
-- 机制/限定丢失。
+- gold rubric recall；
+- predicted rubric precision；
+- rubric F1；
+- unmatched gold rubric ids；
+- unmatched predicted rubric ids。
 
-这部分不能仅靠字符串匹配，第一版以人工 adjudication 为主。
+这层回答的是：**模型自己构造的评分框架有没有漏点、乱加点。**
+
+例如模型漏掉一个 gold rubric，但对剩余 rubric 的学生答案判断全对：
+
+- rubric recall 会下降；
+- mapping accuracy 可以仍然很高；
+- 两者不会互相掩盖。
 
 ### B. 答案映射层
 
-对完成 gold alignment 的 rubric points 计算：
+只对 rubric alignment 已覆盖的 gold points 计算：
 
+- mapping coverage；
 - exact status accuracy；
 - `hit / partial / missed` confusion matrix。
 
@@ -139,7 +177,7 @@ alignment 可以由：
 
 ### D. Score calibration
 
-对具有人类分数 observation 的 case 计算：
+对具有人类分数 observation 的 adjudicated calibration/holdout case 计算：
 
 - MAE；
 - RMSE；
@@ -167,7 +205,37 @@ alignment 可以由：
 
 当前代码已经有静态请求隔离测试；真实 provider benchmark 仍需验证实际输出隔离。
 
-## 6. 比较模型/推理强度
+## 7. 当前数据目录
+
+- `benchmark/cases/debug/`：仓库内置模拟题形成的 adjudicated debug fixtures；无人工分数，不参与 score calibration。
+- `benchmark/cases/calibration/`：真实、独立人工标注并用于调参的 case。
+- `benchmark/cases/holdout/`：冻结后只做最终验证的 case。
+
+当前 debug fixtures 已覆盖：
+
+- hit；
+- partial；
+- missed；
+- `OMISSION`；
+- `PARTIAL_COVERAGE`；
+- `OVER_ABSTRACTION`；
+- `MECHANISM_LOSS`。
+
+## 8. 真实题进入 benchmark 的流程
+
+1. 从真实训练题目和一次真实答案生成 benchmark draft；
+2. draft 只保存题目、材料、答案、参考答案快照，gold 保持空白；
+3. 人工材料盲抽；
+4. 人工 rubric adjudication；
+5. 人工 answer mapping + taxonomy；
+6. 记录真实 human score observations；
+7. `annotationStatus` 改为 `adjudicated`；
+8. 固定 split；
+9. 运行模型，保存 immutable Model Run；
+10. 人工完成 rubric alignment；
+11. 再计算 rubric/mapping/taxonomy/score 指标。
+
+## 9. 比较模型/推理强度
 
 比较模型时固定：
 
@@ -189,7 +257,7 @@ alignment 可以由：
 
 不能因为某模型“写得更像老师”就认定更好。
 
-## 7. Calibration 与 holdout
+## 10. Calibration 与 holdout
 
 score policy 只能在 calibration split 上调整。
 
@@ -204,7 +272,7 @@ score policy 只能在 calibration split 上调整。
 
 holdout 结果不理想时，应记录失败原因并进入下一版本开发，而不是在同一 holdout 上反复调到好看。
 
-## 8. `validated` 的含义
+## 11. `validated` 的含义
 
 `calibrationStatus = validated` 不应由“程序能跑”触发。
 
@@ -213,19 +281,22 @@ holdout 结果不理想时，应记录失败原因并进入下一版本开发，
 - benchmark 覆盖哪些题型和难度；
 - 有多少独立人工标注；
 - 人工标注者一致性如何；
-- 模型在哪些维度表现可靠；
-- 哪些 error taxonomy 仍不可靠；
-- score MAE/RMSE/系统偏差是多少；
+- rubric recall/precision/F1；
+- mapping coverage 与 status accuracy；
+- 哪些 error taxonomy 可靠、哪些仍不可靠；
+- score MAE/RMSE/系统偏差；
 - holdout 是否独立；
-- 当前已知失败边界是什么。
+- 当前已知失败边界。
 
 在这些证据形成前，应用只能显示“实验/未校准评分”。
 
-## 9. 当前代码入口
+## 12. 当前代码入口
 
-- `src/grading/benchmark/types.ts`：gold case、aligned prediction、指标类型；
-- `src/grading/benchmark/validateCase.ts`：gold case 完整性检查；
-- `src/grading/benchmark/metrics.ts`：mapping、taxonomy、score calibration 指标；
-- `src/grading/benchmark/benchmark.test.ts`：validator 与指标回归测试。
+- `src/grading/benchmark/types.ts`：gold case、model run、alignment 与指标类型；
+- `src/grading/benchmark/createDraft.ts`：真实题目/答案生成 annotation draft；
+- `src/grading/benchmark/modelRun.ts`：冻结模型原始 rubric/mapping/score 输出；
+- `src/grading/benchmark/validateCase.ts`：gold case 完整性与 annotation lifecycle 检查；
+- `src/grading/benchmark/metrics.ts`：rubric、mapping、taxonomy、score calibration 指标；
+- `src/grading/benchmark/*.test.ts`：validator、fixture、draft、model-run 与指标回归测试。
 
-下一步不是先追求大样本数量，而是先用少量高质量 case 把标注协议、对齐规则和 adjudication 流程跑通，再扩大 benchmark。
+下一步不是追求 case 数量，而是把少量真实训练记录按上述流程完整走一遍，再扩大 benchmark。
