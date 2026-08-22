@@ -1,0 +1,130 @@
+.library-preview-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  padding: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(31, 42, 36, .32);
+  backdrop-filter: blur(2px);
+}
+
+.library-exam-preview.library-exam-preview-modal {
+  width: min(920px, 100%);
+  max-height: min(84vh, 820px);
+  overflow: hidden;
+  box-shadow: 0 24px 70px rgba(28, 42, 34, .22);
+}
+
+.library-exam-preview-modal .library-preview-tasks {
+  max-height: 52vh;
+}
+
+.library-preview-loading {
+  min-height: 240px;
+  padding: 36px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-align: center;
+}
+
+.library-preview-loading svg {
+  color: #40614f;
+  animation: library-preview-spin 1s linear infinite;
+}
+
+.library-preview-loading strong {
+  color: #33413a;
+  font-size: 15px;
+}
+
+.library-preview-loading span {
+  max-width: 680px;
+  color: #5f6b64;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.library-preview-loading small {
+  color: #858d88;
+  font-size: 10px;
+}
+
+.library-preview-error {
+  min-height: 220px;
+  display: grid;
+  gap: 16px;
+  align-content: start;
+}
+
+.library-preview-error > header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.library-preview-error > header span {
+  color: #9b6a2c;
+  font-size: 10px;
+}
+
+.library-preview-error h3 {
+  margin: 5px 0 0;
+}
+
+.library-preview-error > p {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid #ead7b8;
+  border-radius: 9px;
+  background: #fff7e8;
+  color: #765528;
+  font-size: 11px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+.library-preview-error > div {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+
+.library-preview-error a {
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid #d9e1dc;
+  border-radius: 7px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #52645a;
+  font-size: 10px;
+  text-decoration: none;
+}
+
+@keyframes library-preview-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 760px) {
+  .library-preview-backdrop {
+    padding: 12px;
+    align-items: flex-start;
+  }
+
+  .library-exam-preview.library-exam-preview-modal {
+    margin-top: 12px;
+    max-height: 92vh;
+  }
+
+  .library-preview-error > div {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
