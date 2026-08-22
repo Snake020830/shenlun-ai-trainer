@@ -25,6 +25,12 @@ pub fn run() {
             sql: include_str!("../migrations/0003_benchmark_drafts.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 4,
+            description: "add_benchmark_model_runs_and_alignments",
+            sql: include_str!("../migrations/0004_benchmark_runs_alignments.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     tauri::Builder::default()
