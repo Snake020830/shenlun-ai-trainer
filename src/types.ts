@@ -52,6 +52,8 @@ export interface StructuredReview {
   providerId?: string;
   rulesetVersion?: string;
   generatedAt?: string;
+  scoringPolicy?: string;
+  calibrationStatus?: "mock" | "uncalibrated" | "validated";
 }
 
 // Backward-compatible alias for V0.1 files and historical review snapshots.
