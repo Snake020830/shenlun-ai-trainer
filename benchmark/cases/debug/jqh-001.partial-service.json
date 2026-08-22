@@ -2,6 +2,7 @@
   "schemaVersion": "0.1.0",
   "id": "debug-jqh-001-partial-service",
   "tags": ["debug", "概括归纳", "机构改革", "机制层"],
+  "annotationStatus": "adjudicated",
   "split": "debug",
   "question": {
     "id": "q-jqh-001",
@@ -26,106 +27,23 @@
   "answer": "一是整合机构和人员，推动主体局合署办公；二是下沉审批权限和职能力量；三是建立项目专员服务机制。",
   "gold": {
     "materialPoints": [
-      {
-        "id": "mp-jqh-01",
-        "materialId": "m1",
-        "canonicalLabel": "班子人员一体化",
-        "elementType": "measure",
-        "evidence": "实行一个班子、一套人员",
-        "independentDimension": true
-      },
-      {
-        "id": "mp-jqh-02",
-        "materialId": "m1",
-        "canonicalLabel": "主体局合署办公",
-        "elementType": "measure",
-        "evidence": "发改、航空经济等主体局与功能区合署办公",
-        "independentDimension": true
-      },
-      {
-        "id": "mp-jqh-03",
-        "materialId": "m2",
-        "canonicalLabel": "内设机构整合压减",
-        "elementType": "measure",
-        "evidence": "原有 21 个内设机构整合为 6 个",
-        "independentDimension": true
-      },
-      {
-        "id": "mp-jqh-04",
-        "materialId": "m1",
-        "canonicalLabel": "职能力量下沉延伸",
-        "elementType": "measure",
-        "evidence": "多个职能局下沉力量，事项局将服务延伸至功能区",
-        "independentDimension": true
-      },
-      {
-        "id": "mp-jqh-05",
-        "materialId": "m2",
-        "canonicalLabel": "涉企审批事项下沉",
-        "elementType": "measure",
-        "evidence": "174 项涉企审批事项下沉",
-        "independentDimension": true
-      },
-      {
-        "id": "mp-jqh-06",
-        "materialId": "m2",
-        "canonicalLabel": "首席服务员加项目专员",
-        "elementType": "measure",
-        "evidence": "建立“首席服务员+项目专员”机制",
-        "independentDimension": true
-      },
-      {
-        "id": "mp-jqh-07",
-        "materialId": "m2",
-        "canonicalLabel": "重点项目一对一全流程服务",
-        "elementType": "mechanism",
-        "evidence": "为重点项目提供一对一全流程服务",
-        "independentDimension": true
-      }
+      { "id": "mp-jqh-01", "materialId": "m1", "canonicalLabel": "班子人员一体化", "elementType": "measure", "evidence": "实行一个班子、一套人员", "independentDimension": true },
+      { "id": "mp-jqh-02", "materialId": "m1", "canonicalLabel": "主体局合署办公", "elementType": "measure", "evidence": "发改、航空经济等主体局与功能区合署办公", "independentDimension": true },
+      { "id": "mp-jqh-03", "materialId": "m2", "canonicalLabel": "内设机构整合压减", "elementType": "measure", "evidence": "原有 21 个内设机构整合为 6 个", "independentDimension": true },
+      { "id": "mp-jqh-04", "materialId": "m1", "canonicalLabel": "职能力量下沉延伸", "elementType": "measure", "evidence": "多个职能局下沉力量，事项局将服务延伸至功能区", "independentDimension": true },
+      { "id": "mp-jqh-05", "materialId": "m2", "canonicalLabel": "涉企审批事项下沉", "elementType": "measure", "evidence": "174 项涉企审批事项下沉", "independentDimension": true },
+      { "id": "mp-jqh-06", "materialId": "m2", "canonicalLabel": "首席服务员加项目专员", "elementType": "measure", "evidence": "建立“首席服务员+项目专员”机制", "independentDimension": true },
+      { "id": "mp-jqh-07", "materialId": "m2", "canonicalLabel": "重点项目一对一全流程服务", "elementType": "mechanism", "evidence": "为重点项目提供一对一全流程服务", "independentDimension": true }
     ],
     "rubric": [
-      {
-        "id": "r-jqh-01",
-        "canonicalLabel": "整合机构人员并实行合署办公",
-        "elementType": "measure",
-        "materialPointIds": ["mp-jqh-01", "mp-jqh-02", "mp-jqh-03"],
-        "evidence": ["一个班子、一套人员", "主体局与功能区合署办公", "21 个内设机构整合为 6 个"]
-      },
-      {
-        "id": "r-jqh-02",
-        "canonicalLabel": "推动审批权限和职能力量下沉",
-        "elementType": "measure",
-        "materialPointIds": ["mp-jqh-04", "mp-jqh-05"],
-        "evidence": ["职能局下沉力量并延伸服务", "174 项涉企审批事项下沉"]
-      },
-      {
-        "id": "r-jqh-03",
-        "canonicalLabel": "建立首席加专员的一对一全流程服务机制",
-        "elementType": "mechanism",
-        "materialPointIds": ["mp-jqh-06", "mp-jqh-07"],
-        "evidence": ["首席服务员+项目专员", "一对一全流程服务"]
-      }
+      { "id": "r-jqh-01", "canonicalLabel": "整合机构人员并实行合署办公", "elementType": "measure", "materialPointIds": ["mp-jqh-01", "mp-jqh-02", "mp-jqh-03"], "evidence": ["一个班子、一套人员", "主体局与功能区合署办公", "21 个内设机构整合为 6 个"] },
+      { "id": "r-jqh-02", "canonicalLabel": "推动审批权限和职能力量下沉", "elementType": "measure", "materialPointIds": ["mp-jqh-04", "mp-jqh-05"], "evidence": ["职能局下沉力量并延伸服务", "174 项涉企审批事项下沉"] },
+      { "id": "r-jqh-03", "canonicalLabel": "建立首席加专员的一对一全流程服务机制", "elementType": "mechanism", "materialPointIds": ["mp-jqh-06", "mp-jqh-07"], "evidence": ["首席服务员+项目专员", "一对一全流程服务"] }
     ],
     "mappings": [
-      {
-        "rubricPointId": "r-jqh-01",
-        "status": "hit",
-        "expectedErrorCodes": [],
-        "answerExcerpt": "整合机构和人员，推动主体局合署办公"
-      },
-      {
-        "rubricPointId": "r-jqh-02",
-        "status": "hit",
-        "expectedErrorCodes": [],
-        "answerExcerpt": "下沉审批权限和职能力量"
-      },
-      {
-        "rubricPointId": "r-jqh-03",
-        "status": "partial",
-        "expectedErrorCodes": ["PARTIAL_COVERAGE", "MECHANISM_LOSS"],
-        "answerExcerpt": "建立项目专员服务机制",
-        "notes": "方向正确，但漏掉首席服务员、一对一和全流程三个关键机制信息。"
-      }
+      { "rubricPointId": "r-jqh-01", "status": "hit", "expectedErrorCodes": [], "answerExcerpt": "整合机构和人员，推动主体局合署办公" },
+      { "rubricPointId": "r-jqh-02", "status": "hit", "expectedErrorCodes": [], "answerExcerpt": "下沉审批权限和职能力量" },
+      { "rubricPointId": "r-jqh-03", "status": "partial", "expectedErrorCodes": ["PARTIAL_COVERAGE", "MECHANISM_LOSS"], "answerExcerpt": "建立项目专员服务机制", "notes": "方向正确，但漏掉首席服务员、一对一和全流程三个关键机制信息。" }
     ],
     "humanScores": []
   },
