@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { GradingProviderOutput } from "../contracts";
 import { createBenchmarkModelRun } from "./modelRun";
+import { GRADING_WORKFLOW_VERSION, STAGE_PROMPTSET_VERSION } from "../versions";
 
 const output: GradingProviderOutput = {
   review: {
@@ -49,15 +50,41 @@ const output: GradingProviderOutput = {
 };
 
 describe("benchmark model run snapshot", () => {
-  it("preserves predicted rubric and mapping ids before human alignment", () => {
-    const run = createBenchmarkModelRun("case-1", output, { runId: "run-1", model: "model-x" });
+  it("preserves predicted output and experiment provenance before human alignment", () => {
+    const run = createBenchmarkModelRun("case-1", output, {
+      runId: "run-1",
+      model: "model-x",
+      protocol: "openai-responses",
+      reasoningEffort: "high"
+    });
     expect(run.caseId).toBe("case-1");
     expect(run.runId).toBe("run-1");
     expect(run.predictedScore).toBe(8);
     expect(run.providerId).toBe("remote:test");
     expect(run.model).toBe("model-x");
+    expect(run.protocol).toBe("openai-responses");
+    expect(run.reasoningEffort).toBe("high");
+    expect(run.workflowVersion).toBe(GRADING_WORKFLOW_VERSION);
+    expect(run.promptsetVersion).toBe(STAGE_PROMPTSET_VERSION);
+    expect(run.referenceCrossCheckUsed).toBe(false);
     expect(run.rubric[0].id).toBe("pred-r1");
     expect(run.mappings[0].predictedRubricPointId).toBe("pred-r1");
+  });
+
+  it("records whether Stage 5 reference cross-check actually ran", () => {
+    const withReference: GradingProviderOutput = {
+      ...output,
+      artifacts: output.artifacts ? {
+        ...output.artifacts,
+        referenceCrossCheck: {
+          blindRubricMissingDimensions: [],
+          referenceOnlyDimensions: [],
+          mergeDifferences: [],
+          notes: ["checked"]
+        }
+      } : undefined
+    };
+    expect(createBenchmarkModelRun("case-1", withReference, { runId: "run-ref" }).referenceCrossCheckUsed).toBe(true);
   });
 
   it("requires workflow artifacts rather than reconstructing them from review prose", () => {
