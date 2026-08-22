@@ -10,6 +10,11 @@ function endpoint(baseUrl: string, path: string): string {
   return new URL(path.replace(/^\//, ""), normalized).toString();
 }
 
+function responsesReasoning(config: RemoteProviderPublicConfig): Record<string, unknown> {
+  if (config.reasoningEffort === "provider-default") return {};
+  return { reasoning: { effort: config.reasoningEffort } };
+}
+
 export function encodeRemoteCall(
   config: RemoteProviderPublicConfig,
   request: RemoteJsonRequest
@@ -22,6 +27,7 @@ export function encodeRemoteCall(
         instructions: request.instructions,
         input: request.input,
         store: false,
+        ...responsesReasoning(config),
         ...(request.temperature === undefined ? {} : { temperature: request.temperature }),
         text: {
           format: request.jsonSchema
@@ -37,6 +43,8 @@ export function encodeRemoteCall(
     };
   }
 
+  // Compatibility mode deliberately omits reasoning controls. OpenAI-compatible
+  // Chat Completions providers vary widely in whether and how they expose them.
   return {
     url: endpoint(config.baseUrl, "chat/completions"),
     body: {
