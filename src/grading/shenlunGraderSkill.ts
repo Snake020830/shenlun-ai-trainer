@@ -8,7 +8,7 @@ import {
 } from "./contracts";
 import { resolveGradingService } from "./serviceResolver";
 
-export const SHENLUN_GRADER_SKILL_VERSION = "shenlun-grader-skill@0.1.0";
+export const SHENLUN_GRADER_SKILL_VERSION = "shenlun-grader-skill@0.2.0";
 
 export interface ShenlunGraderPreflight {
   questionId: string;
