@@ -1,0 +1,108 @@
+{
+  "schemaVersion": "0.1.0",
+  "id": "debug-fp-003-partial-system-analysis",
+  "tags": ["debug", "提出对策", "基层治理", "过度抽象"],
+  "split": "debug",
+  "question": {
+    "id": "q-fp-003",
+    "title": "围绕精准扶贫提出基层工作建议",
+    "type": "提出对策",
+    "maxScore": 15,
+    "wordLimit": 300,
+    "prompt": "根据材料中反映的问题，就提高基层精准帮扶质效提出建议。不超过 300 字。",
+    "materials": [
+      {
+        "id": "m1",
+        "label": "材料 1",
+        "content": "部分基层帮扶仍停留在解决个别困难，缺少对产业、就业、教育、医疗等致贫因素的系统分析；部门数据分散，帮扶措施之间缺乏协同。"
+      }
+    ]
+  },
+  "answer": "建议建立部门数据共享平台，强化跨部门协同联动，并根据群众困难分类施策。",
+  "gold": {
+    "materialPoints": [
+      {
+        "id": "mp-fp-01",
+        "materialId": "m1",
+        "canonicalLabel": "个别困难式帮扶",
+        "elementType": "problem",
+        "evidence": "仍停留在解决个别困难",
+        "independentDimension": true
+      },
+      {
+        "id": "mp-fp-02",
+        "materialId": "m1",
+        "canonicalLabel": "缺少多维致贫因素系统分析",
+        "elementType": "problem",
+        "evidence": "缺少对产业、就业、教育、医疗等致贫因素的系统分析",
+        "independentDimension": true
+      },
+      {
+        "id": "mp-fp-03",
+        "materialId": "m1",
+        "canonicalLabel": "部门数据分散",
+        "elementType": "problem",
+        "evidence": "部门数据分散",
+        "independentDimension": true
+      },
+      {
+        "id": "mp-fp-04",
+        "materialId": "m1",
+        "canonicalLabel": "帮扶措施缺乏协同",
+        "elementType": "problem",
+        "evidence": "帮扶措施之间缺乏协同",
+        "independentDimension": true
+      }
+    ],
+    "rubric": [
+      {
+        "id": "r-fp-01",
+        "canonicalLabel": "系统识别和分析多维致贫因素",
+        "elementType": "measure",
+        "materialPointIds": ["mp-fp-01", "mp-fp-02"],
+        "evidence": ["从解决个别困难上升到系统分析产业、就业、教育、医疗等致贫因素"]
+      },
+      {
+        "id": "r-fp-02",
+        "canonicalLabel": "打通部门数据并形成共享支撑",
+        "elementType": "measure",
+        "materialPointIds": ["mp-fp-03"],
+        "evidence": ["针对部门数据分散建立共享、归集或统一台账机制"]
+      },
+      {
+        "id": "r-fp-03",
+        "canonicalLabel": "强化跨部门协同统筹",
+        "elementType": "measure",
+        "materialPointIds": ["mp-fp-04"],
+        "evidence": ["针对帮扶措施缺乏协同建立联动、统筹或闭环机制"]
+      }
+    ],
+    "mappings": [
+      {
+        "rubricPointId": "r-fp-01",
+        "status": "partial",
+        "expectedErrorCodes": ["PARTIAL_COVERAGE", "OVER_ABSTRACTION"],
+        "answerExcerpt": "根据群众困难分类施策",
+        "notes": "有分类施策方向，但没有把产业、就业、教育、医疗等多维致贫因素的系统识别和分析写出来。"
+      },
+      {
+        "rubricPointId": "r-fp-02",
+        "status": "hit",
+        "expectedErrorCodes": [],
+        "answerExcerpt": "建立部门数据共享平台"
+      },
+      {
+        "rubricPointId": "r-fp-03",
+        "status": "hit",
+        "expectedErrorCodes": [],
+        "answerExcerpt": "强化跨部门协同联动"
+      }
+    ],
+    "humanScores": []
+  },
+  "provenance": {
+    "source": "仓库内置模拟题；仅用于 debug，不参与 score calibration",
+    "annotatedAt": "2026-08-22",
+    "adjudicationNotes": "对策必须与材料问题一一对应；系统分析维度故意设计为部分覆盖。"
+  }
+}
