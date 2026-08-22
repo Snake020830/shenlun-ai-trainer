@@ -49,12 +49,12 @@ export function createRemoteWorkflowProvider(
         transport.completeJson<unknown>(buildWordBudgetRequest(question, answer))
       ]);
       const mappingOutput = validateAnswerMapping(mappingResponse.data, rubricIds);
-      const wordBudgetOutput = validateWordBudget(wordBudgetResponse.data, question.wordLimit);
-
       const actualCharCount = answer.replace(/\s/g, "").length;
-      if (wordBudgetOutput.wordBudget.charCount !== actualCharCount) {
-        throw new Error("Invalid grading artifact: model-reported charCount does not match the submitted answer.");
-      }
+      const wordBudgetOutput = validateWordBudget(
+        wordBudgetResponse.data,
+        question.wordLimit,
+        actualCharCount
+      );
 
       let referenceCrossCheck: GradingWorkflowArtifacts["referenceCrossCheck"];
       if (referenceAnswer?.content.trim()) {
