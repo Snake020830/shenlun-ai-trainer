@@ -15,6 +15,19 @@ function responsesReasoning(config: RemoteProviderPublicConfig): Record<string, 
   return { reasoning: { effort: config.reasoningEffort } };
 }
 
+function isDeepSeekBaseUrl(baseUrl: string): boolean {
+  try {
+    return new URL(baseUrl).hostname.toLowerCase() === "api.deepseek.com";
+  } catch {
+    return false;
+  }
+}
+
+function deepSeekJsonInstructions(request: RemoteJsonRequest): string {
+  if (!request.jsonSchema) return request.instructions;
+  return `${request.instructions}\n\n请只输出合法 JSON 对象，不要使用 Markdown 代码块或附加解释。输出必须严格遵循以下 JSON Schema：\n${JSON.stringify(request.jsonSchema)}`;
+}
+
 export function encodeRemoteCall(
   config: RemoteProviderPublicConfig,
   request: RemoteJsonRequest
@@ -43,28 +56,34 @@ export function encodeRemoteCall(
     };
   }
 
-  // Compatibility mode deliberately omits reasoning controls. OpenAI-compatible
+  const deepSeek = isDeepSeekBaseUrl(config.baseUrl);
+
+  // Compatibility mode deliberately omits generic reasoning controls. OpenAI-compatible
   // Chat Completions providers vary widely in whether and how they expose them.
+  // DeepSeek currently supports JSON Output via response_format=json_object rather than
+  // OpenAI's json_schema response format, so the schema is supplied in the prompt instead.
   return {
     url: endpoint(config.baseUrl, "chat/completions"),
     body: {
       model: config.model,
       messages: [
-        { role: "system", content: request.instructions },
+        { role: "system", content: deepSeek ? deepSeekJsonInstructions(request) : request.instructions },
         { role: "user", content: request.input }
       ],
-      store: false,
+      ...(deepSeek ? {} : { store: false }),
       ...(request.temperature === undefined ? {} : { temperature: request.temperature }),
-      response_format: request.jsonSchema
-        ? {
-            type: "json_schema",
-            json_schema: {
-              name: request.schemaName,
-              schema: request.jsonSchema,
-              strict: false
+      response_format: deepSeek
+        ? { type: "json_object" }
+        : request.jsonSchema
+          ? {
+              type: "json_schema",
+              json_schema: {
+                name: request.schemaName,
+                schema: request.jsonSchema,
+                strict: false
+              }
             }
-          }
-        : { type: "json_object" }
+          : { type: "json_object" }
     }
   };
 }
