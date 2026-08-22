@@ -37,6 +37,12 @@ pub fn run() {
             sql: include_str!("../migrations/0005_practice_sessions.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 6,
+            description: "add_public_question_sources",
+            sql: include_str!("../migrations/0006_public_question_sources.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     tauri::Builder::default()
