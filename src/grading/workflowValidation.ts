@@ -162,7 +162,11 @@ export function validateAnswerMapping(value: unknown, rubricIds: Set<string>): A
   return value as unknown as AnswerMappingOutput;
 }
 
-export function validateWordBudget(value: unknown, expectedWordLimit: number): WordBudgetOutput {
+export function validateWordBudget(
+  value: unknown,
+  expectedWordLimit: number,
+  deterministicCharCount?: number
+): WordBudgetOutput {
   assertObject(value, "word budget output");
   const budget = value.wordBudget;
   assertObject(budget, "wordBudget");
@@ -176,6 +180,23 @@ export function validateWordBudget(value: unknown, expectedWordLimit: number): W
   if (budget.charCount < 0 || budget.wordLimit <= 0) {
     throw new Error("Invalid grading artifact: word budget counts must be non-negative and wordLimit positive.");
   }
+
+  if (deterministicCharCount !== undefined) {
+    if (!Number.isInteger(deterministicCharCount) || deterministicCharCount < 0) {
+      throw new Error("Invalid deterministic charCount.");
+    }
+    return {
+      wordBudget: {
+        charCount: deterministicCharCount,
+        wordLimit: expectedWordLimit,
+        overLimit: deterministicCharCount > expectedWordLimit,
+        redundantExcerpts: budget.redundantExcerpts,
+        lowValueExcerpts: budget.lowValueExcerpts,
+        compressionAdvice: budget.compressionAdvice
+      }
+    };
+  }
+
   if (budget.wordLimit !== expectedWordLimit) {
     throw new Error("Invalid grading artifact: model changed the question word limit.");
   }
