@@ -12,6 +12,7 @@ import {
   summarizePublicExamAudit,
   summarizePublicExamImport
 } from "./publicExamBatch";
+import { initializeRecentPublicExamLibrary } from "./publicExamBootstrap";
 import { canImportParsedPublicExam } from "./publicExamParser";
 import { importPublicExam, previewPublicExam, type PublicExamPreview } from "./publicExamImporter";
 import { discoverProviderCandidates, getPublicExamYearRange, isRecentPublicExamYear } from "./publicSourceDiscovery";
@@ -49,7 +50,7 @@ export default function PublicSourceCatalogSection() {
   const [candidates, setCandidates] = useState<PublicSourceCandidate[]>([]);
   const [busyProvider, setBusyProvider] = useState<string | null>(null);
   const [busyCandidate, setBusyCandidate] = useState<string | null>(null);
-  const [batchMode, setBatchMode] = useState<"audit" | "retry" | "import" | null>(null);
+  const [batchMode, setBatchMode] = useState<"bootstrap" | "audit" | "retry" | "import" | null>(null);
   const [batchProgress, setBatchProgress] = useState<{ done: number; total: number; title: string } | null>(null);
   const [query, setQuery] = useState("");
   const [providerFilter, setProviderFilter] = useState("all");
@@ -146,6 +147,40 @@ export default function PublicSourceCatalogSection() {
     !group.hasImportedVersion && group.members.some(isAuditedImportableCandidate)
   ).length, [primaryGroups]);
   const importedGroupCount = useMemo(() => primaryGroups.filter(group => group.hasImportedVersion).length, [primaryGroups]);
+
+  async function bootstrapRecentLibrary() {
+    if (!desktop || batchMode || busyProvider || busyCandidate || !primaryProvider) return;
+    const accepted = window.confirm(
+      `将从主公开来源扫描 ${yearRange.minYear}—${yearRange.maxYear} 申论整卷，并自动完成“发现 → 结构校验 → 导入”。已完成项会复用，失败/阻断项会保留供单独重试。继续吗？`
+    );
+    if (!accepted) return;
+
+    setBatchMode("bootstrap");
+    setBatchProgress({ done: 0, total: 1, title: "扫描公开真题索引" });
+    setStatus(`正在初始化 ${yearRange.minYear}—${yearRange.maxYear} 申论题库；过程可重复运行，已完成项不会重复入库。`);
+    try {
+      const result = await initializeRecentPublicExamLibrary({
+        delayMs: 500,
+        onProgress: progress => {
+          const phase = progress.phase === "scan" ? "扫描" : progress.phase === "audit" ? "校验" : progress.phase === "import" ? "导入" : "完成";
+          setBatchProgress({ done: progress.done, total: progress.total, title: `${phase} · ${progress.title}` });
+        }
+      });
+      await reload();
+      setStatus(
+        `题库初始化完成：本次扫描识别 ${result.discoveredThisRun} 个来源版本；新增校验通过 ${result.audit.ready} 套，`
+        + `本次导入 ${result.import.imported} 套、形成/复用 ${result.import.questionCount} 道训练题；`
+        + `当前主来源共 ${result.finalImportedPaperCount}/${result.candidateCount} 套已入库。`
+        + `${result.audit.blocked + result.audit.error ? ` 另有 ${result.audit.blocked} 套结构阻断、${result.audit.error} 套读取错误，可用“重试失败项”继续处理。` : ""}`
+      );
+    } catch (error) {
+      console.error("Public exam library bootstrap failed.", error);
+      setStatus(error instanceof Error ? error.message : "题库初始化失败。");
+    } finally {
+      setBatchMode(null);
+      setBatchProgress(null);
+    }
+  }
 
   async function runBatchAudit(retryFailuresOnly: boolean) {
     if (!desktop || batchMode || busyProvider || busyCandidate || !primaryProvider) return;
@@ -256,7 +291,7 @@ export default function PublicSourceCatalogSection() {
     </div>
 
     <div className="public-source-batch-panel">
-      <div><ListChecks size={18}/><div><strong>近10年题库初始化</strong><span>按唯一整卷统计；每次运行都会从上次状态继续，不重复下载已完成项。</span></div></div>
+      <div><ListChecks size={18}/><div><strong>近10年题库初始化</strong><span>按唯一整卷统计；一键流程会自动扫描、校验并导入，每次运行都从上次状态继续。</span></div></div>
       <div className="public-source-batch-stats">
         <span>待校验 <strong>{pendingAuditCandidates.length}</strong></span>
         <span>已通过 <strong>{auditedReadyCount}</strong></span>
@@ -264,9 +299,10 @@ export default function PublicSourceCatalogSection() {
         <span>已入库 <strong>{importedGroupCount}</strong></span>
       </div>
       <div className="public-source-batch-actions">
+        <button className="primary" disabled={!desktop || batchMode !== null || busyProvider !== null || busyCandidate !== null || !primaryProvider} onClick={() => void bootstrapRecentLibrary()}><Download size={14}/>{batchMode === "bootstrap" ? "初始化中…" : "一键初始化近10年题库"}</button>
         <button className="secondary" disabled={!desktop || batchMode !== null || busyProvider !== null || busyCandidate !== null || !primaryProvider || pendingAuditCandidates.length === 0} onClick={() => void runBatchAudit(false)}><ListChecks size={14}/>{batchMode === "audit" ? "校验中…" : `继续校验 (${pendingAuditCandidates.length})`}</button>
         <button className="secondary" disabled={!desktop || batchMode !== null || busyProvider !== null || busyCandidate !== null || retryableCandidates.length === 0} onClick={() => void runBatchAudit(true)}><RefreshCw size={14}/>{batchMode === "retry" ? "重试中…" : `重试失败项 (${retryableCandidates.length})`}</button>
-        <button className="primary" disabled={!desktop || batchMode !== null || busyProvider !== null || busyCandidate !== null || auditedReadyCount === 0} onClick={() => void batchImportReviewed()}><Download size={14}/>{batchMode === "import" ? "导入中…" : `导入已校验整卷 (${auditedReadyCount})`}</button>
+        <button className="secondary" disabled={!desktop || batchMode !== null || busyProvider !== null || busyCandidate !== null || auditedReadyCount === 0} onClick={() => void batchImportReviewed()}><Download size={14}/>{batchMode === "import" ? "导入中…" : `仅导入已校验整卷 (${auditedReadyCount})`}</button>
       </div>
       {batchProgress && <div className="public-source-batch-progress"><div><span style={{ width: `${batchProgress.total ? Math.min(100, (batchProgress.done / batchProgress.total) * 100) : 0}%` }}/></div><small>{batchProgress.done} / {batchProgress.total} · {batchProgress.title}</small></div>}
       {retryableCandidates.length > 0 && <div className="public-source-failure-list">
