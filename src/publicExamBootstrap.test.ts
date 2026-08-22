@@ -8,26 +8,19 @@ const state = vi.hoisted(() => ({
   importCalls: 0
 }));
 
-vi.mock("./publicSourceDiscovery", async importOriginal => {
-  const actual = await importOriginal<typeof import("./publicSourceDiscovery")>();
-  return {
-    ...actual,
-    discoverProviderCandidates: vi.fn(async () => {
-      state.candidates = [...state.discovered, ...state.candidates.filter(existing => !state.discovered.some(item => item.id === existing.id))];
-      return state.discovered;
-    })
-  };
-});
+vi.mock("./publicSourceDiscovery", () => ({
+  discoverProviderCandidates: vi.fn(async () => {
+    state.candidates = [...state.discovered, ...state.candidates.filter(existing => !state.discovered.some(item => item.id === existing.id))];
+    return state.discovered;
+  }),
+  isRecentPublicExamYear: (year: number | undefined) => typeof year === "number" && year >= 2017 && year <= 2026
+}));
 
-vi.mock("./publicSourceStore", async importOriginal => {
-  const actual = await importOriginal<typeof import("./publicSourceStore")>();
-  return {
-    ...actual,
-    publicSourceStore: {
-      listCandidates: vi.fn(async () => state.candidates)
-    }
-  };
-});
+vi.mock("./publicSourceStore", () => ({
+  publicSourceStore: {
+    listCandidates: vi.fn(async () => state.candidates)
+  }
+}));
 
 vi.mock("./publicExamBatch", () => ({
   auditPublicExamCandidates: vi.fn(async (candidates: PublicSourceCandidate[], options: { onProgress?: (progress: { index: number; total: number; current: PublicSourceCandidate }) => void }) => {
