@@ -1,13 +1,16 @@
 name: Frontend CI
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
-      - feat/**
   pull_request:
     branches:
       - main
+    types:
+      - ready_for_review
+      - reopened
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -25,7 +28,7 @@ jobs:
           node-version: 24
       - name: Install dependencies
         run: npm install --no-audit --no-fund
-      - name: Grading unit tests
+      - name: Unit tests
         run: npm test
       - name: TypeScript and Vite build
         run: npm run build
