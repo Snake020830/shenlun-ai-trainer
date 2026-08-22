@@ -69,7 +69,7 @@ describe("grading workflow validation", () => {
       .toThrow("every rubric point must have exactly one answer mapping");
   });
 
-  it("rejects a model-altered word limit", () => {
+  it("rejects a model-altered word limit in strict validation mode", () => {
     expect(() => validateWordBudget({
       wordBudget: {
         charCount: 100,
@@ -80,5 +80,23 @@ describe("grading workflow validation", () => {
         compressionAdvice: []
       }
     }, 250)).toThrow("changed the question word limit");
+  });
+
+  it("uses deterministic local counts for the remote word-budget artifact", () => {
+    const normalized = validateWordBudget({
+      wordBudget: {
+        charCount: 96,
+        wordLimit: 999,
+        overLimit: false,
+        redundantExcerpts: ["重复表达"],
+        lowValueExcerpts: [],
+        compressionAdvice: ["压缩重复表达"]
+      }
+    }, 100, 101);
+
+    expect(normalized.wordBudget.charCount).toBe(101);
+    expect(normalized.wordBudget.wordLimit).toBe(100);
+    expect(normalized.wordBudget.overLimit).toBe(true);
+    expect(normalized.wordBudget.redundantExcerpts).toEqual(["重复表达"]);
   });
 });
