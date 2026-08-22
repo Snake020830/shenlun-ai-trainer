@@ -31,9 +31,11 @@ const CHINESE_NUMBERS: Record<string, number> = {
   一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10
 };
 
-// Real public pages use both "一、" and "第一题：" style headings.
-const TASK_ORDINAL = /^\s*(?:第\s*)?([一二三四五六七八九十]|\d{1,2})\s*(?:题)?\s*(?:[、.．:：])?\s*$/u;
-// Real public pages use variants such as 材料1(6024252), 材料1： and 材料一：.
+const CHINESE_ORDINAL = "[一二三四五六七八九十]";
+const TASK_EXPLICIT = new RegExp(`^\\s*(?:第\\s*)?(${CHINESE_ORDINAL})\\s*题\\s*(?:[、.．:：])?\\s*(.*)$`, "u");
+const TASK_CHINESE_PUNCT = new RegExp(`^\\s*(${CHINESE_ORDINAL})\\s*[、.．:：]\\s*(.*)$`, "u");
+const TASK_CHINESE_PAREN = new RegExp(`^\\s*[（(]\\s*(${CHINESE_ORDINAL})\\s*[）)]\\s*(.*)$`, "u");
+const TASK_NUMERIC_STANDALONE = /^\s*(\d{1,2})\s*[、.．:：]?\s*$/u;
 const MATERIAL_HEADING = /^\s*材料\s*([0-9０-９一二三四五六七八九十]+)(?:\([^)]*\))?\s*(?:[：:])?\s*$/u;
 const SITE_FOOTER_MARKERS = ["欢迎使用公开真题库", "备案编号：", "网站版本：", "若有网络数据相关投诉举报"];
 
@@ -41,6 +43,11 @@ interface IndexedLine {
   line: string;
   index: number;
   start: number;
+}
+
+interface ParsedTaskHeading {
+  ordinal: string;
+  inlinePrompt: string;
 }
 
 function normalizeText(value: string): string {
@@ -82,6 +89,30 @@ function normalizeNumberToken(token: string): number | null {
   return null;
 }
 
+function hasScoreMarker(value: string): boolean {
+  return /[（(]\s*\d{1,3}\s*分\s*[）)]/u.test(value);
+}
+
+function parseTaskHeading(line: string): ParsedTaskHeading | null {
+  const explicit = line.match(TASK_EXPLICIT);
+  if (explicit) return { ordinal: explicit[1], inlinePrompt: explicit[2]?.trim() ?? "" };
+
+  const punct = line.match(TASK_CHINESE_PUNCT);
+  if (punct) {
+    const inlinePrompt = punct[2]?.trim() ?? "";
+    if (!inlinePrompt || hasScoreMarker(inlinePrompt)) return { ordinal: punct[1], inlinePrompt };
+  }
+
+  const parenthesized = line.match(TASK_CHINESE_PAREN);
+  if (parenthesized) {
+    const inlinePrompt = parenthesized[2]?.trim() ?? "";
+    if (!inlinePrompt || hasScoreMarker(inlinePrompt)) return { ordinal: parenthesized[1], inlinePrompt };
+  }
+
+  const numeric = line.match(TASK_NUMERIC_STANDALONE);
+  return numeric ? { ordinal: numeric[1], inlinePrompt: "" } : null;
+}
+
 function stripHtmlToText(html: string): string {
   if (typeof DOMParser === "undefined") return normalizeText(html.replace(/<[^>]+>/g, "\n"));
   const document = new DOMParser().parseFromString(html, "text/html");
@@ -117,17 +148,22 @@ function extractScore(text: string): number | null {
 }
 
 function extractWordLimit(text: string): number | null {
-  const upper = text.match(/不超过\s*(\d{2,4})\s*字/u);
-  if (upper) return Number(upper[1]);
+  const subQuestionLimits = [...text.matchAll(/第[一二三四五六七八九十\d]+问[^。；\n]{0,60}?(?:不超过|不多于)\s*(\d{1,4})\s*个?字/gu)]
+    .map(match => Number(match[1]))
+    .filter(Number.isFinite);
+  if (subQuestionLimits.length >= 2) return subQuestionLimits.reduce((sum, value) => sum + value, 0);
 
-  const range = text.match(/(?:字数\s*)?(\d{2,4})\s*[-—~～至]\s*(\d{2,4})\s*字/u);
+  const range = text.match(/(?:字数|总字数|篇幅)?\s*(?:控制在)?\s*(\d{2,4})\s*[-—~～至]\s*(\d{2,4})\s*字/u);
   if (range) return Math.max(Number(range[1]), Number(range[2]));
 
-  const about = text.match(/(?:篇幅|字数)?\s*(\d{2,4})\s*字左右/u);
-  if (about) return Number(about[1]);
+  const upper = [...text.matchAll(/(?:不超过|不多于)\s*(\d{1,4})\s*个?字/gu)].map(match => Number(match[1]));
+  if (upper.length) return Math.max(...upper);
 
-  const minimum = text.match(/(?:不少于|至少)\s*(\d{2,4})\s*字/u);
-  if (minimum) return Number(minimum[1]);
+  const within = text.match(/(?:字数|总字数|篇幅)?\s*(?:控制在)?\s*(\d{2,4})\s*字以内/u);
+  if (within) return Number(within[1]);
+
+  const about = text.match(/(?:篇幅|字数|总字数)?\s*(\d{2,4})\s*字左右/u);
+  if (about) return Number(about[1]);
   return null;
 }
 
@@ -149,10 +185,10 @@ function extractMaterialNumbers(text: string): number[] {
 }
 
 export function inferPublicQuestionType(prompt: string): QuestionType {
-  if (/(写一篇文章|自拟题目|自选角度.*写|文章)/u.test(prompt)) return "文章写作";
+  if (/(写一篇文章|撰写一篇|自拟题目|自选角度.*写|文章|调查报告)/u.test(prompt)) return "文章写作";
   if (/(拟写|撰写|提案|讲话稿|发言稿|通知|建议书|工作方案|简报|公开信|倡议书|回复|汇报)/u.test(prompt)) return "贯彻执行";
   if (/(提出.*(?:建议|对策|措施)|给出.*(?:建议|对策)|怎么办|如何解决|进一步.*建议|改进建议)/u.test(prompt)) return "提出对策";
-  if (/(分析|理解|谈谈.*(?:含义|关系|认识)|解释|评价|为什么|观点)/u.test(prompt)) return "综合分析";
+  if (/(分析|理解|谈谈.*(?:含义|关系|认识)|解释|评价|评述|为什么|观点)/u.test(prompt)) return "综合分析";
   return "概括归纳";
 }
 
@@ -176,13 +212,17 @@ function parseMaterials(text: string): ParsedPublicExamMaterial[] {
 function parseTasks(text: string): ParsedPublicExamTask[] {
   const cleanText = trimSiteFooter(text);
   const lines = cleanText.split("\n");
-  const ordinals = lines
-    .map((line, index) => ({ index, match: line.match(TASK_ORDINAL) }))
-    .filter((item): item is { index: number; match: RegExpMatchArray } => Boolean(item.match));
+  const headings = lines
+    .map((line, index) => ({ index, heading: parseTaskHeading(line) }))
+    .filter((item): item is { index: number; heading: ParsedTaskHeading } => Boolean(item.heading));
 
-  return ordinals.map((current, position) => {
-    const next = ordinals[position + 1];
-    const body = normalizeText(lines.slice(current.index + 1, next?.index ?? lines.length).join("\n"));
+  return headings.map((current, position) => {
+    const next = headings[position + 1];
+    const tailLines = lines.slice(current.index + 1, next?.index ?? lines.length);
+    const rawBody = current.heading.inlinePrompt
+      ? [current.heading.inlinePrompt, ...tailLines].join("\n")
+      : tailLines.join("\n");
+    const body = normalizeText(rawBody);
     const requirementIndex = body.search(/(?:^|\n)要求[：:]/u);
     const prompt = normalizeText(requirementIndex >= 0 ? body.slice(0, requirementIndex) : body);
     const requirements = normalizeText(
@@ -196,15 +236,23 @@ function parseTasks(text: string): ParsedPublicExamTask[] {
     const materialNumbers = extractMaterialNumbers(prompt);
     const questionType = inferPublicQuestionType(prompt);
     const warnings: string[] = [];
+    const hasNestedScoredSubQuestions = /(?:^|\n)\s*\d{1,2}[.．、]\s*[^\n]*[（(]\s*\d{1,3}\s*分\s*[）)]/u.test(body);
+    if (hasNestedScoredSubQuestions) warnings.push("检测到大题内嵌多个计分小问；当前版本不自动拆分，需人工核验。" );
     if (!score) warnings.push("未识别分值，导入前必须人工确认。");
-    if (!wordLimit) warnings.push("未识别字数限制，导入前必须人工确认。");
+    if (!wordLimit) {
+      if (/(?:不少于|至少)\s*\d{2,4}\s*字/u.test(combined)) {
+        warnings.push("仅识别到最低字数要求，没有可靠的答题上限；当前版本不自动导入。" );
+      } else {
+        warnings.push("未识别字数限制，导入前必须人工确认。");
+      }
+    }
     if (!materialNumbers.length && questionType !== "文章写作") warnings.push("未识别明确材料编号；默认导入整卷材料，需人工核验。");
     const tags = ["公开真题", questionType];
     if (/(成效.*建议|建议.*成效|问题.*建议|概括.*提出|原因.*对策|分析.*对策)/u.test(prompt)) tags.push("复合题");
 
     return {
       taskIndex: position,
-      ordinal: current.match[1],
+      ordinal: current.heading.ordinal,
       prompt,
       requirements,
       score,
@@ -224,19 +272,18 @@ function inferSectionBoundaries(normalized: string): { materialStart: number | n
 
   const firstMaterial = materialHeadings[0];
   const lastMaterial = materialHeadings[materialHeadings.length - 1];
-  const possibleTasks = lines.filter(item => item.index > lastMaterial.index && TASK_ORDINAL.test(item.line));
+  const possibleTasks = lines
+    .map(item => ({ ...item, heading: item.index > lastMaterial.index ? parseTaskHeading(item.line) : null }))
+    .filter((item): item is IndexedLine & { heading: ParsedTaskHeading } => Boolean(item.heading));
 
-  // Requiring at least two numbered tasks avoids treating a standalone numbered line
-  // inside the final material as an inferred task section. A one-question paper stays
-  // blocked unless it has an explicit 作答要求 heading.
   if (possibleTasks.length < 2) return { materialStart: firstMaterial.start, taskStart: null };
 
   const firstTask = possibleTasks[0];
-  const probe = lines
+  const probe = firstTask.heading.inlinePrompt || lines
     .slice(firstTask.index + 1, Math.min(lines.length, firstTask.index + 5))
     .map(item => item.line)
     .join("\n");
-  if (!/[（(]\s*\d{1,3}\s*分\s*[）)]/u.test(probe)) {
+  if (!hasScoreMarker(probe)) {
     return { materialStart: firstMaterial.start, taskStart: null };
   }
   return { materialStart: firstMaterial.start, taskStart: firstTask.start };
