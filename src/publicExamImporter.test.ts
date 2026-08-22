@@ -157,6 +157,19 @@ describe("importPublicExam", () => {
     expect(state.links.find(item => item.taskIndex === 0)?.questionId).toBe(deterministicId);
   });
 
+  it("rejects cached exams outside the rolling recent-10-year product boundary", async () => {
+    const oldCandidate: PublicSourceCandidate = {
+      ...candidate,
+      id: "candidate-old",
+      title: "2016年国家公务员考试《申论》卷",
+      sourceUrl: "https://gwy.gkzhenti.cn/paper/old",
+      year: 2016
+    };
+    await expect(importPublicExam({ candidate: oldCandidate, exam, retrievedAt: "2026-08-22T13:30:00+08:00" })).rejects.toThrow("最近10年");
+    expect(state.created).toHaveLength(0);
+    expect(state.markedImported).toBe(0);
+  });
+
   it("fails closed before writing questions when parsed structure is incomplete", async () => {
     const broken: ParsedPublicExam = {
       ...exam,
