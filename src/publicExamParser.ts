@@ -31,8 +31,10 @@ const CHINESE_NUMBERS: Record<string, number> = {
   一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10
 };
 
-const TASK_ORDINAL = /^\s*([一二三四五六七八九十]|\d{1,2})[、.．]\s*$/u;
-const MATERIAL_HEADING = /^\s*材料\s*([0-9０-９一二三四五六七八九十]+)(?:\([^)]*\))?\s*$/u;
+// Real public pages use both "一、" and "第一题：" style headings.
+const TASK_ORDINAL = /^\s*(?:第\s*)?([一二三四五六七八九十]|\d{1,2})\s*(?:题)?\s*(?:[、.．:：])?\s*$/u;
+// Real public pages use variants such as 材料1(6024252), 材料1： and 材料一：.
+const MATERIAL_HEADING = /^\s*材料\s*([0-9０-９一二三四五六七八九十]+)(?:\([^)]*\))?\s*(?:[：:])?\s*$/u;
 const SITE_FOOTER_MARKERS = ["欢迎使用公开真题库", "备案编号：", "网站版本：", "若有网络数据相关投诉举报"];
 
 function normalizeText(value: string): string {
@@ -106,8 +108,11 @@ function extractWordLimit(text: string): number | null {
   const range = text.match(/(?:字数\s*)?(\d{2,4})\s*[-—~～至]\s*(\d{2,4})\s*字/u);
   if (range) return Math.max(Number(range[1]), Number(range[2]));
 
-  const about = text.match(/(?:不少于|至少)\s*(\d{2,4})\s*字/u);
+  const about = text.match(/(?:篇幅|字数)?\s*(\d{2,4})\s*字左右/u);
   if (about) return Number(about[1]);
+
+  const minimum = text.match(/(?:不少于|至少)\s*(\d{2,4})\s*字/u);
+  if (minimum) return Number(minimum[1]);
   return null;
 }
 
@@ -116,7 +121,8 @@ function extractMaterialNumbers(text: string): number[] {
   const patterns = [
     /给定资料\s*[“"']?\s*([0-9０-９一二三四五六七八九十]+)/gu,
     /给定材料\s*[“"']?\s*([0-9０-９一二三四五六七八九十]+)/gu,
-    /资料\s*([0-9０-９一二三四五六七八九十]+)/gu
+    /资料\s*([0-9０-９一二三四五六七八九十]+)/gu,
+    /材料\s*([0-9０-９一二三四五六七八九十]+)/gu
   ];
   for (const pattern of patterns) {
     for (const match of text.matchAll(pattern)) {
@@ -129,8 +135,8 @@ function extractMaterialNumbers(text: string): number[] {
 
 export function inferPublicQuestionType(prompt: string): QuestionType {
   if (/(写一篇文章|自拟题目|自选角度.*写|文章)/u.test(prompt)) return "文章写作";
-  if (/(拟写|撰写|提案|讲话稿|发言稿|通知|建议书|工作方案|简报|公开信|倡议书|回复)/u.test(prompt)) return "贯彻执行";
-  if (/(提出.*(?:建议|对策|措施)|给出.*(?:建议|对策)|怎么办|如何解决|进一步.*建议)/u.test(prompt)) return "提出对策";
+  if (/(拟写|撰写|提案|讲话稿|发言稿|通知|建议书|工作方案|简报|公开信|倡议书|回复|汇报)/u.test(prompt)) return "贯彻执行";
+  if (/(提出.*(?:建议|对策|措施)|给出.*(?:建议|对策)|怎么办|如何解决|进一步.*建议|改进建议)/u.test(prompt)) return "提出对策";
   if (/(分析|理解|谈谈.*(?:含义|关系|认识)|解释|评价|为什么|观点)/u.test(prompt)) return "综合分析";
   return "概括归纳";
 }
@@ -164,7 +170,11 @@ function parseTasks(text: string): ParsedPublicExamTask[] {
     const body = normalizeText(lines.slice(current.index + 1, next?.index ?? lines.length).join("\n"));
     const requirementIndex = body.search(/(?:^|\n)要求[：:]/u);
     const prompt = normalizeText(requirementIndex >= 0 ? body.slice(0, requirementIndex) : body);
-    const requirements = normalizeText(requirementIndex >= 0 ? body.slice(requirementIndex).replace(/^\s*要求[：:]\s*/u, "") : "");
+    const requirements = normalizeText(
+      requirementIndex >= 0
+        ? body.slice(requirementIndex).replace(/^\s*(?:要求[：:]\s*)+/u, "")
+        : ""
+    );
     const combined = `${prompt}\n${requirements}`;
     const score = extractScore(prompt);
     const wordLimit = extractWordLimit(combined);
@@ -175,7 +185,7 @@ function parseTasks(text: string): ParsedPublicExamTask[] {
     if (!wordLimit) warnings.push("未识别字数限制，导入前必须人工确认。");
     if (!materialNumbers.length && questionType !== "文章写作") warnings.push("未识别明确材料编号；默认导入整卷材料，需人工核验。");
     const tags = ["公开真题", questionType];
-    if (/成效.*建议|建议.*成效|问题.*建议|概括.*提出/u.test(prompt)) tags.push("复合题");
+    if (/(成效.*建议|建议.*成效|问题.*建议|概括.*提出|原因.*对策|分析.*对策)/u.test(prompt)) tags.push("复合题");
 
     return {
       taskIndex: position,
