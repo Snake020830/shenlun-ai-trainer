@@ -87,6 +87,11 @@ export interface TrainingRecord {
   review?: StructuredReview;
 }
 
+export interface StructuredMaterialInput {
+  label: string;
+  content: string;
+}
+
 export interface LocalQuestionInput {
   title: string;
   year: number;
@@ -96,7 +101,10 @@ export interface LocalQuestionInput {
   score: number;
   wordLimit: number;
   prompt: string;
-  materialText: string;
+  /** Manual paste path. Programmatic importers should prefer `materials`. */
+  materialText?: string;
+  /** Structured import path used by public-web/PDF/OCR adapters. */
+  materials?: StructuredMaterialInput[];
   tags: string[];
   referenceAnswerContent?: string;
   referenceAnswerSource?: string;
