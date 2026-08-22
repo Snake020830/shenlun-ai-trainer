@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   getCandidateAudit,
+  getCandidateBatchAttempt,
   isAuditedImportableCandidate,
   PUBLIC_EXAM_AUDIT_VERSION,
+  PUBLIC_EXAM_BATCH_STATE_VERSION,
+  selectPendingPublicExamAuditCandidates,
+  selectRetryablePublicExamCandidates,
   summarizePublicExamAudit,
   summarizePublicExamImport
 } from "./publicExamBatch";
@@ -35,6 +39,15 @@ function candidate(overrides: Partial<PublicSourceCandidate> = {}): PublicSource
   };
 }
 
+function batchAttempt(outcome: "ready" | "blocked" | "error" | "imported") {
+  return {
+    version: PUBLIC_EXAM_BATCH_STATE_VERSION,
+    phase: outcome === "imported" ? "import" as const : "audit" as const,
+    outcome,
+    attemptedAt: "2026-08-22T15:02:00+08:00"
+  };
+}
+
 describe("public exam batch audit gates", () => {
   it("recognizes only current-version, parser-clean reviewed candidates as batch importable", () => {
     expect(isAuditedImportableCandidate(candidate())).toBe(true);
@@ -43,9 +56,15 @@ describe("public exam batch audit gates", () => {
     expect(isAuditedImportableCandidate(candidate({ metadata: { parserAudit: { version: "old" } } }))).toBe(false);
   });
 
-  it("returns validated audit metadata and rejects malformed metadata", () => {
+  it("returns validated audit and batch-attempt metadata while rejecting malformed values", () => {
     expect(getCandidateAudit(candidate())?.taskCount).toBe(5);
-    const malformed = candidate({
+    expect(getCandidateBatchAttempt(candidate({
+      metadata: {
+        batchAttempt: batchAttempt("error")
+      }
+    }))?.outcome).toBe("error");
+
+    const malformedAudit = candidate({
       metadata: {
         parserAudit: {
           version: PUBLIC_EXAM_AUDIT_VERSION,
@@ -58,7 +77,42 @@ describe("public exam batch audit gates", () => {
         }
       }
     });
-    expect(getCandidateAudit(malformed)).toBeNull();
+    expect(getCandidateAudit(malformedAudit)).toBeNull();
+    expect(getCandidateBatchAttempt(candidate({ metadata: { batchAttempt: { version: "old" } } }))).toBeNull();
+  });
+
+  it("does not re-audit clean reviewed exams and isolates failed exams for retry", () => {
+    const ready = candidate({ id: "ready", sourceUrl: "https://gwy.gkzhenti.cn/paper/ready", region: "国家" });
+    const pending = candidate({
+      id: "pending",
+      sourceUrl: "https://gwy.gkzhenti.cn/paper/pending",
+      title: "2025年广东省考《申论》A卷",
+      region: "广东",
+      paperVariant: "A卷",
+      status: "discovered",
+      metadata: {}
+    });
+    const failed = candidate({
+      id: "failed",
+      sourceUrl: "https://gwy.gkzhenti.cn/paper/failed",
+      title: "2025年江苏省考《申论》A卷",
+      region: "江苏",
+      paperVariant: "A卷",
+      status: "discovered",
+      metadata: { batchAttempt: batchAttempt("error") }
+    });
+    const blocked = candidate({
+      id: "blocked",
+      sourceUrl: "https://gwy.gkzhenti.cn/paper/blocked",
+      title: "2025年浙江省考《申论》A卷",
+      region: "浙江",
+      paperVariant: "A卷",
+      status: "discovered",
+      metadata: { batchAttempt: batchAttempt("blocked") }
+    });
+
+    expect(selectPendingPublicExamAuditCandidates([ready, pending, failed, blocked]).map(item => item.id)).toEqual(["pending"]);
+    expect(selectRetryablePublicExamCandidates([ready, pending, failed, blocked]).map(item => item.id).sort()).toEqual(["blocked", "failed"]);
   });
 
   it("summarizes audit and import batches for UI progress reporting", () => {
