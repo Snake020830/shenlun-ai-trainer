@@ -120,26 +120,18 @@ export interface RubricAlignmentGroup {
   alignmentNotes?: string;
 }
 
-export interface AlignedPredictionMapping {
+export interface AnswerMappingLink {
   goldRubricPointId: string;
-  predictedStatus: ReviewPoint["status"];
-  predictedErrorCodes: string[];
   predictedRubricPointIds: string[];
   alignmentConfidence?: "high" | "medium" | "low";
   alignmentNotes?: string;
 }
 
-export interface AlignedBenchmarkPrediction {
+export interface BenchmarkAlignment {
   caseId: string;
   runId: string;
-  predictedScore: number;
-  predictedRubricPointIds: string[];
   rubricAlignments: RubricAlignmentGroup[];
-  mappings: AlignedPredictionMapping[];
-  providerId?: string;
-  model?: string;
-  rulesetVersion?: string;
-  scoringPolicy?: string;
+  mappingLinks: AnswerMappingLink[];
 }
 
 export interface RubricQualityMetrics {
