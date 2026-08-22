@@ -59,7 +59,8 @@
 }
 
 .benchmark-lab-status,
-.benchmark-readonly-warning {
+.benchmark-readonly-warning,
+.benchmark-adjudicated-lock {
   border-radius: 10px;
   padding: 10px 12px;
   background: #f8fafc;
@@ -71,6 +72,17 @@
 
 .benchmark-lab-status {
   margin-bottom: 14px;
+}
+
+.benchmark-adjudicated-lock {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+  color: #166534;
+}
+
+.benchmark-annotation-actions {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .benchmark-case-list {
