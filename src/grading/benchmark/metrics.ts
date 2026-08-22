@@ -25,6 +25,12 @@ function harmonicMean(precision: number | null, recall: number | null): number |
   return 2 * precision * recall / (precision + recall);
 }
 
+function assertAdjudicated(testCase: GradingBenchmarkCase): void {
+  if (testCase.annotationStatus !== "adjudicated") {
+    throw new Error(`Benchmark case ${testCase.id} is not adjudicated and cannot be used for evaluation metrics.`);
+  }
+}
+
 function assertUniqueAlignedMappings(prediction: AlignedBenchmarkPrediction): void {
   const seen = new Set<string>();
   for (const mapping of prediction.mappings) {
@@ -39,6 +45,7 @@ export function calculateMappingQuality(
   testCase: GradingBenchmarkCase,
   prediction: AlignedBenchmarkPrediction
 ): MappingQualityMetrics {
+  assertAdjudicated(testCase);
   if (prediction.caseId !== testCase.id) throw new Error("Prediction caseId does not match benchmark case.");
   assertUniqueAlignedMappings(prediction);
 
@@ -64,6 +71,7 @@ export function calculateTaxonomyQuality(
   testCase: GradingBenchmarkCase,
   prediction: AlignedBenchmarkPrediction
 ): TaxonomyQualityMetrics {
+  assertAdjudicated(testCase);
   if (prediction.caseId !== testCase.id) throw new Error("Prediction caseId does not match benchmark case.");
   assertUniqueAlignedMappings(prediction);
 
@@ -124,6 +132,10 @@ export function calculateScoreCalibration(
   for (const testCase of cases) {
     const prediction = predictionsByCase.get(testCase.id);
     if (!prediction || !testCase.gold.humanScores.length) continue;
+    assertAdjudicated(testCase);
+    if (testCase.split !== "calibration" && testCase.split !== "holdout") {
+      throw new Error(`Benchmark case ${testCase.id} is not in calibration/holdout split and cannot be used for score calibration.`);
+    }
     if (!Number.isFinite(prediction.predictedScore) || prediction.predictedScore < 0 || prediction.predictedScore > testCase.question.maxScore) {
       throw new Error(`Predicted score for ${testCase.id} is outside 0..maxScore.`);
     }
