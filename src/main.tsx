@@ -7,6 +7,7 @@ import "./visualPolish.css";
 import "./publicExamVariants.css";
 import "./publicSourceBatch.css";
 import "./practiceInk.css";
+import "./reviewPolish.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
