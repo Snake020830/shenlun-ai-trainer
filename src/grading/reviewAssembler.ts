@@ -12,6 +12,20 @@ function countErrors(artifacts: GradingWorkflowArtifacts, target: Set<string>): 
   );
 }
 
+function userFacingSuggestion(mapping: GradingWorkflowArtifacts["mappings"][number]): string | undefined {
+  if (mapping.status === "hit") return undefined;
+  const diagnosis = mapping.diagnosis?.trim();
+  const suggestion = mapping.suggestion?.trim();
+  if (mapping.status === "partial") {
+    if (diagnosis && suggestion) return `方向已到：${diagnosis}；最小修改：${suggestion}`;
+    if (diagnosis) return `方向已到：${diagnosis}`;
+    return suggestion ? `方向已到；最小修改：${suggestion}` : "方向已到，但表述还不够完整。";
+  }
+  if (diagnosis && suggestion) return `真正漏点：${diagnosis}；补充：${suggestion}`;
+  if (diagnosis) return `真正漏点：${diagnosis}`;
+  return suggestion ? `真正漏点；补充：${suggestion}` : "主得分方向没有出现。";
+}
+
 export function assembleReview(
   maxScore: number,
   artifacts: GradingWorkflowArtifacts,
@@ -34,7 +48,7 @@ export function assembleReview(
       status: mapping.status,
       diagnosis: mapping.diagnosis,
       evidence: rubricPoint.evidence.join("；"),
-      suggestion: mapping.suggestion,
+      suggestion: userFacingSuggestion(mapping),
       errorCodes: mapping.errorCodes
     };
   });
