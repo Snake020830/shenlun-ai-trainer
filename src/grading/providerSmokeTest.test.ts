@@ -20,10 +20,10 @@ function result(kind: "remote" | "mock" = "remote"): ShenlunGraderResult {
     review: {
       score: 8,
       maxScore: 10,
-      coverage: "2 命中 / 0 部分 / 0 遗漏",
+      coverage: "2 完整 / 0 表述损失 / 0 真正遗漏",
       classification: "清晰",
-      expression: "较清楚",
-      redundancy: "较低",
+      expression: "到位",
+      redundancy: "控制较好",
       summary: "自检",
       points: [],
       calibrationStatus: "uncalibrated"
@@ -61,7 +61,7 @@ function result(kind: "remote" | "mock" = "remote"): ShenlunGraderResult {
       }
     },
     meta: {
-      skillVersion: "shenlun-grader-skill@0.3.1",
+      skillVersion: "shenlun-grader-skill@0.4.0",
       rulesetVersion: "shenlun-grading@0.1.0",
       providerId: kind === "remote" ? "remote:test-provider" : "mock-v01",
       providerKind: kind,
