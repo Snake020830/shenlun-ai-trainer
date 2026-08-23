@@ -1,0 +1,111 @@
+.review-pane {
+  padding: 18px 16px 28px;
+  background: #fafaf7;
+}
+
+.review-content {
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+.review-content .score-panel {
+  padding: 16px 18px;
+  border: 1px solid #dce6de;
+  border-radius: 12px;
+  background: #edf4ef;
+}
+
+.review-content .score-panel > strong {
+  margin: 2px 0 4px;
+  font-size: 32px;
+  line-height: 1.1;
+}
+
+.review-content .score-panel p {
+  max-width: 44em;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.review-content .review-metrics {
+  margin: 8px 0 16px;
+  gap: 6px;
+}
+
+.review-content .review-metrics div {
+  padding: 8px 10px;
+  background: #f0f0eb;
+}
+
+.review-content .point-list h4 {
+  margin: 0 0 8px;
+  font-size: 13px;
+}
+
+.review-content .point {
+  margin-bottom: 7px;
+  padding: 11px 12px;
+  border-color: #e3e4de;
+  border-radius: 9px;
+  box-shadow: none;
+}
+
+.review-content .point-heading {
+  align-items: flex-start;
+}
+
+.review-content .point-heading strong {
+  flex: 1;
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+.review-content .point-heading .badge {
+  flex: 0 0 auto;
+  padding: 4px 7px;
+  font-size: 10px;
+}
+
+/* 已经拿到的分不再占据整屏：只保留一行确认。 */
+.review-content .point-hit {
+  padding-top: 9px;
+  padding-bottom: 9px;
+  background: #fbfcfa;
+  border-color: #e1e9e2;
+}
+
+.review-content .point-hit > p {
+  display: none;
+}
+
+/* 材料候选 ID 是内部审计信息，不作为正常用户的第一层反馈。 */
+.review-content .point-partial > p:not(.suggestion),
+.review-content .point-missed > p:not(.suggestion) {
+  display: none;
+}
+
+.review-content .point-partial {
+  border-left: 3px solid #c99a45;
+  background: #fffdf8;
+}
+
+.review-content .point-missed {
+  border-left: 3px solid #b66a5f;
+  background: #fffafa;
+}
+
+.review-content .point .suggestion {
+  margin-top: 7px;
+  padding: 7px 8px;
+  background: #f7f0e4;
+  color: #625640;
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+
+/* 复盘页右栏同样使用紧凑规则，避免长卡片瀑布。 */
+.record-review .point-hit > p,
+.record-review .point-partial > p:not(.suggestion),
+.record-review .point-missed > p:not(.suggestion) {
+  display: none;
+}
