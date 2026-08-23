@@ -40,6 +40,8 @@ export interface Draft {
 export interface ReviewPoint {
   title: string;
   status: "hit" | "partial" | "missed";
+  /** Model diagnosis: what the answer already covered and where the scoring loss occurred. */
+  diagnosis?: string;
   evidence: string;
   suggestion?: string;
   errorCodes?: string[];
