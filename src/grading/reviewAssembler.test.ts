@@ -13,8 +13,8 @@ const artifacts: GradingWorkflowArtifacts = {
   ],
   mappings: [
     { rubricPointId: "r1", status: "hit", errorCodes: [], diagnosis: "完整覆盖" },
-    { rubricPointId: "r2", status: "partial", errorCodes: ["PARTIAL_COVERAGE"], diagnosis: "对象不完整", suggestion: "补出涉企审批事项" },
-    { rubricPointId: "r3", status: "missed", errorCodes: ["OMISSION"], diagnosis: "未覆盖", suggestion: "补充项目服务机制" }
+    { rubricPointId: "r2", status: "partial", errorCodes: ["PARTIAL_COVERAGE"], diagnosis: "方向已到，但对象不完整", suggestion: "补出涉企审批事项" },
+    { rubricPointId: "r3", status: "missed", errorCodes: ["OMISSION"], diagnosis: "未覆盖项目服务机制", suggestion: "补充项目服务机制" }
   ],
   wordBudget: {
     charCount: 180,
@@ -27,14 +27,15 @@ const artifacts: GradingWorkflowArtifacts = {
 };
 
 describe("review assembler", () => {
-  it("uses the explicit uncalibrated policy and preserves point evidence", () => {
+  it("uses the explicit uncalibrated policy and preserves point diagnoses", () => {
     const review = assembleReview(20, artifacts, equalRubricDiagnosticPolicy);
     expect(review.score).toBe(10);
-    expect(review.coverage).toBe("1 命中 / 1 部分 / 1 遗漏");
+    expect(review.coverage).toBe("1 完整 / 1 表述损失 / 1 真正遗漏");
     expect(review.calibrationStatus).toBe("uncalibrated");
     expect(review.scoringPolicy).toBe("equal-rubric-diagnostic@0.1.0");
-    expect(review.summary).toContain("不代表正式阅卷分");
+    expect(review.summary).toContain("优先看覆盖、表述损失和漏点");
     expect(review.points[1].evidence).toContain("174项审批事项下沉");
+    expect(review.points[1].diagnosis).toContain("对象不完整");
     expect(review.points[1].errorCodes).toEqual(["PARTIAL_COVERAGE"]);
   });
 
@@ -54,6 +55,5 @@ describe("review assembler", () => {
     const reviewed = assembleReview(20, withReference, equalRubricDiagnosticPolicy);
     expect(reviewed.score).toBe(baseline.score);
     expect(reviewed.referenceCrossCheck?.source).toBe("老师批改稿");
-    expect(reviewed.summary).toContain("不自动改变本次得分");
   });
 });
