@@ -21,6 +21,7 @@ const COMMON_INSTRUCTIONS = `
 概率性、计划性、建议性表述不得改写为已经发生的措施或成效。
 问题、原因、措施、成效、影响、意义、观点、机制等要素必须区分。
 多对象先分别识别；同类压缩前先展开候选信息，避免过度合并。
+评分粒度以‘考场可独立得分的语义维度’为准，不以材料句子数或证据数为准。表现、原因、机制、后果可以作为一个主得分维度的必要组成部分，不应机械拆成多个等权漏点。
 `;
 
 const ELEMENT_TYPES = ["problem", "cause", "measure", "outcome", "impact", "significance", "viewpoint", "mechanism", "other"];
@@ -166,7 +167,10 @@ export function buildMaterialExtractionRequest(question: Question): RemoteJsonRe
   return {
     schemaName: "shenlun_material_extraction_v01",
     jsonSchema: materialExtractionSchema,
-    instructions: stageInstructions(question, "本阶段是材料盲抽。不得读取、猜测或重建机构参考答案，也不要分析考生答案。尽量展开可能独立得分的材料信息，再标记其要素类型。"),
+    instructions: stageInstructions(
+      question,
+      "本阶段是材料盲抽。不得读取、猜测或重建机构参考答案，也不要分析考生答案。先展开材料信息，再判断哪些是可独立得分的主维度，哪些只是同一维度下的表现、原因、机制、后果或例证。后者仍要保留，但 independentDimension 应谨慎设为 false。"
+    ),
     input: JSON.stringify({ question: questionPayload(question) })
   };
 }
@@ -175,7 +179,16 @@ export function buildRubricConstructionRequest(question: Question, candidates: M
   return {
     schemaName: "shenlun_rubric_construction_v01",
     jsonSchema: rubricSchema,
-    instructions: stageInstructions(question, "本阶段根据盲抽候选点构造 rubric。先保证独立信息维度完整，再合并真正同类的信息。前置概括最多提高一个抽象层级；机制层和多对象归属不得因追求条目少而丢失。"),
+    instructions: stageInstructions(
+      question,
+      [
+        "本阶段根据盲抽候选点构造 rubric。rubricPoint 必须代表考场可独立得分的中观语义维度，而不是一条材料句子。",
+        "先按题干任务、主体、对象和逻辑关系归并。一个主维度可以通过 candidateIds/evidence 吸收多个表现、原因、机制和后果；不要因为证据多就拆点。",
+        "title 应写成可直接用于阅卷判断的中观得分短语，避免过空的上位词，也避免塞入过多细枝末节。必要的因果或限定写入 mechanism。",
+        "若两个候选只是同一问题的‘现象→原因→后果’链，通常合并为一个 rubric 点；只有在考场上即使缺少另一项也能独立计分时才拆开。",
+        "对问题+对策题，优先形成少量问题主维度及其对应的对策主维度；不要把材料后果、数据或一句补充说明再次当成等权独立分。"
+      ].join("\n")
+    ),
     input: JSON.stringify({ question: questionPayload(question), materialCandidates: candidates })
   };
 }
@@ -186,7 +199,14 @@ export function buildAnswerMappingRequest(question: Question, rubric: RubricPoin
     jsonSchema: mappingSchema,
     instructions: stageInstructions(
       question,
-      `本阶段只做考生答案与 rubric 的逐点映射。不能因为出现关键词就判 hit，也不能因为措辞不同就判 missed。partial 用于方向正确但缺关键主体、对象、机制、限定或分类的情况。\nerrorCodes 只能使用下列 ${ERROR_TAXONOMY_VERSION} 代码，不得自造代码；hit 且无实质错误时应返回空数组：\n${ERROR_TAXONOMY_GUIDANCE}`
+      [
+        "本阶段只做考生答案与 rubric 的逐点映射。先判断主得分方向有没有写到，再判断表达质量。",
+        "hit：主维度和必要限定/机制均已实质表达，允许与材料换词，不要求复述所有证据。",
+        "partial：主方向已经写到，但因为上位概括过空、中观词丢失、主体对象不清、机制没写透、分类混杂、过度合并或关键限定缺失，可能只能拿到部分分。partial 的 diagnosis 必须明确指出‘已经写到了什么 + 具体损失在哪里’。",
+        "missed：主得分方向本身没有出现。不要因为考生没写某个材料后果、数据例证或同义细节，就把已覆盖的主维度另拆成 missed。",
+        "suggestion 只给最小必要修改，优先示范补上一个中观词、主体、机制或限定；不要把整段材料重写给考生。单条建议尽量控制在40个汉字以内。",
+        `errorCodes 只能使用下列 ${ERROR_TAXONOMY_VERSION} 代码，不得自造代码；hit 且无实质错误时应返回空数组：\n${ERROR_TAXONOMY_GUIDANCE}`
+      ].join("\n")
     ),
     input: JSON.stringify({ question: questionPayload(question), rubric, answer })
   };
@@ -196,7 +216,7 @@ export function buildWordBudgetRequest(question: Question, answer: string): Remo
   return {
     schemaName: "shenlun_word_budget_v01",
     jsonSchema: wordBudgetSchema,
-    instructions: stageInstructions(question, "本阶段审计字数与表达效率。优先识别重复、例证噪声和可压缩表达；不得为了缩短答案直接建议删除独立得分维度。"),
+    instructions: stageInstructions(question, "本阶段审计字数与表达效率。优先识别重复、例证噪声和可压缩表达；不得为了缩短答案直接建议删除独立得分维度。压缩建议应优先指出可以删去的低价值词，而不是重新写一整版答案。"),
     input: JSON.stringify({ question: questionPayload(question), answer })
   };
 }
@@ -209,7 +229,7 @@ export function buildReferenceCrossCheckRequest(
   return {
     schemaName: "shenlun_reference_crosscheck_v01",
     jsonSchema: referenceSchema,
-    instructions: stageInstructions(question, "本阶段是参考答案交叉验证。盲抽 rubric 已经完成，参考答案只能用于发现遗漏维度、比较合并粒度和记录差异，不能被当成唯一真值。"),
+    instructions: stageInstructions(question, "本阶段是参考答案交叉验证。盲抽 rubric 已经完成，参考答案只能用于发现遗漏维度、比较合并粒度和记录差异，不能被当成唯一真值。若参考答案把同一主维度拆得更细，不得仅因粒度不同自动新增漏点。"),
     input: JSON.stringify({ question: questionPayload(question), blindRubric: rubric, referenceAnswer })
   };
 }
