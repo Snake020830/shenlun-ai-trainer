@@ -22,7 +22,7 @@ const question: Question = {
 
 describe("Shenlun Grader skill", () => {
   it("has a stable skill version", () => {
-    expect(SHENLUN_GRADER_SKILL_VERSION).toBe("shenlun-grader-skill@0.3.1");
+    expect(SHENLUN_GRADER_SKILL_VERSION).toBe("shenlun-grader-skill@0.4.0");
   });
 
   it("builds deterministic preflight metadata from full materials and answer", () => {
