@@ -101,7 +101,7 @@ describe("grading stage prompt isolation", () => {
   it("uses distinct practical guidance for all five supported question types", () => {
     const expected: Record<QuestionType, string> = {
       "概括归纳": "多个主体或多个对象必须先分别归属",
-      "提出对策": "推导型对策必须能回指材料中的具体问题",
+      "提出对策": "主得分方向",
       "综合分析": "保留材料支持的逻辑关系、作用机制和必要结论",
       "贯彻执行": "身份、受众、目的、文种/场景和内容任务",
       "文章写作": "作文不能按小题关键词清单机械评分"
@@ -111,6 +111,19 @@ describe("grading stage prompt isolation", () => {
       const request = buildMaterialExtractionRequest({ ...question, type });
       expect(request.instructions).toContain(marker);
     }
+  });
+
+  it("keeps rubric granularity at independent scoring dimensions instead of material sentences", () => {
+    const countermeasureQuestion = { ...question, type: "提出对策" as const };
+    const rubricRequest = buildRubricConstructionRequest(countermeasureQuestion, sampleCandidates());
+    const mappingRequest = buildAnswerMappingRequest(countermeasureQuestion, sampleRubric(), "加强管理。完善机制。");
+    expect(rubricRequest.instructions).toContain("考场可独立得分的中观语义维度");
+    expect(rubricRequest.instructions).toContain("不要因为证据多就拆点");
+    expect(mappingRequest.instructions).toContain("上位概括过空");
+    expect(mappingRequest.instructions).toContain("中观词丢失");
+    expect(mappingRequest.instructions).toContain("机制没写透");
+    expect(mappingRequest.instructions).toContain("真正遗漏");
+    expect(mappingRequest.instructions).toContain("40个汉字以内");
   });
 
   it("passes the complete error taxonomy contract to stage 3 instead of asking the model to invent codes", () => {
