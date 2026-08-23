@@ -3,7 +3,7 @@ import type { GradingWorkflowArtifacts } from "./artifacts";
 import type { ScorePolicy } from "./scorePolicy";
 
 const CLASSIFICATION_ERRORS = new Set(["CATEGORY_CONFUSION", "OBJECT_CONFUSION", "OVER_MERGE"]);
-const EXPRESSION_ERRORS = new Set(["EXPRESSION_AMBIGUITY", "OVER_ABSTRACTION", "MODALITY_SHIFT"]);
+const EXPRESSION_ERRORS = new Set(["EXPRESSION_AMBIGUITY", "OVER_ABSTRACTION", "MODALITY_SHIFT", "MECHANISM_LOSS"]);
 
 function countErrors(artifacts: GradingWorkflowArtifacts, target: Set<string>): number {
   return artifacts.mappings.reduce(
@@ -32,24 +32,22 @@ export function assembleReview(
     return {
       title: rubricPoint.title,
       status: mapping.status,
+      diagnosis: mapping.diagnosis,
       evidence: rubricPoint.evidence.join("；"),
       suggestion: mapping.suggestion,
       errorCodes: mapping.errorCodes
     };
   });
 
-  const classification = classificationErrors === 0 ? "清晰" : classificationErrors === 1 ? "基本清晰" : "需加强";
-  const expression = expressionErrors === 0 ? "较清楚" : expressionErrors === 1 ? "有局部问题" : "需加强";
-  const redundancy = redundancySignals === 0 ? "较低" : redundancySignals <= 2 ? "可压缩" : "偏高";
-  const coverage = `${hit} 命中 / ${partial} 部分 / ${missed} 遗漏`;
+  const classification = classificationErrors === 0 ? "清晰" : classificationErrors === 1 ? "基本清晰" : "需调整";
+  const expression = expressionErrors === 0 ? "到位" : expressionErrors === 1 ? "有一处损失" : "有多处损失";
+  const redundancy = redundancySignals === 0 ? "控制较好" : redundancySignals <= 2 ? "可再压缩" : "偏多";
+  const coverage = `${hit} 完整 / ${partial} 表述损失 / ${missed} 真正遗漏`;
 
-  let summary = `当前 rubric 共 ${artifacts.rubric.length} 个独立信息维度：${hit} 个完整覆盖，${partial} 个部分覆盖，${missed} 个遗漏。`;
-  if (artifacts.wordBudget.overLimit) summary += " 当前答案超过字数上限，应优先压缩重复和低价值表达。";
-  if (artifacts.referenceCrossCheck) {
-    summary += " 已完成参考答案交叉验证；差异仅用于审计与复盘，不自动改变本次得分。";
-  }
+  let summary = `主得分维度：${hit} 个完整覆盖，${partial} 个方向已到但表达有损失，${missed} 个真正遗漏。`;
+  if (artifacts.wordBudget.overLimit) summary += " 当前答案超过字数上限，应先压缩重复和低价值表达。";
   if (scoreResult.calibrationStatus === "uncalibrated") {
-    summary += " 当前得分由未校准诊断 policy 计算，只用于开发与一致性验证，不代表正式阅卷分。";
+    summary += " 分数仍是未校准诊断分，优先看覆盖、表述损失和漏点。";
   }
 
   return {
