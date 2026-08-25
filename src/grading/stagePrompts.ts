@@ -205,11 +205,18 @@ export function buildAnswerMappingRequest(question: Question, rubric: RubricPoin
         diagnosis: "已覆盖该得分维度。"
       }]
     },
+    // DeepSeek's native JSON Output can occasionally return an empty content field on
+    // heavier mapping tasks. Start Stage 3 in direct final-JSON mode for DeepSeek;
+    // generic providers ignore these compatibility hints and keep their native schema path.
+    promptOnlyJson: true,
+    disableThinking: true,
+    temperature: 0,
     maxOutputTokens: 12_000,
     instructions: stageInstructions(
       question,
       [
         "本阶段只做考生答案与 rubric 的逐点映射。先判断主得分方向有没有写到，再判断表达质量。",
+        "直接生成最终 JSON 映射，不展开思考过程，不输出解释性前后缀。",
         "hit：主维度和必要限定/机制均已实质表达，允许与材料换词，不要求复述所有证据。",
         "partial：主方向已经写到，但因为上位概括过空、中观词丢失、主体对象不清、机制没写透、分类混杂、过度合并或关键限定缺失，可能只能拿到部分分。partial 的 diagnosis 必须明确指出‘已经写到了什么 + 具体损失在哪里’。",
         "missed（真正遗漏）：主得分方向本身没有出现。不要因为考生没写某个材料后果、数据例证或同义细节，就把已覆盖的主维度另拆成 missed。",
