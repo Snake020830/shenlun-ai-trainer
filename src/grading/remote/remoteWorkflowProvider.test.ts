@@ -142,7 +142,7 @@ describe("remote grading workflow boundaries", () => {
     expect(result.artifacts?.mappings).toHaveLength(1);
   });
 
-  it("switches an empty DeepSeek Stage 3 response to prompt-only JSON without thinking", async () => {
+  it("starts DeepSeek Stage 3 in direct prompt-only JSON mode and keeps it on repair", async () => {
     const remote = transport();
     remote.config.protocol = "openai-chat-completions";
     remote.config.baseUrl = "https://api.deepseek.com";
@@ -168,8 +168,10 @@ describe("remote grading workflow boundaries", () => {
 
     expect(result.artifacts?.mappings).toHaveLength(1);
     expect(mappingRequests).toHaveLength(2);
+    expect(mappingRequests[0]?.promptOnlyJson).toBe(true);
+    expect(mappingRequests[0]?.disableThinking).toBe(true);
+    expect(mappingRequests[0]?.temperature).toBe(0);
     expect(mappingRequests[0]?.maxOutputTokens).toBe(12_000);
-    expect(mappingRequests[0]?.promptOnlyJson).toBeUndefined();
     expect(mappingRequests[1]?.promptOnlyJson).toBe(true);
     expect(mappingRequests[1]?.disableThinking).toBe(true);
     expect(mappingRequests[1]?.maxOutputTokens).toBeGreaterThanOrEqual(12_000);
