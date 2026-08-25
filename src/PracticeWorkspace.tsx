@@ -20,6 +20,7 @@ import {
   Underline,
   Undo2
 } from "lucide-react";
+import DeepReadResultView from "./DeepReadResultView";
 import { errorMessage } from "./errorMessage";
 import { gradingService } from "./grading";
 import { deepReadQuestion, type MaterialDeepReadOutput } from "./materialLearning";
@@ -307,38 +308,12 @@ function ReviewPanel({ review }: { review: MockReview }) {
   return <div className="review-content"><div className="score-panel"><span>本次得分</span><strong>{review.score}<small> / {review.maxScore}</small></strong><p>{review.summary}</p></div><div className="review-metrics"><div><span>要点覆盖</span><strong>{review.coverage}</strong></div><div><span>分类</span><strong>{review.classification}</strong></div><div><span>表达</span><strong>{review.expression}</strong></div><div><span>冗余</span><strong>{review.redundancy}</strong></div></div><div className="point-list"><h4>逐点核对</h4>{review.points.map(point => <article key={point.title} className={`point point-${point.status}`}><div className="point-heading">{point.status === "hit" ? <Check size={16}/> : <CircleAlert size={16}/>}<strong>{point.title}</strong><Badge tone={point.status === "hit" ? "green" : "amber"}>{point.status === "hit" ? "已覆盖" : point.status === "partial" ? "部分覆盖" : "遗漏"}</Badge></div><p><b>材料依据：</b>{point.evidence}</p>{point.suggestion && <p className="suggestion"><b>修改：</b>{point.suggestion}</p>}</article>)}</div>{review.referenceCrossCheck && <ReferenceCrossCheckPanel crossCheck={review.referenceCrossCheck}/>}</div>;
 }
 
-function DeepReadPanel({ result }: { result: MaterialDeepReadOutput }) {
-  return <div className="practice-deep-read">
-    <section className="deep-read-reference">
-      <header><h3>参考作答</h3><span>AI精读 · 不参与评分</span></header>
-      <p>{result.referenceAnswer}</p>
-      {result.answerNotes.length > 0 && <ul className="deep-read-notes">{result.answerNotes.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}</ul>}
-    </section>
-
-    {result.expressions.length > 0 && <section className="deep-read-section">
-      <header><h3>规范表达 / 中观词</h3><span>{result.expressions.length} 条</span></header>
-      <div className="deep-read-card-list">{result.expressions.map((item, index) => <article className="deep-read-card" key={`${item.phrase}-${index}`}><strong>{item.phrase}</strong><p>{item.meaning}</p>{item.useCases.length > 0 && <div className="deep-read-tags">{item.useCases.map(tag => <span key={tag}>{tag}</span>)}</div>}<small>材料依据：{item.sourceEvidence}</small></article>)}</div>
-    </section>}
-
-    {result.mechanisms.length > 0 && <section className="deep-read-section">
-      <header><h3>论证机制 / 因果链</h3><span>{result.mechanisms.length} 条</span></header>
-      <div className="deep-read-card-list">{result.mechanisms.map((item, index) => <article className="deep-read-card" key={`${item.title}-${index}`}><strong>{item.title}</strong><p>{item.chain}</p>{item.transferableTo.length > 0 && <div className="deep-read-tags">{item.transferableTo.map(tag => <span key={tag}>{tag}</span>)}</div>}<small>材料依据：{item.sourceEvidence}</small></article>)}</div>
-    </section>}
-
-    {result.cases.length > 0 && <section className="deep-read-section">
-      <header><h3>案例素材</h3><span>{result.cases.length} 条</span></header>
-      <div className="deep-read-card-list">{result.cases.map((item, index) => <article className="deep-read-card" key={`${item.title}-${index}`}><strong>{item.title}</strong><p>{item.summary}</p>{item.transferableTo.length > 0 && <div className="deep-read-tags">{item.transferableTo.map(tag => <span key={tag}>{tag}</span>)}</div>}<small>材料依据：{item.sourceEvidence}</small></article>)}</div>
-    </section>}
-
-    {result.essayAngles.length > 0 && <section className="deep-read-section">
-      <header><h3>大作文观点 / 论证角度</h3><span>{result.essayAngles.length} 条</span></header>
-      <div className="deep-read-card-list">{result.essayAngles.map((item, index) => <article className="deep-read-card" key={`${item.claim}-${index}`}><strong>{item.claim}</strong><p>{item.reasoning}</p><small>适合放在：{item.paragraphUse}</small>{item.transferableTo.length > 0 && <div className="deep-read-tags">{item.transferableTo.map(tag => <span key={tag}>{tag}</span>)}</div>}</article>)}</div>
-    </section>}
-  </div>;
+function DeepReadPanel({ result, question }: { result: MaterialDeepReadOutput; question: Question }) {
+  return <DeepReadResultView result={result} answerTitle={question.type === "文章写作" ? "参考立意与示范论证" : "参考作答"}/>;
 }
 
 function ResultEmpty({ tab }: { tab: ResultTab }) {
-  return <div className="practice-result-empty"><strong>{tab === "review" ? "还没有批改结果" : "还没有精读结果"}</strong><span>{tab === "review" ? "完成作答后点击“提交批改”，结果会显示在这里；上方答题卡不会被滚走。" : "无需提交答案，直接点击“精读文章”即可生成参考作答、规范表达、机制和作文素材。"}</span></div>;
+  return <div className="practice-result-empty"><strong>{tab === "review" ? "还没有批改结果" : "还没有精读结果"}</strong><span>{tab === "review" ? "完成作答后点击“提交批改”，结果会显示在这里；上方答题卡不会被滚走。" : "无需提交答案，直接点击“精读文章”即可生成参考作答和整合后的学习提炼。"}</span></div>;
 }
 
 export default function PracticeWorkspace({ question, onExit, onSubmitted }: { question: Question; onExit: () => void; onSubmitted: (record: TrainingRecord) => void }) {
@@ -355,6 +330,7 @@ export default function PracticeWorkspace({ question, onExit, onSubmitted }: { q
   const [draftLoaded, setDraftLoaded] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitElapsedSeconds, setSubmitElapsedSeconds] = useState(0);
   const [remainingSeconds, setRemainingSeconds] = useState(countdownSeconds);
   const [timerRunning, setTimerRunning] = useState(true);
   const [annotationMode, setAnnotationMode] = useState<AnnotationMode>(null);
@@ -425,6 +401,13 @@ export default function PracticeWorkspace({ question, onExit, onSubmitted }: { q
   }, [timerRunning]);
 
   useEffect(() => {
+    if (!submitting) return;
+    setSubmitElapsedSeconds(0);
+    const timer = window.setInterval(() => setSubmitElapsedSeconds(value => value + 1), 1000);
+    return () => window.clearInterval(timer);
+  }, [submitting]);
+
+  useEffect(() => {
     if (!annotationsLoaded) return;
     const timer = window.setTimeout(() => {
       void savePracticeAnnotations(question.id, annotations)
@@ -453,16 +436,25 @@ export default function PracticeWorkspace({ question, onExit, onSubmitted }: { q
     setDeepReadError(null);
     setSubmitting(false);
     setSubmitError(null);
-    persistence.getDraft(question.id)
-      .then(draft => {
-        if (cancelled) return;
-        setAnswer(draft?.answer ?? "");
-        setDraftLoaded(true);
-      })
-      .catch(error => {
-        console.error("Failed to load draft.", error);
-        if (!cancelled) setDraftLoaded(true);
-      });
+    setSubmitElapsedSeconds(0);
+    Promise.all([
+      persistence.getDraft(question.id),
+      persistence.listHistory()
+    ]).then(([draft, records]) => {
+      if (cancelled) return;
+      const draftAnswer = draft?.answer ?? "";
+      setAnswer(draftAnswer);
+      const latestMatchingRecord = records.find(record =>
+        record.questionId === question.id &&
+        record.answer === draftAnswer &&
+        Boolean(record.review)
+      );
+      setReview(latestMatchingRecord?.review ?? null);
+      setDraftLoaded(true);
+    }).catch(error => {
+      console.error("Failed to load draft or latest review.", error);
+      if (!cancelled) setDraftLoaded(true);
+    });
     return () => { cancelled = true; };
   }, [question.id]);
 
@@ -588,7 +580,7 @@ export default function PracticeWorkspace({ question, onExit, onSubmitted }: { q
     setMaterialFontSize(MATERIAL_FONT_DEFAULT);
   }
 
-  const persistenceStatus = submitError ?? (draftLoaded ? "已自动保存" : "正在读取草稿…");
+  const persistenceStatus = submitError ?? (submitting ? `AI批改中 · ${submitElapsedSeconds}s` : review ? "批改完成 · 已保存" : draftLoaded ? "已自动保存" : "正在读取草稿…");
   const isDemo = question.source !== "local";
   const timerText = remainingSeconds >= 0 ? formatDuration(remainingSeconds) : `+${formatDuration(overtimeSeconds)}`;
 
@@ -685,18 +677,21 @@ export default function PracticeWorkspace({ question, onExit, onSubmitted }: { q
 
         <section className="practice-result-dock">
           <div className="practice-result-tabs" role="tablist" aria-label="训练结果切换">
-            <button className={resultTab === "review" ? "active" : ""} onClick={() => setResultTab("review")}>批改结果</button>
-            <button className={resultTab === "learning" ? "active" : ""} onClick={() => setResultTab("learning")}>AI精读</button>
+            <button className={resultTab === "review" ? "active" : ""} onClick={() => setResultTab("review")}>批改结果{review ? " · 已完成" : ""}</button>
+            <button className={resultTab === "learning" ? "active" : ""} onClick={() => setResultTab("learning")}>AI精读{deepReadResult ? " · 已完成" : ""}</button>
           </div>
           <div className="practice-result-scroll">
             {resultTab === "review" ? (
-              review ? <ReviewPanel review={review}/> : submitError ? <div className="practice-result-error">{submitError}</div> : <ResultEmpty tab="review"/>
+              submitting ? <div className="practice-review-loading"><LoaderCircle size={22}/><strong>正在批改 · 已等待 {submitElapsedSeconds}s</strong><span>材料抽取 → Rubric → 答案映射 → 表达审计。结果会直接显示在这里。</span></div>
+                : review ? <ReviewPanel review={review}/>
+                  : submitError ? <div className="practice-result-error">{submitError}</div>
+                    : <ResultEmpty tab="review"/>
             ) : deepReadBusy ? (
-              <div className="deep-read-loading"><LoaderCircle size={22}/><strong>正在精读题干与材料…</strong><span>不读取你的答案，也不参与评分。</span></div>
+              <div className="deep-read-loading"><LoaderCircle size={22}/><strong>正在整合题干与材料…</strong><span>先判断母题和机制，再提炼可复用表达与作文素材。</span></div>
             ) : deepReadError ? (
               <div className="practice-result-error">{deepReadError}</div>
             ) : deepReadResult ? (
-              <DeepReadPanel result={deepReadResult}/>
+              <DeepReadPanel result={deepReadResult} question={question}/>
             ) : <ResultEmpty tab="learning"/>}
           </div>
         </section>
