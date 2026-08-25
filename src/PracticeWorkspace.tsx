@@ -8,9 +8,8 @@ import {
   Clock3,
   Eraser,
   Highlighter,
+  LoaderCircle,
   Minus,
-  PanelRightClose,
-  PanelRightOpen,
   Pause,
   PenLine,
   Play,
@@ -23,6 +22,7 @@ import {
 } from "lucide-react";
 import { errorMessage } from "./errorMessage";
 import { gradingService } from "./grading";
+import { deepReadQuestion, type MaterialDeepReadOutput } from "./materialLearning";
 import {
   answerSheetCapacity,
   answerSheetMarkers,
@@ -46,10 +46,12 @@ import ReferenceCrossCheckPanel from "./ReferenceCrossCheckPanel";
 import { persistence } from "./storage";
 import type { MockReview, Question, TrainingRecord } from "./types";
 import "./practiceExam.css";
+import "./practiceResultsDock.css";
 
 type AnnotationMode = PracticeTextAnnotation["type"] | null;
 type InkMode = "pen" | "eraser" | null;
 type MaterialView = "single" | "all";
+type ResultTab = "review" | "learning";
 
 const MATERIAL_FONT_KEY = "shenlun:material-font-size:v2";
 const MATERIAL_FONT_MIN = 16;
@@ -280,7 +282,7 @@ function MaterialTextStage({
   const annotationLayoutKey = annotations.map(item => `${item.id}:${item.start}:${item.end}`).join("|");
 
   return <div
-    className={`material-text-stage ${inkMode ? "ink-active" : ""} ${inkMode === "eraser" ? "eraser-active" : ""}`}
+    className={`material-text-stage ${inkMode ? "ink-active" : ""} ${inkMode === "eraser" ? "eraser-active" : ""}`
     onPointerDown={beginInk}
     onPointerMove={moveInk}
     onPointerUp={finishInk}
@@ -297,16 +299,46 @@ function MaterialTextStage({
   </div>;
 }
 
-function BeforeReview({ question }: { question: Question }) {
-  return <div className="before-review"><div className="review-icon"><Sparkles size={22}/></div><h3>批改面板</h3><p>提交前不展示要点，避免提示效应。提交后这里会显示结构化反馈。</p><div className="review-rule"><Check size={16}/><span>要点覆盖</span></div><div className="review-rule"><Check size={16}/><span>要素分类</span></div><div className="review-rule"><Check size={16}/><span>表达与冗余</span></div><small>提交后按当前设置的评分引擎运行；远程 AI 若启用，其数值分仍属于未校准实验评分。</small><div className="question-facts"><span>题型</span><strong>{question.type}</strong><span>字数</span><strong>≤ {question.wordLimit}</strong></div></div>;
-}
-
 function Badge({ children, tone = "neutral" }: { children: React.ReactNode; tone?: "neutral" | "green" | "amber" }) {
   return <span className={`badge badge-${tone}`}>{children}</span>;
 }
 
 function ReviewPanel({ review }: { review: MockReview }) {
   return <div className="review-content"><div className="score-panel"><span>本次得分</span><strong>{review.score}<small> / {review.maxScore}</small></strong><p>{review.summary}</p></div><div className="review-metrics"><div><span>要点覆盖</span><strong>{review.coverage}</strong></div><div><span>分类</span><strong>{review.classification}</strong></div><div><span>表达</span><strong>{review.expression}</strong></div><div><span>冗余</span><strong>{review.redundancy}</strong></div></div><div className="point-list"><h4>逐点核对</h4>{review.points.map(point => <article key={point.title} className={`point point-${point.status}`}><div className="point-heading">{point.status === "hit" ? <Check size={16}/> : <CircleAlert size={16}/>}<strong>{point.title}</strong><Badge tone={point.status === "hit" ? "green" : "amber"}>{point.status === "hit" ? "已覆盖" : point.status === "partial" ? "部分覆盖" : "遗漏"}</Badge></div><p><b>材料依据：</b>{point.evidence}</p>{point.suggestion && <p className="suggestion"><b>修改：</b>{point.suggestion}</p>}</article>)}</div>{review.referenceCrossCheck && <ReferenceCrossCheckPanel crossCheck={review.referenceCrossCheck}/>}</div>;
+}
+
+function DeepReadPanel({ result }: { result: MaterialDeepReadOutput }) {
+  return <div className="practice-deep-read">
+    <section className="deep-read-reference">
+      <header><h3>参考作答</h3><span>AI精读 · 不参与评分</span></header>
+      <p>{result.referenceAnswer}</p>
+      {result.answerNotes.length > 0 && <ul className="deep-read-notes">{result.answerNotes.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}</ul>}
+    </section>
+
+    {result.expressions.length > 0 && <section className="deep-read-section">
+      <header><h3>规范表达 / 中观词</h3><span>{result.expressions.length} 条</span></header>
+      <div className="deep-read-card-list">{result.expressions.map((item, index) => <article className="deep-read-card" key={`${item.phrase}-${index}`}><strong>{item.phrase}</strong><p>{item.meaning}</p>{item.useCases.length > 0 && <div className="deep-read-tags">{item.useCases.map(tag => <span key={tag}>{tag}</span>)}</div>}<small>材料依据：{item.sourceEvidence}</small></article>)}</div>
+    </section>}
+
+    {result.mechanisms.length > 0 && <section className="deep-read-section">
+      <header><h3>论证机制 / 因果链</h3><span>{result.mechanisms.length} 条</span></header>
+      <div className="deep-read-card-list">{result.mechanisms.map((item, index) => <article className="deep-read-card" key={`${item.title}-${index}`}><strong>{item.title}</strong><p>{item.chain}</p>{item.transferableTo.length > 0 && <div className="deep-read-tags">{item.transferableTo.map(tag => <span key={tag}>{tag}</span>)}</div>}<small>材料依据：{item.sourceEvidence}</small></article>)}</div>
+    </section>}
+
+    {result.cases.length > 0 && <section className="deep-read-section">
+      <header><h3>案例素材</h3><span>{result.cases.length} 条</span></header>
+      <div className="deep-read-card-list">{result.cases.map((item, index) => <article className="deep-read-card" key={`${item.title}-${index}`}><strong>{item.title}</strong><p>{item.summary}</p>{item.transferableTo.length > 0 && <div className="deep-read-tags">{item.transferableTo.map(tag => <span key={tag}>{tag}</span>)}</div>}<small>材料依据：{item.sourceEvidence}</small></article>)}</div>
+    </section>}
+
+    {result.essayAngles.length > 0 && <section className="deep-read-section">
+      <header><h3>大作文观点 / 论证角度</h3><span>{result.essayAngles.length} 条</span></header>
+      <div className="deep-read-card-list">{result.essayAngles.map((item, index) => <article className="deep-read-card" key={`${item.claim}-${index}`}><strong>{item.claim}</strong><p>{item.reasoning}</p><small>适合放在：{item.paragraphUse}</small>{item.transferableTo.length > 0 && <div className="deep-read-tags">{item.transferableTo.map(tag => <span key={tag}>{tag}</span>)}</div>}</article>)}</div>
+    </section>}
+  </div>;
+}
+
+function ResultEmpty({ tab }: { tab: ResultTab }) {
+  return <div className="practice-result-empty"><strong>{tab === "review" ? "还没有批改结果" : "还没有精读结果"}</strong><span>{tab === "review" ? "完成作答后点击“提交批改”，结果会显示在这里；上方答题卡不会被滚走。" : "无需提交答案，直接点击“精读文章”即可生成参考作答、规范表达、机制和作文素材。"}</span></div>;
 }
 
 export default function PracticeWorkspace({ question, onExit, onSubmitted }: { question: Question; onExit: () => void; onSubmitted: (record: TrainingRecord) => void }) {
@@ -316,7 +348,10 @@ export default function PracticeWorkspace({ question, onExit, onSubmitted }: { q
   );
   const [answer, setAnswer] = useState("");
   const [review, setReview] = useState<MockReview | null>(null);
-  const [rightOpen, setRightOpen] = useState(false);
+  const [resultTab, setResultTab] = useState<ResultTab>("review");
+  const [deepReadResult, setDeepReadResult] = useState<MaterialDeepReadOutput | null>(null);
+  const [deepReadBusy, setDeepReadBusy] = useState(false);
+  const [deepReadError, setDeepReadError] = useState<string | null>(null);
   const [draftLoaded, setDraftLoaded] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -412,6 +447,10 @@ export default function PracticeWorkspace({ question, onExit, onSubmitted }: { q
     setDraftLoaded(false);
     setAnswer("");
     setReview(null);
+    setResultTab("review");
+    setDeepReadResult(null);
+    setDeepReadBusy(false);
+    setDeepReadError(null);
     setSubmitting(false);
     setSubmitError(null);
     persistence.getDraft(question.id)
@@ -440,10 +479,10 @@ export default function PracticeWorkspace({ question, onExit, onSubmitted }: { q
     if (submitting) return;
     setSubmitting(true);
     setSubmitError(null);
+    setResultTab("review");
     try {
       const result = await gradingService.grade({ question, answer, referenceAnswer: question.referenceAnswer });
       setReview(result);
-      setRightOpen(true);
       setTimerRunning(false);
       const now = new Date();
       const record: TrainingRecord = { id: crypto.randomUUID(), questionId: question.id, title: question.title, score: result.score, maxScore: result.maxScore, submittedAt: now.toLocaleString("zh-CN"), submittedAtIso: now.toISOString(), answer, review: result };
@@ -456,10 +495,25 @@ export default function PracticeWorkspace({ question, onExit, onSubmitted }: { q
       onSubmitted(record);
     } catch (error) {
       console.error("Failed to grade or save training record.", error);
-      setRightOpen(true);
       setSubmitError(`批改失败：${errorMessage(error, "未知错误，请重试。")}`);
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function runDeepRead() {
+    if (deepReadBusy) return;
+    setDeepReadBusy(true);
+    setDeepReadError(null);
+    setResultTab("learning");
+    try {
+      const result = await deepReadQuestion(question);
+      setDeepReadResult(result);
+    } catch (error) {
+      console.error("Failed to deep-read question.", error);
+      setDeepReadError(errorMessage(error, "AI精读失败，请重试。"));
+    } finally {
+      setDeepReadBusy(false);
     }
   }
 
@@ -544,11 +598,10 @@ export default function PracticeWorkspace({ question, onExit, onSubmitted }: { q
       <div className="practice-title-block"><strong>{question.title}</strong><span>{question.type} · {question.score} 分 · ≤ {question.wordLimit} 字</span></div>
       <div className="practice-header-actions">
         <div className={`exam-timer ${timerRunning ? "running" : ""} ${remainingSeconds < 0 ? "overtime" : ""}`}><Clock3 size={16}/><strong>{timerText}</strong><small>{Math.round(countdownSeconds / 60)} 分钟建议</small><button title={timerRunning ? "暂停倒计时" : "继续倒计时"} onClick={() => setTimerRunning(value => !value)}>{timerRunning ? <Pause size={14}/> : <Play size={14}/>}</button><button title="重新开始本题倒计时" onClick={() => { setRemainingSeconds(countdownSeconds); setTimerRunning(true); }}><RotateCcw size={13}/></button></div>
-        <button className="icon-button" title={rightOpen ? "收起批改栏" : "展开批改栏"} onClick={() => setRightOpen(value => !value)}>{rightOpen ? <PanelRightClose size={19}/> : <PanelRightOpen size={19}/>}</button>
       </div>
     </header>
     {isDemo && <div className="demo-question-notice">当前为内置功能演示题；正式训练将使用完整题干与完整材料。</div>}
-    <div className={rightOpen ? "practice-grid" : "practice-grid right-hidden"}>
+    <div className="practice-grid practice-integrated-grid">
       <section className="materials-pane exam-materials-pane">
         <div className="material-navigation">
           <div className="material-tabs" role="tablist">
@@ -602,22 +655,52 @@ export default function PracticeWorkspace({ question, onExit, onSubmitted }: { q
           })}
         </div>
       </section>
-      <section className="answer-pane exam-answer-pane">
-        <div className="prompt-box exam-prompt-box"><span>题目要求</span><p>{question.prompt}</p></div>
-        <div className="grid-answer-wrap">
-          <div className="answer-paper-label"><span>你的作答</span><small>每行 {EXAM_GRID_COLUMNS} 格 · 共 {gridRows} 行 · 按本题字数上限生成</small></div>
-          <div className="grid-answer-stage" style={gridStyle}>
-            <div className="answer-grid-layer" aria-hidden="true"/>
-            <div className="answer-grid-markers" aria-hidden="true">
-              {gridMarkers.map(marker => <span key={marker} style={{ top: `${Math.min(100, marker / gridCapacity * 100)}%` }}>{marker}字线</span>)}
+
+      <section className="answer-pane exam-answer-pane integrated-answer-pane">
+        <div className="answer-fixed-zone">
+          <div className="prompt-box exam-prompt-box"><span>题目要求</span><p>{question.prompt}</p></div>
+          <div className="grid-answer-wrap">
+            <div className="answer-paper-label"><span>你的作答</span><small>每行 {EXAM_GRID_COLUMNS} 格 · 共 {gridRows} 行 · 按本题字数上限生成</small></div>
+            <div className="grid-answer-stage" style={gridStyle}>
+              <div className="answer-grid-layer" aria-hidden="true"/>
+              <div className="answer-grid-markers" aria-hidden="true">
+                {gridMarkers.map(marker => <span key={marker} style={{ top: `${Math.min(100, marker / gridCapacity * 100)}%` }}>{marker}字线</span>)}
+              </div>
+              <textarea className="grid-answer-input" spellCheck={false} value={answer} onChange={event => setAnswer(event.target.value)} placeholder={draftLoaded ? "" : "正在读取本地草稿……"} disabled={!draftLoaded}/>
             </div>
-            <textarea className="grid-answer-input" spellCheck={false} value={answer} onChange={event => setAnswer(event.target.value)} placeholder={draftLoaded ? "" : "正在读取本地草稿……"} disabled={!draftLoaded}/>
+            <div className="answer-sheet-hint"><span>字数 {chars}/{question.wordLimit}</span><span>稿纸占格 {gridCells}/{gridCapacity}</span><small>稿纸占格为书写模拟：常见数字两位一格，1. / 1、等短序号按一格；评分字数仍按提交文本独立统计。</small></div>
           </div>
-          <div className="answer-sheet-hint"><span>字数 {chars}/{question.wordLimit}</span><span>稿纸占格 {gridCells}/{gridCapacity}</span><small>稿纸占格为书写模拟：常见数字两位一格，1. / 1、等短序号按一格；评分字数仍按提交文本独立统计。</small></div>
         </div>
-        <div className="answer-footer exam-answer-footer"><span className={chars > question.wordLimit ? "over-limit" : ""}>{chars} / {question.wordLimit} 字</span><span className={remainingSeconds < 0 ? "over-limit" : ""}>{timerText}</span><span className={submitError ? "over-limit" : ""} title={submitError ?? undefined}>{persistenceStatus}</span><button className="primary" disabled={chars < 10 || !draftLoaded || submitting} onClick={submit}><Sparkles size={16}/>{submitting ? "批改中…" : "提交批改"}</button></div>
+
+        <div className="answer-footer exam-answer-footer">
+          <span className={chars > question.wordLimit ? "over-limit" : ""}>{chars} / {question.wordLimit} 字</span>
+          <span className={remainingSeconds < 0 ? "over-limit" : ""}>{timerText}</span>
+          <span className={submitError ? "over-limit" : ""} title={submitError ?? undefined}>{persistenceStatus}</span>
+          <span className="answer-footer-spacer"/>
+          <div className="answer-action-group">
+            <button className="learning-action" disabled={!draftLoaded || deepReadBusy || submitting} onClick={() => void runDeepRead()}><BookOpenText size={16}/>{deepReadBusy ? "精读中…" : "精读文章"}</button>
+            <button className="primary" disabled={chars < 10 || !draftLoaded || submitting || deepReadBusy} onClick={submit}><Sparkles size={16}/>{submitting ? "批改中…" : "提交批改"}</button>
+          </div>
+        </div>
+
+        <section className="practice-result-dock">
+          <div className="practice-result-tabs" role="tablist" aria-label="训练结果切换">
+            <button className={resultTab === "review" ? "active" : ""} onClick={() => setResultTab("review")}>批改结果</button>
+            <button className={resultTab === "learning" ? "active" : ""} onClick={() => setResultTab("learning")}>AI精读</button>
+          </div>
+          <div className="practice-result-scroll">
+            {resultTab === "review" ? (
+              review ? <ReviewPanel review={review}/> : submitError ? <div className="practice-result-error">{submitError}</div> : <ResultEmpty tab="review"/>
+            ) : deepReadBusy ? (
+              <div className="deep-read-loading"><LoaderCircle size={22}/><strong>正在精读题干与材料…</strong><span>不读取你的答案，也不参与评分。</span></div>
+            ) : deepReadError ? (
+              <div className="practice-result-error">{deepReadError}</div>
+            ) : deepReadResult ? (
+              <DeepReadPanel result={deepReadResult}/>
+            ) : <ResultEmpty tab="learning"/>}
+          </div>
+        </section>
       </section>
-      {rightOpen && <aside className="review-pane">{review ? <ReviewPanel review={review}/> : <BeforeReview question={question}/>}</aside>}
     </div>
   </div>;
 }
