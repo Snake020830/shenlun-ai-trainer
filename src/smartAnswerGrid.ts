@@ -27,6 +27,7 @@ function enhanceStage(stage: EnhancedStage) {
   if (stage.dataset.smartAnswerGrid === "1") return;
   const textarea = stage.querySelector<HTMLTextAreaElement>(".grid-answer-input");
   if (!textarea) return;
+  const input: HTMLTextAreaElement = textarea;
 
   stage.dataset.smartAnswerGrid = "1";
   stage.classList.add("smart-grid-enhanced");
@@ -34,7 +35,7 @@ function enhanceStage(stage: EnhancedStage) {
   const grid = document.createElement("div");
   grid.className = "smart-answer-grid";
   grid.setAttribute("aria-hidden", "true");
-  stage.insertBefore(grid, textarea);
+  stage.insertBefore(grid, input);
 
   let lastValue = "";
   let lastSelection = -1;
@@ -42,8 +43,8 @@ function enhanceStage(stage: EnhancedStage) {
 
   function render(force = false) {
     const rows = readRows(stage);
-    const value = textarea.value;
-    const selection = textarea.selectionStart ?? value.length;
+    const value = input.value;
+    const selection = input.selectionStart ?? value.length;
     if (!force && value === lastValue && selection === lastSelection && rows === lastRows) return;
 
     lastValue = value;
@@ -71,7 +72,7 @@ function enhanceStage(stage: EnhancedStage) {
     }
 
     const caretCell = Math.min(capacity - 1, examGridCellForOffset(value, selection, EXAM_GRID_COLUMNS));
-    if (document.activeElement === textarea && caretCell >= 0 && caretCell < capacity) {
+    if (document.activeElement === input && caretCell >= 0 && caretCell < capacity) {
       cells[caretCell]?.classList.add("is-caret-cell");
     }
 
@@ -80,9 +81,9 @@ function enhanceStage(stage: EnhancedStage) {
   }
 
   function focusCell(cellIndex: number) {
-    const offset = examGridOffsetForCell(textarea.value, cellIndex, EXAM_GRID_COLUMNS);
-    textarea.focus({ preventScroll: true });
-    textarea.setSelectionRange(offset, offset);
+    const offset = examGridOffsetForCell(input.value, cellIndex, EXAM_GRID_COLUMNS);
+    input.focus({ preventScroll: true });
+    input.setSelectionRange(offset, offset);
     render(true);
   }
 
@@ -95,14 +96,14 @@ function enhanceStage(stage: EnhancedStage) {
 
   const renderNow = () => render(true);
   grid.addEventListener("pointerdown", onGridPointerDown);
-  textarea.addEventListener("input", renderNow);
-  textarea.addEventListener("select", renderNow);
-  textarea.addEventListener("keyup", renderNow);
-  textarea.addEventListener("click", renderNow);
-  textarea.addEventListener("focus", renderNow);
-  textarea.addEventListener("blur", renderNow);
-  textarea.addEventListener("compositionupdate", renderNow);
-  textarea.addEventListener("compositionend", renderNow);
+  input.addEventListener("input", renderNow);
+  input.addEventListener("select", renderNow);
+  input.addEventListener("keyup", renderNow);
+  input.addEventListener("click", renderNow);
+  input.addEventListener("focus", renderNow);
+  input.addEventListener("blur", renderNow);
+  input.addEventListener("compositionupdate", renderNow);
+  input.addEventListener("compositionend", renderNow);
 
   const poll = window.setInterval(() => {
     if (!stage.isConnected) {
@@ -116,14 +117,14 @@ function enhanceStage(stage: EnhancedStage) {
   stage.__smartAnswerGridCleanup = () => {
     window.clearInterval(poll);
     grid.removeEventListener("pointerdown", onGridPointerDown);
-    textarea.removeEventListener("input", renderNow);
-    textarea.removeEventListener("select", renderNow);
-    textarea.removeEventListener("keyup", renderNow);
-    textarea.removeEventListener("click", renderNow);
-    textarea.removeEventListener("focus", renderNow);
-    textarea.removeEventListener("blur", renderNow);
-    textarea.removeEventListener("compositionupdate", renderNow);
-    textarea.removeEventListener("compositionend", renderNow);
+    input.removeEventListener("input", renderNow);
+    input.removeEventListener("select", renderNow);
+    input.removeEventListener("keyup", renderNow);
+    input.removeEventListener("click", renderNow);
+    input.removeEventListener("focus", renderNow);
+    input.removeEventListener("blur", renderNow);
+    input.removeEventListener("compositionupdate", renderNow);
+    input.removeEventListener("compositionend", renderNow);
     grid.remove();
     stage.removeAttribute("data-smart-answer-grid");
     stage.classList.remove("smart-grid-enhanced", "smart-grid-overflow");
