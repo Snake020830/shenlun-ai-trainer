@@ -1,0 +1,37 @@
+name: One-time PracticeWorkspace syntax repair
+
+on:
+  push:
+    branches:
+      - feat/v0.1-product-shell
+    paths:
+      - .github/workflows/fix-practice-workspace-syntax.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/v0.1-product-shell
+      - name: Repair missing JSX brace
+        shell: python
+        run: |
+          from pathlib import Path
+          path = Path('src/PracticeWorkspace.tsx')
+          text = path.read_text(encoding='utf-8')
+          broken = '    className={`material-text-stage ${inkMode ? "ink-active" : ""} ${inkMode === "eraser" ? "eraser-active" : ""}`\n'
+          fixed = '    className={`material-text-stage ${inkMode ? "ink-active" : ""} ${inkMode === "eraser" ? "eraser-active" : ""}`}\n'
+          if broken not in text:
+              raise SystemExit('Expected malformed JSX line was not found; refusing broad rewrite.')
+          path.write_text(text.replace(broken, fixed, 1), encoding='utf-8')
+      - name: Commit repair
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/PracticeWorkspace.tsx
+          git commit -m "fix: close MaterialTextStage className expression"
+          git push origin HEAD:feat/v0.1-product-shell
