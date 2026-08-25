@@ -1,0 +1,289 @@
+/* Integrated practice result dock: materials on the left; answer + results on the right. */
+.exam-practice-shell .practice-grid.practice-integrated-grid {
+  display: grid;
+  grid-template-columns: minmax(560px, 1.08fr) minmax(640px, .92fr);
+  grid-template-rows: minmax(0, 1fr);
+  min-height: 0;
+}
+
+.practice-integrated-grid > .exam-materials-pane,
+.practice-integrated-grid > .integrated-answer-pane {
+  min-height: 0;
+}
+
+.integrated-answer-pane {
+  height: 100%;
+  display: grid;
+  grid-template-rows: minmax(330px, 58vh) 48px minmax(160px, 1fr);
+  overflow: hidden;
+  background: #fff;
+  border-left: 1px solid #e7e7e3;
+}
+
+.answer-fixed-zone {
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: #fff;
+}
+
+.integrated-answer-pane .grid-answer-wrap {
+  overflow: visible;
+  padding-bottom: 12px;
+}
+
+.integrated-answer-pane .exam-answer-footer {
+  min-height: 48px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-top: 1px solid #e8e9eb;
+  border-bottom: 1px solid #e3e4df;
+  background: #fff;
+  z-index: 4;
+}
+
+.integrated-answer-pane .exam-answer-footer > span {
+  flex: 0 0 auto;
+}
+
+.answer-footer-spacer {
+  flex: 1 1 auto;
+  min-width: 8px;
+}
+
+.answer-action-group {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.answer-action-group button {
+  min-height: 34px;
+  padding: 0 13px;
+}
+
+.answer-action-group .learning-action {
+  border: 1px solid #cfd9d1;
+  background: #f5f8f5;
+  color: #315d46;
+}
+
+.answer-action-group .learning-action:hover:not(:disabled) {
+  border-color: #9eb4a5;
+  background: #edf4ef;
+}
+
+.practice-result-dock {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: 40px minmax(0, 1fr);
+  background: #fafaf7;
+}
+
+.practice-result-tabs {
+  display: flex;
+  align-items: end;
+  gap: 18px;
+  padding: 0 18px;
+  border-bottom: 1px solid #e1e2dd;
+  background: #fff;
+}
+
+.practice-result-tabs button {
+  height: 40px;
+  padding: 0 2px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: #858a8f;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.practice-result-tabs button.active {
+  color: #2f6248;
+  border-bottom-color: #397052;
+}
+
+.practice-result-tabs button:disabled {
+  opacity: .45;
+  cursor: default;
+}
+
+.practice-result-scroll {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 16px 18px 34px;
+  scrollbar-gutter: stable;
+}
+
+.practice-result-empty {
+  min-height: 150px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 6px;
+  color: #a0a4a1;
+  text-align: center;
+}
+
+.practice-result-empty strong {
+  color: #777d79;
+  font-size: 13px;
+}
+
+.practice-result-empty span {
+  max-width: 36em;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.practice-result-error {
+  padding: 12px 14px;
+  border: 1px solid #edc8c2;
+  border-radius: 10px;
+  background: #fff8f7;
+  color: #8f4d46;
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.practice-result-scroll .review-content {
+  max-width: none;
+  margin: 0;
+}
+
+.practice-deep-read {
+  display: grid;
+  gap: 14px;
+  color: #343936;
+}
+
+.deep-read-reference,
+.deep-read-section {
+  border: 1px solid #e1e4de;
+  border-radius: 10px;
+  background: #fff;
+  padding: 14px 15px;
+}
+
+.deep-read-reference > header,
+.deep-read-section > header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.deep-read-reference h3,
+.deep-read-section h3 {
+  margin: 0;
+  font-size: 13px;
+  color: #315d46;
+}
+
+.deep-read-reference header span,
+.deep-read-section header span {
+  color: #9a9f9b;
+  font-size: 10px;
+}
+
+.deep-read-reference > p {
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.78;
+}
+
+.deep-read-notes {
+  margin: 11px 0 0;
+  padding: 10px 12px 10px 28px;
+  border-radius: 8px;
+  background: #f5f6f2;
+  color: #656b67;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.deep-read-card-list {
+  display: grid;
+  gap: 8px;
+}
+
+.deep-read-card {
+  padding: 10px 11px;
+  border: 1px solid #ecece7;
+  border-radius: 8px;
+  background: #fcfcfa;
+}
+
+.deep-read-card strong {
+  display: block;
+  margin-bottom: 4px;
+  color: #3d4841;
+  font-size: 12px;
+}
+
+.deep-read-card p {
+  margin: 0;
+  color: #5e6561;
+  font-size: 11px;
+  line-height: 1.62;
+}
+
+.deep-read-card small {
+  display: block;
+  margin-top: 6px;
+  color: #9a9f9b;
+  font-size: 9.5px;
+  line-height: 1.5;
+}
+
+.deep-read-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 7px;
+}
+
+.deep-read-tags span {
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #edf3ee;
+  color: #58705f;
+  font-size: 9px;
+}
+
+.deep-read-loading {
+  min-height: 160px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  color: #6c7770;
+  font-size: 12px;
+}
+
+.deep-read-loading svg {
+  animation: practice-deep-read-spin 1.15s linear infinite;
+}
+
+@keyframes practice-deep-read-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 1280px) {
+  .exam-practice-shell .practice-grid.practice-integrated-grid {
+    grid-template-columns: minmax(500px, 1fr) minmax(590px, 1fr);
+  }
+
+  .integrated-answer-pane {
+    grid-template-rows: minmax(300px, 56vh) 48px minmax(150px, 1fr);
+  }
+}
