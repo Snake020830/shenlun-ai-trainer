@@ -31,6 +31,8 @@ export interface PublicExamBootstrapResult {
   finalImportedPaperCount: number;
 }
 
+const BOOTSTRAP_BATCH_SIZE = 500;
+
 function primaryStructuredProvider() {
   const provider = PUBLIC_SOURCE_PROVIDERS.find(item => item.role === "primary-structured");
   if (!provider) throw new Error("没有配置可用于结构化整卷导入的主公开来源。");
@@ -48,13 +50,75 @@ export function selectBootstrapCandidates(
   );
 }
 
+async function auditUntilExhausted(
+  providerId: string,
+  delayMs: number,
+  onProgress?: (progress: PublicExamBootstrapProgress) => void
+): Promise<PublicExamBatchAuditResult[]> {
+  const results: PublicExamBatchAuditResult[] = [];
+  let completedBeforeBatch = 0;
+
+  for (;;) {
+    const current = selectBootstrapCandidates(await publicSourceStore.listCandidates(), providerId);
+    const batch = await auditPublicExamCandidates(current, {
+      delayMs,
+      maxCandidates: BOOTSTRAP_BATCH_SIZE,
+      onProgress: progress => onProgress?.({
+        phase: "audit",
+        done: completedBeforeBatch + progress.index,
+        total: completedBeforeBatch + progress.total,
+        title: progress.current.title
+      })
+    });
+    if (!batch.length) break;
+    results.push(...batch);
+    completedBeforeBatch += batch.length;
+    if (batch.length < BOOTSTRAP_BATCH_SIZE) break;
+  }
+
+  return results;
+}
+
+async function importUntilExhausted(
+  providerId: string,
+  delayMs: number,
+  onProgress?: (progress: PublicExamBootstrapProgress) => void
+): Promise<PublicExamBatchImportResult[]> {
+  const results: PublicExamBatchImportResult[] = [];
+  let completedBeforeBatch = 0;
+
+  for (;;) {
+    const current = selectBootstrapCandidates(await publicSourceStore.listCandidates(), providerId);
+    const batch = await importAuditedPublicExams(current, {
+      delayMs,
+      maxCandidates: BOOTSTRAP_BATCH_SIZE,
+      onProgress: progress => onProgress?.({
+        phase: "import",
+        done: completedBeforeBatch + progress.index,
+        total: completedBeforeBatch + progress.total,
+        title: progress.current.title
+      })
+    });
+    if (!batch.length) break;
+    results.push(...batch);
+    completedBeforeBatch += batch.length;
+    if (batch.length < BOOTSTRAP_BATCH_SIZE) break;
+  }
+
+  return results;
+}
+
 /**
  * User-facing, resumable question-bank bootstrap.
  *
- * Existing reviewed/imported state is preserved by the source store. The audit/import
- * helpers only process their pending queues, so rerunning this function continues from
- * the last successful phase instead of duplicating questions. Known blocked/error
- * candidates are deliberately left for the explicit "retry failures" action.
+ * Existing reviewed/imported state is preserved by the source store. Every safe,
+ * warning-free paper is audited and imported automatically. Blocked/error papers
+ * remain isolated for later parser maintenance; they never require the learner to
+ * manually approve each normal paper before starting practice.
+ *
+ * Batch helpers intentionally cap a single pass at 500 requests. This coordinator
+ * keeps starting another pass until the normal pending queue is exhausted, so a
+ * 600+ paper catalog no longer leaves the tail silently unprocessed.
  */
 export async function initializeRecentPublicExamLibrary(options: {
   delayMs?: number;
@@ -67,39 +131,13 @@ export async function initializeRecentPublicExamLibrary(options: {
   const discovered = await discoverProviderCandidates(provider);
   options.onProgress?.({ phase: "scan", done: 1, total: 1, title: `扫描完成：${provider.name}` });
 
-  const afterScan = selectBootstrapCandidates(await publicSourceStore.listCandidates(), provider.id);
-  let auditResults: PublicExamBatchAuditResult[] = [];
-  if (afterScan.length) {
-    auditResults = await auditPublicExamCandidates(afterScan, {
-      delayMs,
-      onProgress: progress => options.onProgress?.({
-        phase: "audit",
-        done: progress.index,
-        total: progress.total,
-        title: progress.current.title
-      })
-    });
-  }
-
-  // Re-read after audit because status/audit metadata is persisted by the batch layer.
-  const afterAudit = selectBootstrapCandidates(await publicSourceStore.listCandidates(), provider.id);
-  let importResults: PublicExamBatchImportResult[] = [];
-  if (afterAudit.length) {
-    importResults = await importAuditedPublicExams(afterAudit, {
-      delayMs,
-      onProgress: progress => options.onProgress?.({
-        phase: "import",
-        done: progress.index,
-        total: progress.total,
-        title: progress.current.title
-      })
-    });
-  }
+  const auditResults = await auditUntilExhausted(provider.id, delayMs, options.onProgress);
+  const importResults = await importUntilExhausted(provider.id, delayMs, options.onProgress);
 
   const finalCandidates = selectBootstrapCandidates(await publicSourceStore.listCandidates(), provider.id);
   const finalGroups = groupPublicExamCandidates(finalCandidates);
   const finalImportedPaperCount = finalGroups.filter(group => group.hasImportedVersion).length;
-  options.onProgress?.({ phase: "done", done: finalImportedPaperCount, total: finalGroups.length, title: "题库初始化完成" });
+  options.onProgress?.({ phase: "done", done: finalImportedPaperCount, total: finalGroups.length, title: "题库自动补全完成" });
 
   return {
     providerId: provider.id,
