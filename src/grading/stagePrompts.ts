@@ -197,6 +197,15 @@ export function buildAnswerMappingRequest(question: Question, rubric: RubricPoin
   return {
     schemaName: "shenlun_answer_mapping_v01",
     jsonSchema: mappingSchema,
+    jsonExample: {
+      mappings: [{
+        rubricPointId: "<使用当前 rubric 中真实 id>",
+        status: "hit",
+        errorCodes: [],
+        diagnosis: "已覆盖该得分维度。"
+      }]
+    },
+    maxOutputTokens: 12_000,
     instructions: stageInstructions(
       question,
       [
