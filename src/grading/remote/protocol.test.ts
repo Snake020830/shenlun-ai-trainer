@@ -63,18 +63,41 @@ describe("remote protocol codec", () => {
     });
   });
 
-  it("encodes DeepSeek Chat Completions with json_object and schema instructions", () => {
+  it("encodes DeepSeek Chat Completions with json_object, output budget, and a JSON example", () => {
     const call = encodeRemoteCall(config("openai-chat-completions", {
       baseUrl: "https://api.deepseek.com",
       model: "deepseek-v4-pro"
-    }), request);
+    }), {
+      ...request,
+      maxOutputTokens: 12_000,
+      jsonExample: { ok: true }
+    });
 
     expect(call.url).toBe("https://api.deepseek.com/chat/completions");
     expect(call.body.store).toBeUndefined();
+    expect(call.body.max_tokens).toBe(12_000);
     expect(call.body.response_format).toEqual({ type: "json_object" });
     const messages = call.body.messages as Array<{ role: string; content: string }>;
     expect(messages[0]?.content).toContain("合法 JSON 对象");
     expect(messages[0]?.content).toContain(JSON.stringify(request.jsonSchema));
+    expect(messages[0]?.content).toContain("JSON 输出示例");
+    expect(messages[0]?.content).toContain("{\"ok\":true}");
+  });
+
+  it("can fall back to prompt-only JSON with DeepSeek thinking disabled", () => {
+    const call = encodeRemoteCall(config("openai-chat-completions", {
+      baseUrl: "https://api.deepseek.com",
+      model: "deepseek-v4-pro"
+    }), {
+      ...request,
+      maxOutputTokens: 12_000,
+      promptOnlyJson: true,
+      disableThinking: true
+    });
+
+    expect(call.body.response_format).toBeUndefined();
+    expect(call.body.thinking).toEqual({ type: "disabled" });
+    expect(call.body.max_tokens).toBe(12_000);
   });
 
   it("decodes Chat Completions JSON content", () => {
@@ -86,6 +109,13 @@ describe("remote protocol codec", () => {
     expect(result.providerRequestId).toBe("req-1");
   });
 
+  it("decodes array-based Chat Completions text content from compatible providers", () => {
+    const result = decodeRemoteJson<{ ok: boolean }>(config("openai-chat-completions"), {
+      choices: [{ message: { content: [{ type: "text", text: "{\"ok\":true}" }] } }]
+    });
+    expect(result.data).toEqual({ ok: true });
+  });
+
   it("decodes Responses output_text content", () => {
     const result = decodeRemoteJson<{ ok: boolean }>(config("openai-responses"), {
       model: "model-x",
@@ -95,6 +125,24 @@ describe("remote protocol codec", () => {
       }]
     });
     expect(result.data).toEqual({ ok: true });
+  });
+
+  it("reports Chat Completions finish reason when structured content is empty", () => {
+    expect(() => decodeRemoteJson(config("openai-chat-completions"), {
+      choices: [{ finish_reason: "length", message: { content: "" } }],
+      usage: {
+        completion_tokens: 4096,
+        completion_tokens_details: { reasoning_tokens: 3900 }
+      }
+    })).toThrow("finish_reason=length; completion_tokens=4096; reasoning_tokens=3900");
+  });
+
+  it("reports Responses incomplete reason when structured content is empty", () => {
+    expect(() => decodeRemoteJson(config("openai-responses"), {
+      status: "incomplete",
+      incomplete_details: { reason: "max_output_tokens" },
+      output: []
+    })).toThrow("status=incomplete; incomplete_reason=max_output_tokens");
   });
 
   it("fails closed on invalid JSON", () => {
