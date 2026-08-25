@@ -126,6 +126,16 @@ describe("grading stage prompt isolation", () => {
     expect(mappingRequest.instructions).toContain("40个汉字以内");
   });
 
+  it("runs Stage 3 in direct final-JSON mode with a generous output budget", () => {
+    const request = buildAnswerMappingRequest(question, sampleRubric(), "推进事项下沉。");
+    expect(request.maxOutputTokens).toBe(12_000);
+    expect(request.promptOnlyJson).toBe(true);
+    expect(request.disableThinking).toBe(true);
+    expect(request.temperature).toBe(0);
+    expect(request.jsonExample).toBeDefined();
+    expect(request.instructions).toContain("直接生成最终 JSON 映射");
+  });
+
   it("passes the complete error taxonomy contract to stage 3 instead of asking the model to invent codes", () => {
     const request = buildAnswerMappingRequest(question, sampleRubric(), "推进事项下沉。");
     expect(request.instructions).toContain(ERROR_TAXONOMY_VERSION);
@@ -150,18 +160,5 @@ describe("grading stage prompt isolation", () => {
     };
     expect(schema.properties.mappings.items.properties.errorCodes.items.enum)
       .toEqual(ERROR_TAXONOMY.map(item => item.id));
-  });
-
-  it("gives Stage 3 enough output budget and a provider-facing JSON example", () => {
-    const request = buildAnswerMappingRequest(question, sampleRubric(), "推进事项下沉。");
-    expect(request.maxOutputTokens).toBe(12_000);
-    expect(request.jsonExample).toEqual({
-      mappings: [{
-        rubricPointId: "<使用当前 rubric 中真实 id>",
-        status: "hit",
-        errorCodes: [],
-        diagnosis: "已覆盖该得分维度。"
-      }]
-    });
   });
 });
