@@ -104,7 +104,13 @@ function enhanceStage(stage: EnhancedStage) {
   textarea.addEventListener("compositionupdate", renderNow);
   textarea.addEventListener("compositionend", renderNow);
 
-  const poll = window.setInterval(() => render(false), 120);
+  const poll = window.setInterval(() => {
+    if (!stage.isConnected) {
+      stage.__smartAnswerGridCleanup?.();
+      return;
+    }
+    render(false);
+  }, 120);
   render(true);
 
   stage.__smartAnswerGridCleanup = () => {
@@ -119,8 +125,9 @@ function enhanceStage(stage: EnhancedStage) {
     textarea.removeEventListener("compositionupdate", renderNow);
     textarea.removeEventListener("compositionend", renderNow);
     grid.remove();
-    delete stage.dataset.smartAnswerGrid;
-    stage.classList.remove("smart-grid-enhanced");
+    stage.removeAttribute("data-smart-answer-grid");
+    stage.classList.remove("smart-grid-enhanced", "smart-grid-overflow");
+    stage.__smartAnswerGridCleanup = undefined;
   };
 }
 
