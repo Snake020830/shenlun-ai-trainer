@@ -151,4 +151,17 @@ describe("grading stage prompt isolation", () => {
     expect(schema.properties.mappings.items.properties.errorCodes.items.enum)
       .toEqual(ERROR_TAXONOMY.map(item => item.id));
   });
+
+  it("gives Stage 3 enough output budget and a provider-facing JSON example", () => {
+    const request = buildAnswerMappingRequest(question, sampleRubric(), "推进事项下沉。");
+    expect(request.maxOutputTokens).toBe(12_000);
+    expect(request.jsonExample).toEqual({
+      mappings: [{
+        rubricPointId: "<使用当前 rubric 中真实 id>",
+        status: "hit",
+        errorCodes: [],
+        diagnosis: "已覆盖该得分维度。"
+      }]
+    });
+  });
 });
