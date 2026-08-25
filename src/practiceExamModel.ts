@@ -22,21 +22,33 @@ export function recommendedPracticeSeconds(wordLimit: number, type?: QuestionTyp
   return recommendedPracticeMinutes(wordLimit, type) * 60;
 }
 
+/**
+ * Visual answer-sheet paper size. The actual grading word limit is never changed.
+ * Paper capacity rounds upward to a clean hundred so common exam limits render as:
+ * 300 -> 300, 350 -> 400, 550 -> 600.
+ */
+export function answerSheetDisplayLimit(wordLimit: number): number {
+  const safeLimit = Math.max(1, Math.floor(wordLimit));
+  return Math.ceil(safeLimit / 100) * 100;
+}
+
 export function answerSheetRows(wordLimit: number, columns = EXAM_GRID_COLUMNS): number {
   const safeColumns = Math.max(1, Math.floor(columns));
-  const safeLimit = Math.max(1, Math.floor(wordLimit));
-  return Math.ceil(safeLimit / safeColumns);
+  return Math.ceil(answerSheetDisplayLimit(wordLimit) / safeColumns);
 }
 
 export function answerSheetCapacity(wordLimit: number, columns = EXAM_GRID_COLUMNS): number {
   return answerSheetRows(wordLimit, columns) * Math.max(1, Math.floor(columns));
 }
 
+/**
+ * Sparse answer-sheet side markers. Keep the writing area clean and show only
+ * 200-character milestones (200 / 400 / 600 ...), never overlaying the text grid.
+ */
 export function answerSheetMarkers(wordLimit: number): number[] {
-  const safeLimit = Math.max(1, Math.floor(wordLimit));
+  const capacity = answerSheetCapacity(wordLimit);
   const markers: number[] = [];
-  for (let value = 100; value < safeLimit; value += 100) markers.push(value);
-  if (!markers.includes(safeLimit)) markers.push(safeLimit);
+  for (let value = 200; value <= capacity; value += 200) markers.push(value);
   return markers;
 }
 
