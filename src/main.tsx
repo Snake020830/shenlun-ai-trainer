@@ -8,7 +8,9 @@ import "./publicExamVariants.css";
 import "./publicSourceBatch.css";
 import "./practiceInk.css";
 import "./practiceLayoutV3.css";
+import "./smartAnswerGrid.css";
 import "./reviewPolish.css";
+import "./smartAnswerGrid";
 
 const MATERIAL_LAYOUT_V3_MIGRATION_KEY = "shenlun:material-layout:v3";
 if (!localStorage.getItem(MATERIAL_LAYOUT_V3_MIGRATION_KEY)) {
