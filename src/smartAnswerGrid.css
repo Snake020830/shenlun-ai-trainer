@@ -111,3 +111,43 @@
 .grid-answer-stage.smart-grid-enhanced .answer-grid-markers {
   z-index: 4;
 }
+
+/* Clipboard controls operate on the authoritative raw answer, not visible cells. */
+.answer-paper-label {
+  gap: 10px;
+}
+
+.answer-paper-label > small {
+  margin-left: auto;
+}
+
+.answer-clipboard-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+}
+
+.answer-clipboard-button {
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid #dfe2e5;
+  border-radius: 6px;
+  background: #fff;
+  color: #60676d;
+  font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.answer-clipboard-button:hover {
+  border-color: #bfc8c2;
+  background: #f7faf8;
+  color: #356b50;
+}
+
+.answer-clipboard-button:active {
+  transform: translateY(1px);
+}
