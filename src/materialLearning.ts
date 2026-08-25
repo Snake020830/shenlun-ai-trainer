@@ -125,7 +125,7 @@ function questionPayload(question: Question) {
 export function buildMaterialDeepReadRequest(question: Question): RemoteJsonRequest {
   const answerInstruction = question.type === "文章写作"
     ? [
-        "referenceAnswer 不要输出一篇空泛万能作文。请给出：中心立意 + 3个左右分论点 + 一段最有学习价值的示范论证，整体控制在900字以内。",
+        "referenceAnswer 不套万能模板，也不要输出一篇空泛万能作文。请给出：中心立意 + 3个左右分论点 + 一段最有学习价值的示范论证，整体控制在900字以内。",
         "示范论证必须使用本题材料的事实或机制，但要完成抽象提升，体现可以迁移的大作文表达。"
       ].join("\n")
     : [
