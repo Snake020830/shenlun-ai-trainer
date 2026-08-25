@@ -5,105 +5,102 @@ import type { RemoteJsonRequest, RemoteModelTransport } from "./grading/remote/c
 import { tauriSecureRemoteExecutor } from "./grading/remote/tauriExecutor";
 import { createRemoteModelTransport } from "./grading/remote/transport";
 
-export const MATERIAL_LEARNING_VERSION = "shenlun-material-learning@0.1.0";
+export const MATERIAL_LEARNING_VERSION = "shenlun-material-learning@0.2.0";
+
+export interface LearningThemeSummary {
+  topic: string;
+  coreQuestion: string;
+  transferableInsight: string;
+}
 
 export interface LearningExpression {
   phrase: string;
-  meaning: string;
-  useCases: string[];
+  usage: string;
   sourceEvidence: string;
 }
 
-export interface LearningMechanism {
-  title: string;
+export interface LearningReasoningChain {
   chain: string;
+  takeaway: string;
   transferableTo: string[];
   sourceEvidence: string;
 }
 
-export interface LearningCase {
+export interface EssayMaterialUnit {
   title: string;
-  summary: string;
+  fact: string;
+  mechanism: string;
+  usableClaim: string;
   transferableTo: string[];
   sourceEvidence: string;
-}
-
-export interface EssayAngle {
-  claim: string;
-  reasoning: string;
-  paragraphUse: string;
-  transferableTo: string[];
 }
 
 export interface MaterialDeepReadOutput {
   referenceAnswer: string;
-  answerNotes: string[];
+  answerBlueprint: string[];
+  themeSummary: LearningThemeSummary;
   expressions: LearningExpression[];
-  mechanisms: LearningMechanism[];
-  cases: LearningCase[];
-  essayAngles: EssayAngle[];
+  reasoningChains: LearningReasoningChain[];
+  essayUnits: EssayMaterialUnit[];
 }
 
 const deepReadSchema: Record<string, unknown> = {
   type: "object",
   additionalProperties: false,
-  required: ["referenceAnswer", "answerNotes", "expressions", "mechanisms", "cases", "essayAngles"],
+  required: ["referenceAnswer", "answerBlueprint", "themeSummary", "expressions", "reasoningChains", "essayUnits"],
   properties: {
     referenceAnswer: { type: "string" },
-    answerNotes: { type: "array", items: { type: "string" } },
+    answerBlueprint: { type: "array", items: { type: "string" } },
+    themeSummary: {
+      type: "object",
+      additionalProperties: false,
+      required: ["topic", "coreQuestion", "transferableInsight"],
+      properties: {
+        topic: { type: "string" },
+        coreQuestion: { type: "string" },
+        transferableInsight: { type: "string" }
+      }
+    },
     expressions: {
       type: "array",
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["phrase", "meaning", "useCases", "sourceEvidence"],
+        required: ["phrase", "usage", "sourceEvidence"],
         properties: {
           phrase: { type: "string" },
-          meaning: { type: "string" },
-          useCases: { type: "array", items: { type: "string" } },
+          usage: { type: "string" },
           sourceEvidence: { type: "string" }
         }
       }
     },
-    mechanisms: {
+    reasoningChains: {
       type: "array",
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["title", "chain", "transferableTo", "sourceEvidence"],
+        required: ["chain", "takeaway", "transferableTo", "sourceEvidence"],
         properties: {
-          title: { type: "string" },
           chain: { type: "string" },
+          takeaway: { type: "string" },
           transferableTo: { type: "array", items: { type: "string" } },
           sourceEvidence: { type: "string" }
         }
       }
     },
-    cases: {
+    essayUnits: {
       type: "array",
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["title", "summary", "transferableTo", "sourceEvidence"],
+        required: ["title", "fact", "mechanism", "usableClaim", "transferableTo", "sourceEvidence"],
         properties: {
           title: { type: "string" },
-          summary: { type: "string" },
+          fact: { type: "string" },
+          mechanism: { type: "string" },
+          usableClaim: { type: "string" },
           transferableTo: { type: "array", items: { type: "string" } },
           sourceEvidence: { type: "string" }
-        }
-      }
-    },
-    essayAngles: {
-      type: "array",
-      items: {
-        type: "object",
-        additionalProperties: false,
-        required: ["claim", "reasoning", "paragraphUse", "transferableTo"],
-        properties: {
-          claim: { type: "string" },
-          reasoning: { type: "string" },
-          paragraphUse: { type: "string" },
-          transferableTo: { type: "array", items: { type: "string" } }
         }
       }
     }
@@ -134,77 +131,83 @@ export function buildMaterialDeepReadRequest(question: Question): RemoteJsonRequ
       ].join("\n");
 
   return {
-    schemaName: "shenlun_material_deep_read_v01",
+    schemaName: "shenlun_material_deep_read_v02",
     jsonSchema: deepReadSchema,
     temperature: 0,
+    maxOutputTokens: 8_000,
     instructions: [
       `你正在执行申论学习助手的“AI精读”任务，版本 ${MATERIAL_LEARNING_VERSION}。`,
-      "这不是评分任务，也不要评价用户答案。只基于题干和给定材料完成参考作答与学习素材提炼。",
-      "不得补写材料外事实；sourceEvidence 必须能回指材料原意，不得伪造政策、人物、数字或案例。",
+      "这不是评分任务，也不要评价用户答案。只基于题干和给定材料完成参考作答与学习提炼。",
+      "不得补写材料外事实；所有 sourceEvidence 必须能回指材料原意，不得伪造政策、人物、数字或案例。",
+      "核心方法是：先整合材料逻辑，再做提炼。不要把每句话都拆成一个素材点，也不要把同一信息分别塞进多个栏目。",
       answerInstruction,
-      "answerNotes 用2—5条说明这版参考作答的组织逻辑，例如题干问数、分类方式、为什么保留某个机制词。不要写长篇思维过程。",
-      "expressions 只提炼真正值得复用的规范表达/中观词，优先是能够提高申论概括层级且不空泛的词。每条 phrase 尽量短。",
-      "mechanisms 提炼可以迁移的因果链、作用路径或约束机制，用“条件/动作 → 中间机制 → 结果”的方式写清楚。",
-      "cases 只保留材料中事实完整、可转化为作文例证的案例；若材料没有足够完整的案例，可以返回空数组。",
-      "essayAngles 提炼可以用于大作文的观点和论证角度。观点必须来自材料逻辑，但表达要完成适度抽象，避免变成仅适用于本题的细节。",
-      "不要为了凑数量重复同义内容。一般 expressions 3—8条、mechanisms 1—5条、cases 0—3条、essayAngles 2—5条即可。"
+      "answerBlueprint 只保留2—4条最有用的答题结构提示：题干问什么、按什么维度组织、哪些中观词或机制不能丢。不要写长篇解释。",
+      "themeSummary 必须先把整道题压缩成一个母题。topic 是简短主题；coreQuestion 是材料真正处理的核心矛盾/问题；transferableInsight 是可以迁移到其他申论主题中的上位判断，禁止空泛口号。",
+      "expressions 只提炼3—6个真正值得复用的规范表达或中观词。phrase 要短；usage 要说明这个词在什么语境下比普通口语更准确。不要重复 themeSummary 或 reasoningChains。",
+      "reasoningChains 只提炼1—3条最关键的因果链、作用路径或约束机制。chain 用“条件/动作 → 中间机制 → 结果”写清楚；takeaway 说明这条链对分析题或作文论证有什么价值。",
+      "essayUnits 不是另做一套案例库，而是把材料中最值得带走的内容整合成0—2个大作文调用单元。每个单元必须完整包含：fact（事实压缩）→ mechanism（为什么会产生作用/问题）→ usableClaim（可直接上升为分论点或论证判断）。",
+      "essayUnits 与 reasoningChains 不得机械重复：reasoningChains 讲通用机制，essayUnits 负责把事实、机制和观点绑成可调用的作文素材。",
+      "宁缺毋滥。没有完整案例就返回空 essayUnits；不要为了凑数量生成同义表达、空话或材料外常识。"
     ].join("\n"),
     input: JSON.stringify({ question: questionPayload(question) })
   };
 }
 
 function asStringArray(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0) : [];
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0).map(item => item.trim()) : [];
+}
+
+function asText(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
 }
 
 function validateDeepRead(value: unknown): MaterialDeepReadOutput {
   if (!value || typeof value !== "object") throw new Error("AI精读返回内容不是对象。");
   const data = value as Record<string, unknown>;
-  if (typeof data.referenceAnswer !== "string" || !data.referenceAnswer.trim()) throw new Error("AI精读缺少参考作答。");
+  const referenceAnswer = asText(data.referenceAnswer);
+  if (!referenceAnswer) throw new Error("AI精读缺少参考作答。");
 
-  const expressions = Array.isArray(data.expressions) ? data.expressions.map(item => item as Record<string, unknown>).filter(item =>
-    typeof item.phrase === "string" && typeof item.meaning === "string" && typeof item.sourceEvidence === "string"
-  ).map(item => ({
-    phrase: String(item.phrase).trim(),
-    meaning: String(item.meaning).trim(),
-    useCases: asStringArray(item.useCases),
-    sourceEvidence: String(item.sourceEvidence).trim()
-  })) : [];
+  const themeRaw = data.themeSummary && typeof data.themeSummary === "object"
+    ? data.themeSummary as Record<string, unknown>
+    : null;
+  const themeSummary = {
+    topic: asText(themeRaw?.topic),
+    coreQuestion: asText(themeRaw?.coreQuestion),
+    transferableInsight: asText(themeRaw?.transferableInsight)
+  };
+  if (!themeSummary.topic || !themeSummary.coreQuestion || !themeSummary.transferableInsight) {
+    throw new Error("AI精读缺少整合后的主题判断。");
+  }
 
-  const mechanisms = Array.isArray(data.mechanisms) ? data.mechanisms.map(item => item as Record<string, unknown>).filter(item =>
-    typeof item.title === "string" && typeof item.chain === "string" && typeof item.sourceEvidence === "string"
-  ).map(item => ({
-    title: String(item.title).trim(),
-    chain: String(item.chain).trim(),
+  const expressions = Array.isArray(data.expressions) ? data.expressions.map(item => item as Record<string, unknown>).map(item => ({
+    phrase: asText(item.phrase),
+    usage: asText(item.usage),
+    sourceEvidence: asText(item.sourceEvidence)
+  })).filter(item => item.phrase && item.usage && item.sourceEvidence) : [];
+
+  const reasoningChains = Array.isArray(data.reasoningChains) ? data.reasoningChains.map(item => item as Record<string, unknown>).map(item => ({
+    chain: asText(item.chain),
+    takeaway: asText(item.takeaway),
     transferableTo: asStringArray(item.transferableTo),
-    sourceEvidence: String(item.sourceEvidence).trim()
-  })) : [];
+    sourceEvidence: asText(item.sourceEvidence)
+  })).filter(item => item.chain && item.takeaway && item.sourceEvidence) : [];
 
-  const cases = Array.isArray(data.cases) ? data.cases.map(item => item as Record<string, unknown>).filter(item =>
-    typeof item.title === "string" && typeof item.summary === "string" && typeof item.sourceEvidence === "string"
-  ).map(item => ({
-    title: String(item.title).trim(),
-    summary: String(item.summary).trim(),
+  const essayUnits = Array.isArray(data.essayUnits) ? data.essayUnits.map(item => item as Record<string, unknown>).map(item => ({
+    title: asText(item.title),
+    fact: asText(item.fact),
+    mechanism: asText(item.mechanism),
+    usableClaim: asText(item.usableClaim),
     transferableTo: asStringArray(item.transferableTo),
-    sourceEvidence: String(item.sourceEvidence).trim()
-  })) : [];
-
-  const essayAngles = Array.isArray(data.essayAngles) ? data.essayAngles.map(item => item as Record<string, unknown>).filter(item =>
-    typeof item.claim === "string" && typeof item.reasoning === "string" && typeof item.paragraphUse === "string"
-  ).map(item => ({
-    claim: String(item.claim).trim(),
-    reasoning: String(item.reasoning).trim(),
-    paragraphUse: String(item.paragraphUse).trim(),
-    transferableTo: asStringArray(item.transferableTo)
-  })) : [];
+    sourceEvidence: asText(item.sourceEvidence)
+  })).filter(item => item.title && item.fact && item.mechanism && item.usableClaim && item.sourceEvidence) : [];
 
   return {
-    referenceAnswer: data.referenceAnswer.trim(),
-    answerNotes: asStringArray(data.answerNotes),
-    expressions,
-    mechanisms,
-    cases,
-    essayAngles
+    referenceAnswer,
+    answerBlueprint: asStringArray(data.answerBlueprint).slice(0, 4),
+    themeSummary,
+    expressions: expressions.slice(0, 6),
+    reasoningChains: reasoningChains.slice(0, 3),
+    essayUnits: essayUnits.slice(0, 2)
   };
 }
 
@@ -232,7 +235,9 @@ export async function deepReadQuestion(question: Question): Promise<MaterialDeep
   try {
     const response = await transport.completeJson<unknown>({
       ...request,
-      instructions: `${request.instructions}\n\n上一次输出未能被应用读取。请重新生成同一任务，只返回满足 JSON 结构的内容，不要解释错误。`
+      promptOnlyJson: true,
+      disableThinking: true,
+      instructions: `${request.instructions}\n\n上一次输出未能被应用读取。本次请直接生成最终合法 JSON，不要解释错误，也不要展开思考过程。`
     });
     return validateDeepRead(response.data);
   } catch (retryError) {
