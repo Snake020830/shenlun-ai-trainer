@@ -35,32 +35,38 @@ export function encodeRemoteCall(
   config: RemoteProviderPublicConfig,
   request: RemoteJsonRequest
 ): EncodedRemoteCall {
+  const deepSeek = isDeepSeekBaseUrl(config.baseUrl);
+
   if (config.protocol === "openai-responses") {
+    const promptOnlyJson = deepSeek && request.promptOnlyJson;
     return {
       url: endpoint(config.baseUrl, "responses"),
       body: {
         model: config.model,
-        instructions: request.instructions,
+        instructions: promptOnlyJson ? deepSeekJsonInstructions(request) : request.instructions,
         input: request.input,
         store: false,
-        ...responsesReasoning(config),
+        ...(deepSeek && request.disableThinking
+          ? { reasoning: { effort: "none" } }
+          : responsesReasoning(config)),
         ...(request.temperature === undefined ? {} : { temperature: request.temperature }),
         ...(request.maxOutputTokens === undefined ? {} : { max_output_tokens: request.maxOutputTokens }),
         text: {
-          format: request.jsonSchema
-            ? {
-                type: "json_schema",
-                name: request.schemaName,
-                schema: request.jsonSchema,
-                strict: false
-              }
-            : { type: "json_object" }
+          format: promptOnlyJson
+            ? { type: "text" }
+            : request.jsonSchema
+              ? {
+                  type: "json_schema",
+                  name: request.schemaName,
+                  schema: request.jsonSchema,
+                  strict: false
+                }
+              : { type: "json_object" }
         }
       }
     };
   }
 
-  const deepSeek = isDeepSeekBaseUrl(config.baseUrl);
   const deepSeekResponseFormat = deepSeek && request.promptOnlyJson
     ? {}
     : deepSeek
