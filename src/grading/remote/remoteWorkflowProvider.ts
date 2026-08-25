@@ -18,7 +18,7 @@ import {
   validateRubricConstruction,
   validateWordBudget
 } from "../workflowValidation";
-import type { RemoteJsonRequest, RemoteModelTransport } from "./config";
+import type { RemoteJsonRequest, RemoteModelTransport, RemoteProviderPublicConfig } from "./config";
 
 type StageName = "Stage 1 材料抽取" | "Stage 2 Rubric 构造" | "Stage 3 答案映射" | "Stage 4 表达与字数审计" | "Stage 5 参考答案交叉核验";
 
@@ -28,11 +28,33 @@ function errorText(error: unknown): string {
   return "未知错误";
 }
 
-function repairRequest(request: RemoteJsonRequest, validationError: unknown): RemoteJsonRequest {
+function isDeepSeekConfig(config: RemoteProviderPublicConfig): boolean {
+  try {
+    return new URL(config.baseUrl).hostname.toLowerCase() === "api.deepseek.com";
+  } catch {
+    return false;
+  }
+}
+
+function isEmptyStructuredOutput(error: unknown): boolean {
+  return errorText(error).includes("no structured text output");
+}
+
+function repairRequest(
+  request: RemoteJsonRequest,
+  validationError: unknown,
+  config: RemoteProviderPublicConfig
+): RemoteJsonRequest {
+  const deepSeekEmptyJson = isDeepSeekConfig(config) && isEmptyStructuredOutput(validationError);
   return {
     ...request,
     temperature: 0,
-    instructions: `${request.instructions}\n\n上一次输出未通过应用的结构校验。请重新完成本阶段，不要解释错误，只返回一个符合约束的 JSON 对象。上一次校验错误：${errorText(validationError)}`
+    ...(deepSeekEmptyJson ? {
+      promptOnlyJson: true,
+      disableThinking: true,
+      maxOutputTokens: Math.max(request.maxOutputTokens ?? 0, 12_000)
+    } : {}),
+    instructions: `${request.instructions}\n\n上一次输出未通过应用的结构校验。请重新完成本阶段，不要解释错误，只返回一个符合约束的 JSON 对象。上一次校验错误：${errorText(validationError)}${deepSeekEmptyJson ? "\n本次为结构化输出兼容回退：直接生成最终 JSON，不要展开思考过程。" : ""}`
   };
 }
 
@@ -51,7 +73,7 @@ async function runValidatedStage<T>(
   }
 
   try {
-    const response = await transport.completeJson<unknown>(repairRequest(request, firstError));
+    const response = await transport.completeJson<unknown>(repairRequest(request, firstError, transport.config));
     return validate(response.data);
   } catch (retryError) {
     throw new Error(`${stage}失败：${errorText(retryError)}`);
