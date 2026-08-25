@@ -52,22 +52,50 @@ export function answerSheetMarkers(wordLimit: number): number[] {
   return markers;
 }
 
-function isAsciiAlphaNumeric(value: string): boolean {
-  return /^[A-Za-z0-9]+$/.test(value);
+export type ExamGridTokenKind = "text" | "enumerator" | "ascii" | "tab";
+
+export interface ExamGridToken {
+  text: string;
+  start: number;
+  end: number;
+  cellIndex: number;
+  kind: ExamGridTokenKind;
+}
+
+export interface ExamGridLayout {
+  tokens: ExamGridToken[];
+  occupiedCells: number;
+}
+
+function pushToken(
+  tokens: ExamGridToken[],
+  text: string,
+  start: number,
+  end: number,
+  cellIndex: number,
+  kind: ExamGridTokenKind
+) {
+  tokens.push({ text, start, end, cellIndex, kind });
 }
 
 /**
- * Visual answer-sheet occupancy only. It must not be used as the grader's word
- * count. Common handwriting conventions are simulated conservatively:
- * - Han characters / punctuation: one cell each;
- * - short numeric enumerators such as `1.` / `1、` / `(1)` / `（1）`: one cell;
+ * Convert submitted text into the cells a handwritten answer-sheet simulation
+ * would occupy. This is the single source of truth for both the visual grid and
+ * the occupancy counter.
+ *
+ * Rules intentionally remain conservative and are visual-only:
+ * - Han characters and ordinary punctuation: one cell each;
+ * - list enumerators such as `1.` / `1、` / `(1)` / `（1）`: one cell;
  * - consecutive ASCII letters or digits: two characters per cell;
- * - an explicit newline advances to the next answer-sheet row.
+ * - a newline advances to the next row;
+ * - a tab reserves two cells.
  */
-export function countExamGridCells(text: string, columns = EXAM_GRID_COLUMNS): number {
+export function buildExamGridLayout(text: string, columns = EXAM_GRID_COLUMNS): ExamGridLayout {
   const safeColumns = Math.max(1, Math.floor(columns));
-  let cells = 0;
+  const tokens: ExamGridToken[] = [];
+  let cellIndex = 0;
   let index = 0;
+  let rowHasContent = false;
 
   while (index < text.length) {
     const current = text[index];
@@ -75,36 +103,80 @@ export function countExamGridCells(text: string, columns = EXAM_GRID_COLUMNS): n
       index += 1;
       continue;
     }
+
     if (current === "\n") {
-      const remainder = cells % safeColumns;
-      cells += remainder === 0 ? safeColumns : safeColumns - remainder;
+      const remainder = cellIndex % safeColumns;
+      if (remainder > 0) {
+        cellIndex += safeColumns - remainder;
+      } else if (!rowHasContent) {
+        cellIndex += safeColumns;
+      }
+      rowHasContent = false;
       index += 1;
       continue;
     }
+
     if (current === "\t") {
-      cells += 2;
+      pushToken(tokens, "", index, index + 1, cellIndex, "tab");
+      cellIndex += 2;
+      rowHasContent = true;
       index += 1;
       continue;
     }
 
     const remainder = text.slice(index);
-    const enumerator = remainder.match(/^(?:\d{1,2}[.．、]|[（(]\d{1,2}[）)])/u);
+    const enumerator = remainder.match(/^(?:\d{1,2}[.．、]|[（(]\d{1,2}[）)])/u)?.[0];
     if (enumerator) {
-      cells += 1;
-      index += enumerator[0].length;
+      pushToken(tokens, enumerator, index, index + enumerator.length, cellIndex, "enumerator");
+      cellIndex += 1;
+      rowHasContent = true;
+      index += enumerator.length;
       continue;
     }
 
     const asciiRun = remainder.match(/^[A-Za-z0-9]+/u)?.[0];
-    if (asciiRun && isAsciiAlphaNumeric(asciiRun)) {
-      cells += Math.ceil(asciiRun.length / 2);
+    if (asciiRun) {
+      for (let offset = 0; offset < asciiRun.length; offset += 2) {
+        const piece = asciiRun.slice(offset, offset + 2);
+        pushToken(tokens, piece, index + offset, index + offset + piece.length, cellIndex, "ascii");
+        cellIndex += 1;
+      }
+      rowHasContent = true;
       index += asciiRun.length;
       continue;
     }
 
-    cells += 1;
+    pushToken(tokens, current, index, index + 1, cellIndex, "text");
+    cellIndex += 1;
+    rowHasContent = true;
     index += 1;
   }
 
-  return cells;
+  return { tokens, occupiedCells: cellIndex };
+}
+
+export function countExamGridCells(text: string, columns = EXAM_GRID_COLUMNS): number {
+  return buildExamGridLayout(text, columns).occupiedCells;
+}
+
+/** Resolve a text selection offset to the visual answer-sheet cell containing it. */
+export function examGridCellForOffset(text: string, offset: number, columns = EXAM_GRID_COLUMNS): number {
+  const safeOffset = Math.max(0, Math.min(text.length, Math.floor(offset)));
+  const layout = buildExamGridLayout(text, columns);
+  for (const token of layout.tokens) {
+    if (safeOffset <= token.start) return token.cellIndex;
+    if (safeOffset < token.end) return token.cellIndex;
+    if (safeOffset === token.end) return token.cellIndex + 1;
+  }
+  return layout.occupiedCells;
+}
+
+/** Resolve a clicked visual cell back to a stable insertion offset in the source text. */
+export function examGridOffsetForCell(text: string, cellIndex: number, columns = EXAM_GRID_COLUMNS): number {
+  const safeCell = Math.max(0, Math.floor(cellIndex));
+  const layout = buildExamGridLayout(text, columns);
+  const exact = layout.tokens.find(token => token.cellIndex === safeCell);
+  if (exact) return exact.start;
+  const next = layout.tokens.find(token => token.cellIndex > safeCell);
+  return next?.start ?? text.length;
 }
