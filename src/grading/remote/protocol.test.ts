@@ -100,6 +100,25 @@ describe("remote protocol codec", () => {
     expect(call.body.max_tokens).toBe(12_000);
   });
 
+  it("applies the same DeepSeek prompt-only fallback to Responses", () => {
+    const call = encodeRemoteCall(config("openai-responses", {
+      baseUrl: "https://api.deepseek.com",
+      model: "deepseek-v4-flash"
+    }), {
+      ...request,
+      maxOutputTokens: 12_000,
+      jsonExample: { ok: true },
+      promptOnlyJson: true,
+      disableThinking: true
+    });
+
+    expect(call.url).toBe("https://api.deepseek.com/responses");
+    expect(call.body.max_output_tokens).toBe(12_000);
+    expect(call.body.reasoning).toEqual({ effort: "none" });
+    expect(call.body.text).toEqual({ format: { type: "text" } });
+    expect(call.body.instructions).toContain("JSON 输出示例");
+  });
+
   it("decodes Chat Completions JSON content", () => {
     const result = decodeRemoteJson<{ ok: boolean }>(config("openai-chat-completions"), {
       model: "model-x",
