@@ -6,8 +6,8 @@
  */
 
 .exam-practice-shell {
-  --answer-cell: 22px;
-  --answer-font-size: 16px;
+  --answer-cell: 25px;
+  --answer-font-size: 18px;
 }
 
 /* ---------- Material reading ---------- */
@@ -45,6 +45,21 @@
   text-align: left;
   text-rendering: auto;
   -webkit-font-smoothing: antialiased;
+  /* Fallback: always indent the first paragraph by two Chinese character widths. */
+  text-indent: 2em;
+}
+
+/*
+ * Chromium/WebView2 146+ supports the CSS Text `each-line` keyword. It applies
+ * the same two-character indent after each forced material line break, so every
+ * source paragraph is indented without inserting spaces into the original text.
+ * This keeps annotation offsets and anchored ink coordinates stable.
+ */
+@supports (text-indent: 2em each-line) {
+  .exam-material p,
+  .exam-material-text {
+    text-indent: 2em each-line;
+  }
 }
 
 /* Keep annotations readable after the denser line rhythm. */
@@ -83,9 +98,8 @@
 }
 
 /*
- * The old implementation used a 550px border-box for a 25 x 22px paper.
- * That left only 548px of drawable content and necessarily created partial
- * cells at the right edge. Here the inner drawing area is exactly 550px.
+ * The drawing area is always exactly 25 cells wide. Cell size is controlled by
+ * --answer-cell, so increasing the paper never reintroduces partial trailing cells.
  */
 .answer-grid-layer {
   position: absolute;
@@ -202,8 +216,8 @@
 
 @media (max-width: 1280px) {
   .exam-practice-shell {
-    --answer-cell: 21px;
-    --answer-font-size: 15px;
+    --answer-cell: 22px;
+    --answer-font-size: 16px;
   }
 
   .grid-answer-wrap {
