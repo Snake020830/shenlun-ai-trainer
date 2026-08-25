@@ -282,7 +282,7 @@ function MaterialTextStage({
   const annotationLayoutKey = annotations.map(item => `${item.id}:${item.start}:${item.end}`).join("|");
 
   return <div
-    className={`material-text-stage ${inkMode ? "ink-active" : ""} ${inkMode === "eraser" ? "eraser-active" : ""}`
+    className={`material-text-stage ${inkMode ? "ink-active" : ""} ${inkMode === "eraser" ? "eraser-active" : ""}`}
     onPointerDown={beginInk}
     onPointerMove={moveInk}
     onPointerUp={finishInk}
