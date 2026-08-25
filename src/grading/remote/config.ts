@@ -18,7 +18,11 @@ export interface RemoteJsonRequest {
   input: string;
   schemaName: string;
   jsonSchema?: Record<string, unknown>;
+  jsonExample?: unknown;
   temperature?: number;
+  maxOutputTokens?: number;
+  promptOnlyJson?: boolean;
+  disableThinking?: boolean;
 }
 
 export interface RemoteJsonResponse<T = unknown> {
