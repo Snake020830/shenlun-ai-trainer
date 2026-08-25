@@ -23,9 +23,9 @@ vi.mock("./publicSourceStore", () => ({
 }));
 
 vi.mock("./publicExamBatch", () => ({
-  auditPublicExamCandidates: vi.fn(async (candidates: PublicSourceCandidate[], options: { onProgress?: (progress: { index: number; total: number; current: PublicSourceCandidate }) => void }) => {
+  auditPublicExamCandidates: vi.fn(async (candidates: PublicSourceCandidate[], options: { maxCandidates?: number; onProgress?: (progress: { index: number; total: number; current: PublicSourceCandidate }) => void }) => {
     state.auditCalls += 1;
-    const pending = candidates.filter(item => item.status === "discovered");
+    const pending = candidates.filter(item => item.status === "discovered").slice(0, options.maxCandidates ?? 500);
     pending.forEach((item, index) => {
       options.onProgress?.({ index, total: pending.length, current: item });
       item.status = "reviewed";
@@ -33,9 +33,9 @@ vi.mock("./publicExamBatch", () => ({
     });
     return pending.map(item => ({ candidateId: item.id, title: item.title, outcome: "ready" as const }));
   }),
-  importAuditedPublicExams: vi.fn(async (candidates: PublicSourceCandidate[], options: { onProgress?: (progress: { index: number; total: number; current: PublicSourceCandidate }) => void }) => {
+  importAuditedPublicExams: vi.fn(async (candidates: PublicSourceCandidate[], options: { maxCandidates?: number; onProgress?: (progress: { index: number; total: number; current: PublicSourceCandidate }) => void }) => {
     state.importCalls += 1;
-    const ready = candidates.filter(item => item.status === "reviewed");
+    const ready = candidates.filter(item => item.status === "reviewed").slice(0, options.maxCandidates ?? 500);
     ready.forEach((item, index) => {
       options.onProgress?.({ index, total: ready.length, current: item });
       item.status = "imported";
@@ -114,6 +114,18 @@ describe("initializeRecentPublicExamLibrary", () => {
     expect(phases).toContain("audit");
     expect(phases).toContain("import");
     expect(phases.at(-1)).toBe("done");
+  });
+
+  it("continues with additional batches when the catalog exceeds the 500-paper helper limit", async () => {
+    state.discovered = Array.from({ length: 501 }, (_, index) => candidate(`paper-${index + 1}`));
+
+    const result = await initializeRecentPublicExamLibrary({ delayMs: 250 });
+
+    expect(state.auditCalls).toBe(2);
+    expect(state.importCalls).toBe(2);
+    expect(result.audit.ready).toBe(501);
+    expect(result.import.imported).toBe(501);
+    expect(result.finalImportedPaperCount).toBe(501);
   });
 
   it("is resumable: already imported papers are not re-audited or re-imported by batch queues", async () => {
