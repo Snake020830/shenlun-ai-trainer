@@ -203,7 +203,7 @@ export function buildAnswerMappingRequest(question: Question, rubric: RubricPoin
         "本阶段只做考生答案与 rubric 的逐点映射。先判断主得分方向有没有写到，再判断表达质量。",
         "hit：主维度和必要限定/机制均已实质表达，允许与材料换词，不要求复述所有证据。",
         "partial：主方向已经写到，但因为上位概括过空、中观词丢失、主体对象不清、机制没写透、分类混杂、过度合并或关键限定缺失，可能只能拿到部分分。partial 的 diagnosis 必须明确指出‘已经写到了什么 + 具体损失在哪里’。",
-        "missed：主得分方向本身没有出现。不要因为考生没写某个材料后果、数据例证或同义细节，就把已覆盖的主维度另拆成 missed。",
+        "missed（真正遗漏）：主得分方向本身没有出现。不要因为考生没写某个材料后果、数据例证或同义细节，就把已覆盖的主维度另拆成 missed。",
         "suggestion 只给最小必要修改，优先示范补上一个中观词、主体、机制或限定；不要把整段材料重写给考生。单条建议尽量控制在40个汉字以内。",
         `errorCodes 只能使用下列 ${ERROR_TAXONOMY_VERSION} 代码，不得自造代码；hit 且无实质错误时应返回空数组：\n${ERROR_TAXONOMY_GUIDANCE}`
       ].join("\n")
