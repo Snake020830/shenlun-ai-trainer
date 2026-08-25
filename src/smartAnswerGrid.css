@@ -40,7 +40,7 @@
   color: #30343a;
   background: transparent;
   font-family: "Songti SC", "STSong", "SimSun", serif;
-  font-size: 16px;
+  font-size: var(--answer-font-size);
   font-weight: 400;
   line-height: 1;
   text-align: center;
@@ -58,12 +58,12 @@
 }
 
 .smart-answer-cell.token-compact {
-  font-size: 11px;
+  font-size: calc(var(--answer-font-size) * .68);
   letter-spacing: -.02em;
 }
 
 .smart-answer-cell.token-very-compact {
-  font-size: 8.5px;
+  font-size: calc(var(--answer-font-size) * .53);
   letter-spacing: -.08em;
 }
 
@@ -110,18 +110,4 @@
 /* Keep the sparse 200/400/600 milestones outside the real cell grid. */
 .grid-answer-stage.smart-grid-enhanced .answer-grid-markers {
   z-index: 4;
-}
-
-@media (max-width: 1280px) {
-  .smart-answer-cell {
-    font-size: 15px;
-  }
-
-  .smart-answer-cell.token-compact {
-    font-size: 10.5px;
-  }
-
-  .smart-answer-cell.token-very-compact {
-    font-size: 8px;
-  }
 }
