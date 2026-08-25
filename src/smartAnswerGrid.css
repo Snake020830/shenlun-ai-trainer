@@ -1,0 +1,127 @@
+/*
+ * True per-cell answer sheet.
+ * The textarea remains the text/IME source, while every visible exam cell is a
+ * real DOM element rendered from the same occupancy model used by statistics.
+ */
+
+.grid-answer-stage.smart-grid-enhanced .answer-grid-layer {
+  display: none;
+}
+
+.grid-answer-stage.smart-grid-enhanced {
+  cursor: text;
+}
+
+.smart-answer-grid {
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  z-index: 1;
+  width: calc(var(--answer-cell) * 25);
+  height: calc(var(--answer-cell) * var(--answer-rows));
+  display: grid;
+  grid-template-columns: repeat(25, var(--answer-cell));
+  grid-auto-rows: var(--answer-cell);
+  overflow: hidden;
+  background: #fffdfd;
+  pointer-events: auto;
+}
+
+.smart-answer-cell {
+  min-width: 0;
+  min-height: 0;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-right: 1px solid rgba(220, 113, 134, .38);
+  border-bottom: 1px solid rgba(220, 113, 134, .38);
+  color: #30343a;
+  background: transparent;
+  font-family: "Songti SC", "STSong", "SimSun", serif;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
+  user-select: none;
+}
+
+/* The outer answer-paper border closes the final column / final row. */
+.smart-answer-cell:nth-child(25n) {
+  border-right: 0;
+}
+
+.smart-answer-cell:nth-last-child(-n + 25) {
+  border-bottom: 0;
+}
+
+.smart-answer-cell.token-compact {
+  font-size: 11px;
+  letter-spacing: -.02em;
+}
+
+.smart-answer-cell.token-very-compact {
+  font-size: 8.5px;
+  letter-spacing: -.08em;
+}
+
+.smart-answer-cell.token-enumerator {
+  font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+  font-weight: 500;
+}
+
+.smart-answer-cell.is-caret-cell {
+  background: rgba(69, 103, 201, .055);
+  box-shadow: inset 0 0 0 1.5px rgba(69, 103, 201, .62);
+}
+
+.grid-answer-stage.smart-grid-enhanced:focus-within {
+  box-shadow: 0 0 0 2px rgba(69, 103, 201, .08);
+}
+
+/*
+ * The real textarea is still the authoritative input surface for IME, paste,
+ * undo and React state. Its glyphs are hidden because the cell renderer is the
+ * only visible text layer. Pointer input goes to the cells and is translated
+ * back to a textarea selection offset by smartAnswerGrid.ts.
+ */
+.answer-pane .grid-answer-stage.smart-grid-enhanced .grid-answer-input {
+  position: absolute;
+  inset: 1px;
+  z-index: 2;
+  width: calc(100% - 2px);
+  height: calc(100% - 2px);
+  opacity: 1;
+  color: transparent !important;
+  -webkit-text-fill-color: transparent !important;
+  caret-color: transparent !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  pointer-events: none;
+}
+
+.grid-answer-stage.smart-grid-overflow {
+  border-color: #c86370;
+  box-shadow: 0 0 0 2px rgba(200, 99, 112, .10);
+}
+
+/* Keep the sparse 200/400/600 milestones outside the real cell grid. */
+.grid-answer-stage.smart-grid-enhanced .answer-grid-markers {
+  z-index: 4;
+}
+
+@media (max-width: 1280px) {
+  .smart-answer-cell {
+    font-size: 15px;
+  }
+
+  .smart-answer-cell.token-compact {
+    font-size: 10.5px;
+  }
+
+  .smart-answer-cell.token-very-compact {
+    font-size: 8px;
+  }
+}
