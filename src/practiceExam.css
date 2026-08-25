@@ -349,10 +349,10 @@
   border-radius: 2px;
 }
 
-.material-highlight-blue { background: rgba(82, 162, 241, .28); }
-.material-highlight-yellow { background: rgba(236, 196, 56, .34); }
-.material-highlight-green { background: rgba(75, 180, 125, .27); }
-.material-highlight-pink { background: rgba(221, 109, 139, .25); }
+.material-highlight-blue { background: rgba(82, 162, 241, .42); }
+.material-highlight-yellow { background: rgba(236, 196, 56, .46); }
+.material-highlight-green { background: rgba(75, 180, 125, .40); }
+.material-highlight-pink { background: rgba(221, 109, 139, .38); }
 
 .material-underline {
   text-decoration-line: underline;
