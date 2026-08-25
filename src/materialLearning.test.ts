@@ -23,10 +23,10 @@ describe("AI material deep-read", () => {
     expect(request.instructions).toContain(MATERIAL_LEARNING_VERSION);
     expect(request.instructions).toContain("这不是评分任务");
     expect(request.instructions).toContain("不要评价用户答案");
-    expect(request.instructions).toContain("参考作答");
+    expect(request.instructions).toContain("先整合材料逻辑，再做提炼");
     expect(request.instructions).toContain("规范表达");
     expect(request.instructions).toContain("因果链");
-    expect(request.instructions).toContain("大作文");
+    expect(request.instructions).toContain("大作文调用单元");
     expect(request.input).not.toContain("userAnswer");
   });
 
@@ -34,12 +34,23 @@ describe("AI material deep-read", () => {
     const request = buildMaterialDeepReadRequest(baseQuestion);
     expect(request.instructions).toContain("不超过 300 字");
     expect(request.instructions).toContain("主体、对象、中观词和关键机制");
+    expect(request.instructions).toContain("answerBlueprint 只保留2—4条");
   });
 
-  it("uses an essay-specific learning output instead of the small-question rubric model", () => {
+  it("integrates essay learning as fact mechanism and reusable claim", () => {
     const request = buildMaterialDeepReadRequest({ ...baseQuestion, type: "文章写作", wordLimit: 1200 });
     expect(request.instructions).toContain("中心立意 + 3个左右分论点");
     expect(request.instructions).toContain("示范论证");
     expect(request.instructions).toContain("不套万能模板");
+    expect(request.instructions).toContain("fact（事实压缩）→ mechanism（为什么会产生作用/问题）→ usableClaim");
+    expect(request.instructions).toContain("不得机械重复");
+  });
+
+  it("uses the v2 integrated output schema instead of parallel case and angle lists", () => {
+    const request = buildMaterialDeepReadRequest(baseQuestion);
+    const schema = request.jsonSchema as { required: string[]; properties: Record<string, unknown> };
+    expect(schema.required).toEqual(["referenceAnswer", "answerBlueprint", "themeSummary", "expressions", "reasoningChains", "essayUnits"]);
+    expect(schema.properties).not.toHaveProperty("cases");
+    expect(schema.properties).not.toHaveProperty("essayAngles");
   });
 });
