@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   answerSheetCapacity,
+  answerSheetDisplayLimit,
   answerSheetMarkers,
   answerSheetRows,
   countExamGridCells,
@@ -18,11 +19,19 @@ describe("practice exam timing", () => {
 });
 
 describe("answer-sheet geometry", () => {
-  it("uses 25 cells per row and follows the stated limit", () => {
-    expect(answerSheetRows(350)).toBe(14);
-    expect(answerSheetCapacity(350)).toBe(350);
+  it("rounds visual paper capacity upward without changing the grading word limit", () => {
+    expect(answerSheetDisplayLimit(300)).toBe(300);
+    expect(answerSheetDisplayLimit(350)).toBe(400);
+    expect(answerSheetDisplayLimit(550)).toBe(600);
+    expect(answerSheetRows(350)).toBe(16);
+    expect(answerSheetCapacity(350)).toBe(400);
     expect(answerSheetRows(300)).toBe(12);
-    expect(answerSheetMarkers(350)).toEqual([100, 200, 300, 350]);
+  });
+
+  it("shows only sparse 200-character paper-side markers", () => {
+    expect(answerSheetMarkers(300)).toEqual([200]);
+    expect(answerSheetMarkers(350)).toEqual([200, 400]);
+    expect(answerSheetMarkers(550)).toEqual([200, 400, 600]);
   });
 });
 
