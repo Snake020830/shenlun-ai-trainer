@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { BookMarked, Check, FileText, Lightbulb, LoaderCircle, NotebookPen, Search, Sparkles, Trash2 } from "lucide-react";
+import { BookMarked, Check, Lightbulb, LoaderCircle, NotebookPen, Search, Sparkles, Trash2 } from "lucide-react";
+import DeepReadResultView from "./DeepReadResultView";
 import { errorMessage } from "./errorMessage";
 import { deepReadQuestion, type MaterialDeepReadOutput } from "./materialLearning";
 import { materialBankStore, type MaterialBankCategory, type MaterialBankItem } from "./materialBankStore";
@@ -10,9 +11,9 @@ type Tab = "deep-read" | "bank";
 
 const CATEGORY_LABEL: Record<MaterialBankCategory, string> = {
   expression: "规范表达",
-  mechanism: "论证机制",
-  case: "案例素材",
-  "essay-angle": "作文观点"
+  mechanism: "论证链",
+  case: "作文素材",
+  "essay-angle": "主题观点"
 };
 
 const QUESTION_TYPES: Array<"all" | QuestionType> = ["all", "概括归纳", "提出对策", "综合分析", "贯彻执行", "文章写作"];
@@ -26,65 +27,42 @@ function bankItemsFromOutput(question: Question, output: MaterialDeepReadOutput)
     createdAt: now
   };
   return [
+    {
+      ...common,
+      id: crypto.randomUUID(),
+      category: "essay-angle" as const,
+      title: output.themeSummary.transferableInsight,
+      content: `母题：${output.themeSummary.topic}\n核心问题：${output.themeSummary.coreQuestion}`,
+      themes: [output.themeSummary.topic]
+    },
     ...output.expressions.map(item => ({
       ...common,
       id: crypto.randomUUID(),
       category: "expression" as const,
       title: item.phrase,
-      content: item.meaning,
-      themes: item.useCases,
+      content: item.usage,
+      themes: [output.themeSummary.topic],
       sourceEvidence: item.sourceEvidence
     })),
-    ...output.mechanisms.map(item => ({
+    ...output.reasoningChains.map(item => ({
       ...common,
       id: crypto.randomUUID(),
       category: "mechanism" as const,
-      title: item.title,
-      content: item.chain,
+      title: item.chain,
+      content: item.takeaway,
       themes: item.transferableTo,
       sourceEvidence: item.sourceEvidence
     })),
-    ...output.cases.map(item => ({
+    ...output.essayUnits.map(item => ({
       ...common,
       id: crypto.randomUUID(),
       category: "case" as const,
       title: item.title,
-      content: item.summary,
+      content: `事实：${item.fact}\n机制：${item.mechanism}\n可用观点：${item.usableClaim}`,
       themes: item.transferableTo,
       sourceEvidence: item.sourceEvidence
-    })),
-    ...output.essayAngles.map(item => ({
-      ...common,
-      id: crypto.randomUUID(),
-      category: "essay-angle" as const,
-      title: item.claim,
-      content: `${item.reasoning}\n\n段落用法：${item.paragraphUse}`,
-      themes: item.transferableTo
     }))
   ];
-}
-
-function ExtractionSection({
-  title,
-  items,
-  onSave
-}: {
-  title: string;
-  items: MaterialBankItem[];
-  onSave: (item: MaterialBankItem) => void;
-}) {
-  if (!items.length) return null;
-  return <section className="learning-section">
-    <h3>{title}<span>{items.length}</span></h3>
-    <div className="learning-card-list">
-      {items.map(item => <article key={item.id} className="learning-card">
-        <div className="learning-card-head"><strong>{item.title}</strong><button onClick={() => onSave(item)}>+ 收入素材库</button></div>
-        <p>{item.content}</p>
-        {item.sourceEvidence && <small><b>材料依据：</b>{item.sourceEvidence}</small>}
-        {!!item.themes.length && <div className="learning-tags">{item.themes.map(theme => <span key={theme}>{theme}</span>)}</div>}
-      </article>)}
-    </div>
-  </section>;
 }
 
 export default function MaterialBankPage({
@@ -168,7 +146,7 @@ export default function MaterialBankPage({
 
   return <main className="page page-wide material-bank-page">
     <header className="page-header compact">
-      <div><p className="eyebrow">素材积累</p><h1>把真题材料变成自己的表达与论证语料</h1><p>AI精读独立于AI批改：直接从题干和材料生成参考作答，并提炼可复用的规范表达、机制、案例和作文观点。</p></div>
+      <div><p className="eyebrow">素材积累</p><h1>把一道真题压缩成可复用的表达与论证单元</h1><p>先整合材料的母题与逻辑，再提炼表达、因果链和“事实→机制→观点”的作文素材，不做散点式摘抄。</p></div>
       <BookMarked size={28}/>
     </header>
 
@@ -194,15 +172,21 @@ export default function MaterialBankPage({
         {selectedQuestion ? <>
           <div className="deep-read-question-head"><div><span>{selectedQuestion.type} · {selectedQuestion.score}分 · ≤{selectedQuestion.wordLimit}字</span><h2>{selectedQuestion.title}</h2><p>{selectedQuestion.prompt}</p></div><button className="primary" disabled={running} onClick={() => void runDeepRead()}>{running ? <LoaderCircle className="spin" size={16}/> : <Sparkles size={16}/>} {running ? "正在精读…" : output ? "重新精读" : "开始AI精读"}</button></div>
           {runError && <div className="deep-read-error">{runError}</div>}
-          {!output && !running && <div className="deep-read-empty"><Lightbulb size={24}/><strong>这一步不需要先提交答案</strong><span>AI会直接读题干与完整材料，先给参考作答，再提炼值得积累的表达和论证素材。</span></div>}
-          {running && <div className="deep-read-empty"><LoaderCircle className="spin" size={24}/><strong>正在精读材料</strong><span>长材料通常比普通对话需要更久，完成后会一次性返回结构化结果。</span></div>}
+          {!output && !running && <div className="deep-read-empty"><Lightbulb size={24}/><strong>先理解，再积累</strong><span>AI会先给出参考作答，再把整篇材料压成一个母题、少量高价值表达、关键论证链和可直接用于大作文的素材单元。</span></div>}
+          {running && <div className="deep-read-empty"><LoaderCircle className="spin" size={24}/><strong>正在整合材料逻辑</strong><span>不是逐句摘抄；会先判断主题与机制，再做少量提炼。</span></div>}
           {output && <>
-            <section className="reference-answer-card"><div><FileText size={18}/><h3>{selectedQuestion.type === "文章写作" ? "参考立意与示范论证" : "参考作答"}</h3></div><p>{output.referenceAnswer}</p>{!!output.answerNotes.length && <ul>{output.answerNotes.map(note => <li key={note}>{note}</li>)}</ul>}</section>
-            <div className="deep-read-actions"><button className="secondary" onClick={() => void saveItems(extracted)}><Check size={15}/>全部收入素材库</button>{savedMessage && <span>{savedMessage}</span>}</div>
-            <ExtractionSection title="规范表达 / 中观词" items={extractedByCategory.expression} onSave={item => void saveItems([item])}/>
-            <ExtractionSection title="作用机制 / 因果链" items={extractedByCategory.mechanism} onSave={item => void saveItems([item])}/>
-            <ExtractionSection title="案例素材" items={extractedByCategory.case} onSave={item => void saveItems([item])}/>
-            <ExtractionSection title="大作文观点与论证角度" items={extractedByCategory["essay-angle"]} onSave={item => void saveItems([item])}/>
+            <DeepReadResultView result={output} answerTitle={selectedQuestion.type === "文章写作" ? "参考立意与示范论证" : "参考作答"}/>
+            <div className="deep-read-savebar">
+              <div><strong>收入素材库</strong><span>按用途保存，不必把整份精读全部囤进去。</span></div>
+              <div>
+                <button onClick={() => void saveItems(extractedByCategory["essay-angle"])}>主题观点</button>
+                <button onClick={() => void saveItems(extractedByCategory.expression)}>规范表达</button>
+                <button onClick={() => void saveItems(extractedByCategory.mechanism)}>论证链</button>
+                <button onClick={() => void saveItems(extractedByCategory.case)}>作文素材</button>
+                <button className="primary" onClick={() => void saveItems(extracted)}><Check size={14}/>全部保存</button>
+              </div>
+              {savedMessage && <small>{savedMessage}</small>}
+            </div>
           </>}
         </> : <div className="deep-read-empty">当前没有可精读题目。</div>}
       </section>
@@ -211,10 +195,10 @@ export default function MaterialBankPage({
         {(["all", "expression", "mechanism", "case", "essay-angle"] as const).map(category => <button key={category} className={bankFilter === category ? "active" : ""} onClick={() => setBankFilter(category)}>{category === "all" ? `全部 ${bank.length}` : `${CATEGORY_LABEL[category]} ${bank.filter(item => item.category === category).length}`}</button>)}
       </div>
       <div className="bank-grid">
-        {shownBank.map(item => <article className="bank-card" key={item.id}>
+        {shownBank.map(item => <article className={`bank-card bank-${item.category}`} key={item.id}>
           <header><div><span>{CATEGORY_LABEL[item.category]}</span><strong>{item.title}</strong></div><button title="删除" onClick={() => void removeItem(item.id)}><Trash2 size={14}/></button></header>
           <p>{item.content}</p>
-          {item.sourceEvidence && <small><b>原材料：</b>{item.sourceEvidence}</small>}
+          {item.sourceEvidence && <details><summary>查看原材料依据</summary><small>{item.sourceEvidence}</small></details>}
           {!!item.themes.length && <div className="learning-tags">{item.themes.map(theme => <span key={theme}>{theme}</span>)}</div>}
           <div className="bank-source">来自：{item.sourceQuestionTitle}</div>
           <label><span>我的笔记</span><textarea value={item.note} onChange={event => { const note = event.target.value; setBank(current => current.map(row => row.id === item.id ? { ...row, note } : row)); }} onBlur={event => void updateNote(item, event.target.value)} placeholder="写下你自己的理解、改写或适用场景…"/></label>
