@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useState, type ReactNode } from "react";
 import { isTauri } from "@tauri-apps/api/core";
 import { BookOpen, ChevronRight, Download, ExternalLink, Eye, FileText, Globe2, Info, Plus, RefreshCw, Search, Sparkles } from "lucide-react";
 import { errorMessage } from "./errorMessage";
+import { inferPaperLevel, isTownshipPaper, PAPER_LEVEL_OPTIONS, questionPaperId, questionPaperLevel } from "./examPaper";
 import { initializeRecentPublicExamLibrary, type PublicExamBootstrapProgress } from "./publicExamBootstrap";
 import { groupPublicExamCandidates } from "./publicExamCatalog";
 import { canImportParsedPublicExam } from "./publicExamParser";
@@ -9,14 +10,17 @@ import { importPublicExam, previewPublicExam, type PublicExamPreview } from "./p
 import { discoverProviderCandidates, getPublicExamYearRange, isRecentPublicExamYear } from "./publicSourceDiscovery";
 import { getPublicSourceProvider } from "./publicSourceProviders";
 import { getQuestionNote, getQuestionNoteIds, saveQuestionNote } from "./questionNotes";
+import { getCachedExactQuestionSimilarityMap, type SimilarQuestion } from "./questionSimilarity";
+import { inferQuestionThemes, QUESTION_THEMES, type QuestionTheme } from "./questionThemes";
 import { publicSourceStore, type PublicSourceCandidate, type QuestionSourceProvenance } from "./publicSourceStore";
-import type { Question, QuestionType } from "./types";
+import type { Question, QuestionType, TrainingRecord } from "./types";
 import "./questionLibrary.css";
 import "./questionLibraryPreviewModal.css";
 import "./trainingLibraryV2.css";
 
 const PRIMARY_PROVIDER_ID = "gkzhenti-public";
 const PUBLIC_PAGE_SIZE = 30;
+const QUESTION_PAGE_SIZE = 24;
 const QUESTION_TYPES: QuestionType[] = ["概括归纳", "提出对策", "综合分析", "贯彻执行", "文章写作"];
 
 type LibraryTab = "ready" | "public";
@@ -27,6 +31,10 @@ type NoteEditorState = {
   loading: boolean;
   saving: boolean;
 };
+
+function LibraryFilterRow({ label, children, scroll = false }: { label: string; children: ReactNode; scroll?: boolean }) {
+  return <div className={`library-filter-row ${scroll ? "is-scrollable" : ""}`}><span>{label}</span><div>{children}</div></div>;
+}
 
 function difficultyLabel(question: Question): string { return question.difficulty; }
 function isPublicImportedQuestion(question: Question): boolean { return question.id.startsWith("publicq:"); }
@@ -61,7 +69,9 @@ function PublicExamBrowser({ onImported }: { onImported: () => Promise<void> | v
 
   async function reload() {
     const rows = await publicSourceStore.listCandidates();
-    setCandidates(rows.filter(item => item.providerId === PRIMARY_PROVIDER_ID && isRecentPublicExamYear(item.year)));
+    setCandidates(rows.filter(item => item.providerId === PRIMARY_PROVIDER_ID
+      && isRecentPublicExamYear(item.year)
+      && inferPaperLevel(item.region, item.paperVariant, item.title) !== "省考乡镇级"));
   }
 
   useEffect(() => { void reload().catch(error => { console.error("Failed to load public exam catalog.", error); setStatus(errorMessage(error, "无法读取本机公开真题目录。")); }); }, []);
@@ -150,8 +160,9 @@ function PublicExamBrowser({ onImported }: { onImported: () => Promise<void> | v
   </div>;
 }
 
-export default function QuestionLibraryPage({ allQuestions, onStart, onImport, onRefreshImported, onDeepRead }: {
+export default function QuestionLibraryPage({ allQuestions, history, onStart, onImport, onRefreshImported, onDeepRead }: {
   allQuestions: Question[];
+  history: TrainingRecord[];
   onStart: (question: Question) => void;
   onImport: () => void;
   onRefreshImported: () => Promise<void> | void;
@@ -159,22 +170,99 @@ export default function QuestionLibraryPage({ allQuestions, onStart, onImport, o
 }) {
   const [tab, setTab] = useState<LibraryTab>("ready");
   const [query, setQuery] = useState("");
+  const deferredQuery = useDeferredValue(query);
   const [typeFilter, setTypeFilter] = useState<"all" | QuestionType>("all");
+  const [themeFilter, setThemeFilter] = useState<"all" | QuestionTheme>("all");
   const [yearFilter, setYearFilter] = useState("all");
   const [regionFilter, setRegionFilter] = useState("all");
+  const [paperLevelFilter, setPaperLevelFilter] = useState("all");
   const [difficultyFilter, setDifficultyFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "todo" | "done">("all");
+  const [page, setPage] = useState(1);
   const [sourceLoadingId, setSourceLoadingId] = useState<string | null>(null);
   const [sourceDetail, setSourceDetail] = useState<{ questionId: string; source: QuestionSourceProvenance | null } | null>(null);
   const [noteIds, setNoteIds] = useState<Set<string>>(new Set());
   const [noteEditor, setNoteEditor] = useState<NoteEditorState | null>(null);
+  const libraryQuestions = useMemo(() => allQuestions.filter(question => !isTownshipPaper(question)), [allQuestions]);
 
-  useEffect(() => { void getQuestionNoteIds().then(setNoteIds).catch(error => console.error("Failed to load question note ids.", error)); }, [allQuestions.length]);
-  const typeCounts = useMemo(() => { const counts = new Map<QuestionType, number>(QUESTION_TYPES.map(type => [type, 0])); for (const question of allQuestions) counts.set(question.type, (counts.get(question.type) ?? 0) + 1); return counts; }, [allQuestions]);
-  const filterOptions = useMemo(() => ({ years: [...new Set(allQuestions.map(question => question.year))].sort((a, b) => b - a), regions: [...new Set(allQuestions.map(question => question.region).filter(Boolean))].sort((a, b) => a.localeCompare(b, "zh-CN")), difficulties: [...new Set(allQuestions.map(question => question.difficulty))] }), [allQuestions]);
+  useEffect(() => { void getQuestionNoteIds().then(setNoteIds).catch(error => console.error("Failed to load question note ids.", error)); }, [libraryQuestions.length]);
+  const typeCounts = useMemo(() => { const counts = new Map<QuestionType, number>(QUESTION_TYPES.map(type => [type, 0])); for (const question of libraryQuestions) counts.set(question.type, (counts.get(question.type) ?? 0) + 1); return counts; }, [libraryQuestions]);
+  const attemptCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const record of history) counts.set(record.questionId, (counts.get(record.questionId) ?? 0) + 1);
+    return counts;
+  }, [history]);
+  const [similarityMap, setSimilarityMap] = useState<Map<string, SimilarQuestion[]>>(new Map());
+  useEffect(() => {
+    let cancelled = false;
+    setSimilarityMap(new Map());
+    const timer = window.setTimeout(() => {
+      const next = getCachedExactQuestionSimilarityMap(libraryQuestions);
+      if (!cancelled) setSimilarityMap(next);
+    }, 80);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [libraryQuestions]);
+  const questionMeta = useMemo(() => new Map(libraryQuestions.map(question => [question.id, {
+    themes: inferQuestionThemes(question),
+    searchText: `${question.title} ${question.prompt} ${question.type} ${question.tags.join(" ")} ${question.region} ${questionPaperLevel(question)}`.toLowerCase(),
+    createdAt: question.createdAt ? Date.parse(question.createdAt) || 0 : 0
+  }])), [libraryQuestions]);
+  const themeCounts = useMemo(() => {
+    const counts = new Map<QuestionTheme, number>();
+    for (const meta of questionMeta.values()) for (const theme of meta.themes) counts.set(theme, (counts.get(theme) ?? 0) + 1);
+    return counts;
+  }, [questionMeta]);
+  const filterOptions = useMemo(() => ({
+    years: [...new Set(libraryQuestions.map(question => question.year))].sort((a, b) => b - a),
+    regions: [...new Set(libraryQuestions.map(question => question.region).filter(Boolean))].sort((a, b) => a.localeCompare(b, "zh-CN")),
+    difficulties: [...new Set(libraryQuestions.map(question => question.difficulty))],
+    paperLevels: PAPER_LEVEL_OPTIONS.filter(level => libraryQuestions.some(question => questionPaperLevel(question) === level))
+  }), [libraryQuestions]);
+  const paperQuestionCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const question of libraryQuestions) {
+      const key = questionPaperId(question) ?? question.id;
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return counts;
+  }, [libraryQuestions]);
   const filtered = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    return allQuestions.filter(question => typeFilter === "all" || question.type === typeFilter).filter(question => yearFilter === "all" || String(question.year) === yearFilter).filter(question => regionFilter === "all" || question.region === regionFilter).filter(question => difficultyFilter === "all" || question.difficulty === difficultyFilter).filter(question => !needle || `${question.title}${question.type}${question.tags.join("")}${question.region}`.toLowerCase().includes(needle)).sort((left, right) => right.year - left.year || left.title.localeCompare(right.title, "zh-CN"));
-  }, [allQuestions, difficultyFilter, query, regionFilter, typeFilter, yearFilter]);
+    const needle = deferredQuery.trim().toLowerCase();
+    return libraryQuestions
+      .filter(question => typeFilter === "all" || question.type === typeFilter)
+      .filter(question => themeFilter === "all" || questionMeta.get(question.id)?.themes.includes(themeFilter))
+      .filter(question => yearFilter === "all" || String(question.year) === yearFilter)
+      .filter(question => regionFilter === "all" || question.region === regionFilter)
+      .filter(question => paperLevelFilter === "all" || questionPaperLevel(question) === paperLevelFilter)
+      .filter(question => difficultyFilter === "all" || question.difficulty === difficultyFilter)
+      .filter(question => {
+        const completed = (attemptCounts.get(question.id) ?? 0) > 0;
+        return statusFilter === "all" || (statusFilter === "done" ? completed : !completed);
+      })
+      .filter(question => !needle || questionMeta.get(question.id)?.searchText.includes(needle))
+      .sort((left, right) => {
+        const leftCompleted = (attemptCounts.get(left.id) ?? 0) > 0;
+        const rightCompleted = (attemptCounts.get(right.id) ?? 0) > 0;
+        if (leftCompleted !== rightCompleted) return leftCompleted ? 1 : -1;
+        const leftCreated = questionMeta.get(left.id)?.createdAt ?? 0;
+        const rightCreated = questionMeta.get(right.id)?.createdAt ?? 0;
+        return rightCreated - leftCreated
+          || right.year - left.year
+          || left.title.localeCompare(right.title, "zh-CN");
+      });
+  }, [attemptCounts, deferredQuery, difficultyFilter, libraryQuestions, paperLevelFilter, questionMeta, regionFilter, statusFilter, themeFilter, typeFilter, yearFilter]);
+
+  useEffect(() => { setPage(1); }, [deferredQuery, difficultyFilter, paperLevelFilter, regionFilter, statusFilter, themeFilter, typeFilter, yearFilter]);
+  const completedCount = useMemo(() => libraryQuestions.filter(question => (attemptCounts.get(question.id) ?? 0) > 0).length, [libraryQuestions, attemptCounts]);
+  const todoCount = libraryQuestions.length - completedCount;
+  const questionTitleById = useMemo(() => new Map(libraryQuestions.map(question => [question.id, question.title])), [libraryQuestions]);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / QUESTION_PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const visibleQuestions = filtered.slice((currentPage - 1) * QUESTION_PAGE_SIZE, currentPage * QUESTION_PAGE_SIZE);
+  const hasActiveFilters = query.trim() !== "" || typeFilter !== "all" || themeFilter !== "all" || yearFilter !== "all" || regionFilter !== "all" || paperLevelFilter !== "all" || difficultyFilter !== "all" || statusFilter !== "all";
 
   async function finishPublicImport() { await onRefreshImported(); setTab("ready"); setQuery(""); }
   async function toggleSource(questionId: string) {
@@ -198,17 +286,34 @@ export default function QuestionLibraryPage({ allQuestions, onStart, onImport, o
     catch (error) { console.error("Failed to save question note.", error); setNoteEditor(current => current ? { ...current, saving: false } : current); }
   }
   function startRandomFilteredQuestion() { if (filtered.length) onStart(filtered[Math.floor(Math.random() * filtered.length)]); }
+  function clearFilters() { setQuery(""); setTypeFilter("all"); setThemeFilter("all"); setYearFilter("all"); setRegionFilter("all"); setPaperLevelFilter("all"); setDifficultyFilter("all"); setStatusFilter("all"); }
 
   return <main className="page page-wide question-library-page training-library-v2">
-    <header className="page-header compact"><div><p className="eyebrow">题库</p><h1>按题型刷真题</h1><p>先选专项，再按年份、地区或难度缩小范围。可以直接训练，也可以让AI先精读材料、生成参考作答并提炼素材。</p></div><button className="secondary" onClick={onImport}><Plus size={16}/>手工导入</button></header>
-    <div className="library-tabs"><button className={tab === "ready" ? "active" : ""} onClick={() => setTab("ready")}><BookOpen size={16}/>开始刷题 <span>{allQuestions.length}</span></button><button className={tab === "public" ? "active" : ""} onClick={() => setTab("public")}><Globe2 size={16}/>自动补全题库</button></div>
+    <header className="page-header compact"><div><p className="eyebrow">题库</p><h1>从一个题型或主题开始训练</h1><p>像选文章一样筛选真题；进入任意一道题后，会自动打开所属整卷及全部题目。</p></div><div className="library-header-actions"><button className="secondary" disabled={!filtered.length} onClick={startRandomFilteredQuestion}>随机一题</button><button className="secondary" onClick={onImport}><Plus size={16}/>手工导入</button></div></header>
+    <div className="library-tabs"><button className={tab === "ready" ? "active" : ""} onClick={() => setTab("ready")}><BookOpen size={16}/>开始刷题 <span>{libraryQuestions.length}</span></button><button className={tab === "public" ? "active" : ""} onClick={() => setTab("public")}><Globe2 size={16}/>自动补全题库</button></div>
     {tab === "ready" ? <>
-      <section className="training-type-panel"><div className="training-type-heading"><div><strong>专项训练</strong><span>点击题型直接筛选</span></div><button className="secondary" disabled={!filtered.length} onClick={startRandomFilteredQuestion}>随机一题</button></div><div className="training-type-grid"><button className={typeFilter === "all" ? "active" : ""} onClick={() => setTypeFilter("all")}><strong>全部题型</strong><span>{allQuestions.length} 题</span></button>{QUESTION_TYPES.map(type => <button key={type} className={typeFilter === type ? "active" : ""} onClick={() => setTypeFilter(type)}><strong>{type}</strong><span>{typeCounts.get(type) ?? 0} 题</span></button>)}</div></section>
-      <div className="training-filter-bar"><div className="search-box"><Search size={17}/><input value={query} onChange={event => setQuery(event.target.value)} placeholder="搜索题目或关键词"/></div><select value={yearFilter} onChange={event => setYearFilter(event.target.value)}><option value="all">全部年份</option>{filterOptions.years.map(year => <option key={year} value={year}>{year}</option>)}</select><select value={regionFilter} onChange={event => setRegionFilter(event.target.value)}><option value="all">全部地区</option>{filterOptions.regions.map(region => <option key={region} value={region}>{region}</option>)}</select><select value={difficultyFilter} onChange={event => setDifficultyFilter(event.target.value)}><option value="all">全部难度</option>{filterOptions.difficulties.map(value => <option key={value} value={value}>{value}</option>)}</select><button className="text-button" onClick={() => { setQuery(""); setYearFilter("all"); setRegionFilter("all"); setDifficultyFilter("all"); }}>清除细筛</button><span className="library-count">{filtered.length} 题</span></div>
-      <div className="question-grid">{filtered.map(question => {
-        const publicQuestion = isPublicImportedQuestion(question); const detail = sourceDetail?.questionId === question.id ? sourceDetail : null; const hasNote = noteIds.has(question.id);
-        return <article className="question-card" key={question.id}><div className="question-top"><span className="library-difficulty">{difficultyLabel(question)}</span><span>{publicQuestion ? `公开真题 · ${question.year} · ${question.region}` : question.source === "local" ? `${question.year} · ${question.region}` : "功能演示"}</span></div><h3>{question.title}</h3><p>{question.prompt}</p><div className="tag-row">{question.tags.map(tag => <span key={tag}>#{tag}</span>)}</div><div className="question-card-tools"><button type="button" onClick={() => onDeepRead(question)}><Sparkles size={13}/>AI精读</button><button type="button" className={hasNote ? "has-note" : ""} onClick={() => void openNote(question)}><FileText size={13}/>{hasNote ? "查看笔记" : "写笔记"}</button>{publicQuestion && <button type="button" onClick={() => void toggleSource(question.id)} disabled={sourceLoadingId !== null}><Info size={13}/>{sourceLoadingId === question.id ? "读取来源…" : detail ? "收起来源" : "来源"}</button>}{question.tags.includes("回忆版") && <span>回忆版</span>}</div>{detail && <div className="question-source-detail">{detail.source ? <><div><strong>{detail.source.sourceName ?? "公开来源"}</strong><span>{detail.source.sourceTitle ?? question.title}</span></div>{detail.source.sourceUrl ? <a href={detail.source.sourceUrl} target="_blank" rel="noreferrer"><ExternalLink size={13}/>查看原始整卷</a> : null}{detail.source.isRecallVersion && <small>该来源标记为网友/考生回忆版本，训练时保留此标识。</small>}</> : <span>没有读取到这道题的来源记录。</span>}</div>}<footer><span><FileText size={14}/>{question.type} · {question.score} 分 · {question.wordLimit} 字</span><button onClick={() => onStart(question)}>开始训练 <ChevronRight size={16}/></button></footer></article>;
-      })}</div>
+      <section className="library-horizontal-filter">
+        <div className="library-filter-search"><Search size={18}/><input value={query} onChange={event => setQuery(event.target.value)} placeholder="搜索题目、题干、标签或地区"/><span>{filtered.length} 道题</span></div>
+        <LibraryFilterRow label="题型"><button className={typeFilter === "all" ? "active" : ""} onClick={() => setTypeFilter("all")}>全部题型 <small>{libraryQuestions.length}</small></button>{QUESTION_TYPES.map(type => <button key={type} className={typeFilter === type ? "active" : ""} onClick={() => setTypeFilter(type)}>{type} <small>{typeCounts.get(type) ?? 0}</small></button>)}</LibraryFilterRow>
+        <LibraryFilterRow label="主题"><button className={themeFilter === "all" ? "active" : ""} onClick={() => setThemeFilter("all")}>全部主题</button>{QUESTION_THEMES.filter(theme => theme !== "全部主题").map(theme => <button key={theme} className={themeFilter === theme ? "active" : ""} onClick={() => setThemeFilter(theme)}>{theme} <small>{themeCounts.get(theme) ?? 0}</small></button>)}</LibraryFilterRow>
+        <LibraryFilterRow label="进度"><button className={statusFilter === "all" ? "active" : ""} onClick={() => setStatusFilter("all")}>全部</button><button className={statusFilter === "todo" ? "active" : ""} onClick={() => setStatusFilter("todo")}>未做 {todoCount}</button><button className={statusFilter === "done" ? "active" : ""} onClick={() => setStatusFilter("done")}>已做 {completedCount}</button></LibraryFilterRow>
+        <LibraryFilterRow label="年份" scroll><button className={yearFilter === "all" ? "active" : ""} onClick={() => setYearFilter("all")}>全部年份</button>{filterOptions.years.map(year => <button key={year} className={yearFilter === String(year) ? "active" : ""} onClick={() => setYearFilter(String(year))}>{year}</button>)}</LibraryFilterRow>
+        <LibraryFilterRow label="地区" scroll><button className={regionFilter === "all" ? "active" : ""} onClick={() => setRegionFilter("all")}>全部地区</button>{filterOptions.regions.map(region => <button key={region} className={regionFilter === region ? "active" : ""} onClick={() => setRegionFilter(region)}>{region}</button>)}</LibraryFilterRow>
+        <LibraryFilterRow label="卷别/级别" scroll><button className={paperLevelFilter === "all" ? "active" : ""} onClick={() => setPaperLevelFilter("all")}>全部级别</button>{filterOptions.paperLevels.map(level => <button key={level} className={paperLevelFilter === level ? "active" : ""} onClick={() => setPaperLevelFilter(level)}>{level}</button>)}</LibraryFilterRow>
+        <LibraryFilterRow label="难度"><button className={difficultyFilter === "all" ? "active" : ""} onClick={() => setDifficultyFilter("all")}>全部难度</button>{filterOptions.difficulties.map(value => <button key={value} className={difficultyFilter === value ? "active" : ""} onClick={() => setDifficultyFilter(value)}>{value}</button>)}</LibraryFilterRow>
+      </section>
+      <div className="library-result-heading"><div><strong>{typeFilter === "all" ? themeFilter === "all" ? "全部真题" : themeFilter : typeFilter}</strong><span>{filtered.length} 道 · 未做 {todoCount}</span></div>{hasActiveFilters && <button onClick={clearFilters}>清除筛选</button>}</div>
+      <section className="question-landscape-list">{visibleQuestions.map(question => {
+        const publicQuestion = isPublicImportedQuestion(question); const detail = sourceDetail?.questionId === question.id ? sourceDetail : null; const hasNote = noteIds.has(question.id); const attemptCount = attemptCounts.get(question.id) ?? 0; const similar = (similarityMap.get(question.id) ?? []) as SimilarQuestion[]; const nearestSimilar = similar[0];
+        const tags = question.tags.slice(0, 5); const paperCount = paperQuestionCounts.get(questionPaperId(question) ?? question.id) ?? 1;
+        return <article className={`question-landscape-card ${attemptCount ? "is-completed" : "is-todo"}`} key={question.id}>
+          <div className="question-kind-panel"><span>{question.type}</span><strong>{question.score}</strong><small>分 · {question.wordLimit} 字</small></div>
+          <div className="question-landscape-body"><div className="question-landscape-meta"><span className={`question-status ${attemptCount ? "question-status-done" : "question-status-todo"}`}>{attemptCount ? `已做 ${attemptCount} 次` : "未做"}</span><span>{question.year}</span><span>{question.region}</span><span>{questionPaperLevel(question)}</span><span>{difficultyLabel(question)}</span>{paperCount > 1 && <em>整卷 {paperCount} 题 · {question.materials.length} 则材料</em>}{similar.length > 0 && paperCount === 1 && <em>同材料 {similar.length} 题</em>}</div><h2>{question.title}</h2><p>{question.prompt}</p>{nearestSimilar && paperCount === 1 && <div className="question-similarity-note"><strong>同组材料</strong><span>与“{questionTitleById.get(nearestSimilar.questionId) ?? "其他题目"}”使用相同材料，可按不同问法对比训练。</span></div>}<div className="question-landscape-tags">{tags.map(tag => <span key={tag}>#{tag}</span>)}{question.tags.length > tags.length && <span>+{question.tags.length - tags.length}</span>}</div></div>
+          <aside className="question-landscape-actions"><button className="primary" onClick={() => onStart(question)}>{attemptCount ? "再次训练" : "开始训练"}<ChevronRight size={15}/></button><button onClick={() => onDeepRead(question)}><Sparkles size={13}/>AI精读</button><button className={hasNote ? "has-note" : ""} onClick={() => void openNote(question)}><FileText size={13}/>{hasNote ? "查看笔记" : "写笔记"}</button>{publicQuestion && <button onClick={() => void toggleSource(question.id)} disabled={sourceLoadingId !== null}><Info size={13}/>{sourceLoadingId === question.id ? "读取来源…" : detail ? "收起来源" : "查看来源"}</button>}</aside>
+          {detail && <div className="question-source-detail question-landscape-source">{detail.source ? <><div><strong>{detail.source.sourceName ?? "公开来源"}</strong><span>{detail.source.sourceTitle ?? question.title}</span></div>{detail.source.sourceUrl ? <a href={detail.source.sourceUrl} target="_blank" rel="noreferrer"><ExternalLink size={13}/>查看原始整卷</a> : null}{detail.source.isRecallVersion && <small>该来源为网友/考生回忆版本。</small>}</> : <span>没有读取到这道题的来源记录。</span>}</div>}
+        </article>;
+      })}</section>
+      {filtered.length > QUESTION_PAGE_SIZE && <div className="question-library-pager"><span>第 {currentPage}/{totalPages} 页 · 每页 {QUESTION_PAGE_SIZE} 道</span><div><button className="secondary" disabled={currentPage <= 1} onClick={() => setPage(value => Math.max(1, value - 1))}>上一页</button><button className="secondary" disabled={currentPage >= totalPages} onClick={() => setPage(value => Math.min(totalPages, value + 1))}>下一页</button></div></div>}
       {!filtered.length && <div className="public-library-empty">当前专项没有符合条件的题目。可以清除年份/地区/难度筛选，或到“自动补全题库”继续补题。</div>}
     </> : <PublicExamBrowser onImported={finishPublicImport}/>}
     {noteEditor && <div className="question-note-backdrop" role="dialog" aria-modal="true" aria-label="我的题目笔记"><div className="question-note-dialog"><header><div><span>我的笔记</span><strong>{noteEditor.question.title}</strong><small>{noteEditor.question.type} · {noteEditor.question.year} · {noteEditor.question.region}</small></div><button className="text-button" disabled={noteEditor.saving} onClick={() => setNoteEditor(null)}>关闭</button></header><textarea value={noteEditor.value} onChange={event => setNoteEditor(current => current ? { ...current, value: event.target.value } : current)} disabled={noteEditor.loading || noteEditor.saving} placeholder={noteEditor.loading ? "正在读取笔记…" : "记录自己的审题思路、踩坑点、得分词、重做提醒……"}/><footer><span>{noteEditor.value.length} 字 · 仅保存在你的本地题库数据中</span><button className="primary" disabled={noteEditor.loading || noteEditor.saving} onClick={() => void persistNote()}>{noteEditor.saving ? "保存中…" : "保存笔记"}</button></footer></div></div>}

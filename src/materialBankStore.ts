@@ -40,7 +40,12 @@ export const materialBankStore = {
   async addMany(items: MaterialBankItem[]): Promise<MaterialBankItem[]> {
     const current = await list();
     const signatures = new Set(current.map(item => `${item.category}:${item.sourceQuestionId}:${item.title}`));
-    const additions = items.filter(item => !signatures.has(`${item.category}:${item.sourceQuestionId}:${item.title}`));
+    const additions = items.filter(item => {
+      const signature = `${item.category}:${item.sourceQuestionId}:${item.title}`;
+      if (signatures.has(signature)) return false;
+      signatures.add(signature);
+      return true;
+    });
     const next = normalize([...additions, ...current]);
     await saveAll(next);
     return next;

@@ -73,12 +73,26 @@
 }
 
 .smart-answer-cell.is-caret-cell {
-  background: rgba(69, 103, 201, .055);
-  box-shadow: inset 0 0 0 1.5px rgba(69, 103, 201, .62);
+  position: relative;
+  background: rgba(69, 103, 201, .025);
+  box-shadow: none;
+}
+
+.smart-answer-cell.is-caret-cell::after {
+  content: "";
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 50%;
+  width: 2px;
+  border-radius: 2px;
+  background: #4567c9;
+  box-shadow: 0 0 0 1px rgba(69, 103, 201, .12);
+  transform: translateX(-50%);
 }
 
 .grid-answer-stage.smart-grid-enhanced:focus-within {
-  box-shadow: 0 0 0 2px rgba(69, 103, 201, .08);
+  box-shadow: none;
 }
 
 /*

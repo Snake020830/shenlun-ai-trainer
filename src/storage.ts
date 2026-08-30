@@ -1,12 +1,15 @@
 import { isTauri } from "@tauri-apps/api/core";
 import type Database from "@tauri-apps/plugin-sql";
 import { createBenchmarkDraft } from "./grading/benchmark/createDraft";
+import { validateReview } from "./grading/contracts";
+import { questionPaperId, questionPaperLevel, questionPaperTitle } from "./examPaper";
 import type { GradingBenchmarkCase } from "./grading/benchmark/types";
 import type {
   Difficulty,
   Draft,
   LocalQuestionInput,
   MockReview,
+  PaperLevel,
   Question,
   QuestionType,
   TrainingRecord
@@ -19,12 +22,18 @@ const QUESTIONS_KEY = "shenlun:questions:v1";
 const BENCHMARK_DRAFTS_KEY = "shenlun:benchmark-drafts:v1";
 const PUBLIC_SETTINGS_KEY = "shenlun:public-settings:v1";
 const LEGACY_MIGRATION_KEY = "legacy_localstorage_migrated_v1";
+const PUBLIC_PAPER_REPAIR_KEY = "public_paper_materials_repaired_v2";
 const PUBLIC_SETTING_PREFIX = "public:";
 
 let databasePromise: Promise<Database> | null = null;
 let sqliteUnavailable = false;
 
 interface MetaRow {
+  value: string;
+}
+
+interface SettingRow {
+  key: string;
   value: string;
 }
 
@@ -39,6 +48,11 @@ interface QuestionRow {
   word_limit: number;
   prompt: string;
   tags_json: string;
+  paper_id: string | null;
+  paper_title: string | null;
+  paper_level: string | null;
+  paper_variant: string | null;
+  task_index: number | null;
   source: string;
   created_at: string;
   reference_answer_content: string | null;
@@ -91,10 +105,10 @@ function writeJson<T>(key: string, value: T) {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
-function parseReview(value: string | null): MockReview | undefined {
+function parseReview(value: string | null, expectedMaxScore: number): MockReview | undefined {
   if (!value) return undefined;
   try {
-    return JSON.parse(value) as MockReview;
+    return validateReview(JSON.parse(value) as MockReview, expectedMaxScore);
   } catch {
     return undefined;
   }
@@ -129,6 +143,11 @@ function questionFromRows(row: QuestionRow, materials: MaterialRow[]): Question 
     wordLimit: row.word_limit,
     prompt: row.prompt,
     tags: parseTags(row.tags_json),
+    ...(row.paper_id ? { paperId: row.paper_id } : {}),
+    ...(row.paper_title ? { paperTitle: row.paper_title } : {}),
+    ...(row.paper_level ? { paperLevel: row.paper_level as PaperLevel } : {}),
+    ...(row.paper_variant ? { paperVariant: row.paper_variant } : {}),
+    ...(row.task_index === null ? {} : { taskIndex: row.task_index }),
     referenceAnswer: row.reference_answer_content
       ? {
           content: row.reference_answer_content,
@@ -155,7 +174,7 @@ function trainingRecordFromRow(row: TrainingRow): TrainingRecord {
     score: row.score,
     maxScore: row.max_score,
     answer: row.answer,
-    review: parseReview(row.review_json),
+    review: parseReview(row.review_json, row.max_score),
     submittedAtIso: row.submitted_at,
     submittedAt: row.submitted_at_display
   };
@@ -189,14 +208,18 @@ async function getDatabase(): Promise<Database | null> {
 async function upsertQuestion(db: Database, question: Question) {
   await db.execute(
     `INSERT INTO questions
-      (id, title, year, region, type, difficulty, score, word_limit, prompt, tags_json, source, created_at,
+      (id, title, year, region, type, difficulty, score, word_limit, prompt, tags_json,
+       paper_id, paper_title, paper_level, paper_variant, task_index, source, created_at,
        reference_answer_content, reference_answer_source)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
      ON CONFLICT(id) DO UPDATE SET
-       title=excluded.title, year=excluded.year, region=excluded.region, type=excluded.type,
-       difficulty=excluded.difficulty, score=excluded.score, word_limit=excluded.word_limit,
-       prompt=excluded.prompt, tags_json=excluded.tags_json, source=excluded.source,
-       reference_answer_content=excluded.reference_answer_content,
+        title=excluded.title, year=excluded.year, region=excluded.region, type=excluded.type,
+        difficulty=excluded.difficulty, score=excluded.score, word_limit=excluded.word_limit,
+        prompt=excluded.prompt, tags_json=excluded.tags_json,
+        paper_id=excluded.paper_id, paper_title=excluded.paper_title,
+        paper_level=excluded.paper_level, paper_variant=excluded.paper_variant,
+        task_index=excluded.task_index, source=excluded.source,
+        reference_answer_content=excluded.reference_answer_content,
        reference_answer_source=excluded.reference_answer_source`,
     [
       question.id,
@@ -209,6 +232,11 @@ async function upsertQuestion(db: Database, question: Question) {
       question.wordLimit,
       question.prompt,
       JSON.stringify(question.tags),
+      question.paperId ?? null,
+      question.paperTitle ?? null,
+      question.paperLevel ?? null,
+      question.paperVariant ?? null,
+      question.taskIndex ?? null,
       question.source ?? "local",
       question.createdAt ?? new Date().toISOString(),
       question.referenceAnswer?.content ?? null,
@@ -228,7 +256,8 @@ async function upsertQuestion(db: Database, question: Question) {
 async function loadQuestionById(db: Database, questionId: string): Promise<Question | null> {
   const questionRows = await db.select<QuestionRow[]>(
     `SELECT id, title, year, region, type, difficulty, score, word_limit, prompt,
-            tags_json, source, created_at, reference_answer_content, reference_answer_source
+            tags_json, paper_id, paper_title, paper_level, paper_variant, task_index,
+            source, created_at, reference_answer_content, reference_answer_source
      FROM questions WHERE id = $1 LIMIT 1`,
     [questionId]
   );
@@ -240,6 +269,105 @@ async function loadQuestionById(db: Database, questionId: string): Promise<Quest
     [questionId]
   );
   return questionFromRows(row, materials);
+}
+
+function materialIdentity(material: { label: string; content: string }): string {
+  const number = material.label.match(/[0-9０-９一二三四五六七八九十]+/u)?.[0] ?? "";
+  return number ? `number:${number}` : `content:${material.content.trim()}`;
+}
+
+function materialOrder(label: string, fallback: number): number {
+  const value = label.match(/[0-9０-９]+/u)?.[0];
+  return value ? Number(value.replace(/[０-９]/gu, digit => String.fromCharCode(digit.charCodeAt(0) - 0xfee0))) : fallback;
+}
+
+function taskIndexFromPublicQuestionId(id: string): number | undefined {
+  const match = id.match(/^publicq:[^:]+:task:(\d+)$/);
+  if (!match) return undefined;
+  const value = Number(match[1]);
+  return Number.isInteger(value) && value > 0 ? value - 1 : undefined;
+}
+
+/**
+ * Older imports stored only the materials explicitly cited by each task. The
+ * public source links let us identify sibling tasks, so union their local
+ * materials before the new paper workspace is opened.
+ */
+function repairPublicPaperQuestions(questions: Question[]): Question[] {
+  const groups = new Map<string, Question[]>();
+  for (const question of questions) {
+    const paperId = questionPaperId(question);
+    if (!paperId || !question.id.startsWith("publicq:")) continue;
+    const group = groups.get(paperId) ?? [];
+    group.push(question);
+    groups.set(paperId, group);
+  }
+
+  const repaired = new Map<string, Question>();
+  for (const group of groups.values()) {
+    if (group.length < 2) continue;
+    const materials = new Map<string, { label: string; content: string }>();
+    for (const question of group) {
+      for (const material of question.materials) {
+        const identity = materialIdentity(material);
+        if (!materials.has(identity)) materials.set(identity, { label: material.label, content: material.content });
+      }
+    }
+    const fullMaterials = [...materials.values()]
+      .sort((left, right) => materialOrder(left.label, 0) - materialOrder(right.label, 0))
+      .map((material, index) => ({ id: `m${index + 1}`, ...material }));
+    for (const question of group) {
+      const paperId = questionPaperId(question)!;
+      repaired.set(question.id, {
+        ...question,
+        paperId,
+        paperTitle: questionPaperTitle(question),
+        paperLevel: questionPaperLevel(question),
+        ...(question.taskIndex === undefined
+          ? { taskIndex: taskIndexFromPublicQuestionId(question.id) }
+          : {}),
+        materials: fullMaterials
+      });
+    }
+  }
+  return questions.map(question => repaired.get(question.id) ?? question);
+}
+
+function assertPublicSettingPrefix(prefix: string): void {
+  if (!prefix.startsWith(PUBLIC_SETTING_PREFIX) || !/^public:[A-Za-z0-9._:-]{1,120}$/.test(prefix)) {
+    throw new Error("Invalid public setting prefix.");
+  }
+  if (/secret|token|api[_-]?key|password|credential/i.test(prefix)) {
+    throw new Error("Secret-like values must not use public settings storage.");
+  }
+}
+
+function isExactSingleMaterialDuplicate(left: Question, right: Question): boolean {
+  return left.type === right.type
+    && left.prompt.trim() === right.prompt.trim()
+    && left.materials.length === 1
+    && right.materials.length === 1
+    && left.materials[0].content.trim() === right.materials[0].content.trim();
+}
+
+async function findExactSingleMaterialDuplicate(db: Database, question: Question): Promise<Question | null> {
+  if (question.materials.length !== 1) return null;
+  const rows = await db.select<Array<{ id: string }>>(
+    `SELECT q.id
+     FROM questions q
+     INNER JOIN materials m ON m.question_id = q.id
+     WHERE q.type = $1
+       AND TRIM(q.prompt) = TRIM($2)
+       AND TRIM(m.content) = TRIM($3)
+       AND (SELECT COUNT(*) FROM materials own WHERE own.question_id = q.id) = 1
+     ORDER BY
+       CASE WHEN q.reference_answer_content IS NOT NULL AND TRIM(q.reference_answer_content) <> '' THEN 0 ELSE 1 END,
+       CASE WHEN q.title LIKE '%回忆%' OR q.title LIKE '%网友%' OR q.title LIKE '%考生%' THEN 1 ELSE 0 END,
+       q.created_at DESC
+     LIMIT 1`,
+    [question.type, question.prompt, question.materials[0].content]
+  );
+  return rows[0] ? loadQuestionById(db, rows[0].id) : null;
 }
 
 function buildTrainingBenchmarkDraft(question: Question, record: TrainingRecord): GradingBenchmarkCase {
@@ -357,6 +485,49 @@ async function migrateLegacyLocalStorage(db: Database) {
   );
 }
 
+function repairLocalStoragePublicPaperQuestions(): void {
+  if (localStorage.getItem(PUBLIC_PAPER_REPAIR_KEY) === "1") return;
+  const questions = readJson<Question[]>(QUESTIONS_KEY, []);
+  const repaired = repairPublicPaperQuestions(questions);
+  if (repaired.some((question, index) => question !== questions[index])) writeJson(QUESTIONS_KEY, repaired);
+  localStorage.setItem(PUBLIC_PAPER_REPAIR_KEY, "1");
+}
+
+async function repairSqlitePublicPaperQuestions(db: Database): Promise<void> {
+  const rows = await db.select<MetaRow[]>(
+    "SELECT value FROM app_meta WHERE key = $1 LIMIT 1",
+    [PUBLIC_PAPER_REPAIR_KEY]
+  );
+  if (rows[0]?.value === "1") return;
+
+  const questionRows = await db.select<QuestionRow[]>(
+    `SELECT id, title, year, region, type, difficulty, score, word_limit, prompt,
+            tags_json, paper_id, paper_title, paper_level, paper_variant, task_index,
+            source, created_at, reference_answer_content, reference_answer_source
+     FROM questions WHERE id LIKE 'publicq:%'`
+  );
+  const materialRows = await db.select<MaterialRow[]>(
+    "SELECT id, question_id, label, content, sort_order FROM materials WHERE question_id LIKE 'publicq:%' ORDER BY question_id, sort_order"
+  );
+  const byQuestion = new Map<string, MaterialRow[]>();
+  for (const material of materialRows) {
+    const list = byQuestion.get(material.question_id) ?? [];
+    list.push(material);
+    byQuestion.set(material.question_id, list);
+  }
+  const questions = questionRows.map(row => questionFromRows(row, byQuestion.get(row.id) ?? []));
+  const repaired = repairPublicPaperQuestions(questions);
+  for (const question of repaired) {
+    const previous = questions.find(item => item.id === question.id);
+    if (previous && JSON.stringify(previous) !== JSON.stringify(question)) await upsertQuestion(db, question);
+  }
+  await db.execute(
+    `INSERT INTO app_meta (key, value) VALUES ($1, '1')
+     ON CONFLICT(key) DO UPDATE SET value=excluded.value`,
+    [PUBLIC_PAPER_REPAIR_KEY]
+  );
+}
+
 function createQuestion(input: LocalQuestionInput): Question {
   const now = new Date().toISOString();
   const requestedId = input.id?.trim();
@@ -391,6 +562,11 @@ function createQuestion(input: LocalQuestionInput): Question {
     wordLimit: input.wordLimit,
     prompt: input.prompt.trim(),
     tags: input.tags,
+    ...(input.paperId?.trim() ? { paperId: input.paperId.trim() } : {}),
+    ...(input.paperTitle?.trim() ? { paperTitle: input.paperTitle.trim() } : {}),
+    ...(input.paperLevel ? { paperLevel: input.paperLevel } : {}),
+    ...(input.paperVariant?.trim() ? { paperVariant: input.paperVariant.trim() } : {}),
+    ...(typeof input.taskIndex === "number" ? { taskIndex: input.taskIndex } : {}),
     referenceAnswer: referenceAnswerContent
       ? { content: referenceAnswerContent, ...(referenceAnswerSource ? { source: referenceAnswerSource } : {}) }
       : undefined,
@@ -404,10 +580,12 @@ export const persistence = {
   async initialize(): Promise<"sqlite" | "localStorage"> {
     const db = await getDatabase();
     if (!db) {
+      repairLocalStoragePublicPaperQuestions();
       await backfillLocalBenchmarkDrafts();
       return "localStorage";
     }
     await migrateLegacyLocalStorage(db);
+    await repairSqlitePublicPaperQuestions(db);
     await backfillSqliteBenchmarkDrafts(db);
     return "sqlite";
   },
@@ -477,7 +655,17 @@ export const persistence = {
 
   async listHistory(): Promise<TrainingRecord[]> {
     const db = await getDatabase();
-    if (!db) return readJson<TrainingRecord[]>(HISTORY_KEY, []);
+    if (!db) {
+      return readJson<TrainingRecord[]>(HISTORY_KEY, []).map(record => {
+        if (!record.review) return record;
+        try {
+          validateReview(record.review, record.maxScore);
+          return record;
+        } catch {
+          return { ...record, review: undefined };
+        }
+      });
+    }
     const rows = await db.select<TrainingRow[]>(
       `SELECT id, question_id, title_snapshot, score, max_score, answer, review_json, submitted_at, submitted_at_display
        FROM training_records ORDER BY submitted_at DESC`
@@ -549,7 +737,8 @@ export const persistence = {
     if (!db) return readJson<Question[]>(QUESTIONS_KEY, []);
     const questionRows = await db.select<QuestionRow[]>(
       `SELECT id, title, year, region, type, difficulty, score, word_limit, prompt,
-              tags_json, source, created_at, reference_answer_content, reference_answer_source
+              tags_json, paper_id, paper_title, paper_level, paper_variant, task_index,
+              source, created_at, reference_answer_content, reference_answer_source
        FROM questions ORDER BY created_at DESC`
     );
     const materialRows = await db.select<MaterialRow[]>(
@@ -569,11 +758,41 @@ export const persistence = {
     const db = await getDatabase();
     if (!db) {
       const all = readJson<Question[]>(QUESTIONS_KEY, []);
+      const existing = all.find(item => isExactSingleMaterialDuplicate(item, question));
+      if (existing) return existing;
       writeJson(QUESTIONS_KEY, [question, ...all.filter(item => item.id !== question.id)]);
       return question;
     }
+    const existing = await findExactSingleMaterialDuplicate(db, question);
+    if (existing) return existing;
     await upsertQuestion(db, question);
     return question;
+  },
+
+  async getPublicSettingsByPrefix<T>(prefix: string): Promise<Map<string, T>> {
+    assertPublicSettingPrefix(prefix);
+    const db = await getDatabase();
+    if (!db) {
+      const settings = readJson<Record<string, unknown>>(PUBLIC_SETTINGS_KEY, {});
+      const result = new Map<string, T>();
+      for (const [key, value] of Object.entries(settings)) {
+        if (key.startsWith(prefix)) result.set(key, value as T);
+      }
+      return result;
+    }
+    const rows = await db.select<SettingRow[]>(
+      "SELECT key, value FROM app_meta WHERE key LIKE $1 ORDER BY key",
+      [`${prefix}%`]
+    );
+    const result = new Map<string, T>();
+    for (const row of rows) {
+      try {
+        result.set(row.key, JSON.parse(row.value) as T);
+      } catch {
+        // Ignore malformed settings just as getPublicSetting does.
+      }
+    }
+    return result;
   },
 
   async listBenchmarkDrafts(): Promise<GradingBenchmarkCase[]> {

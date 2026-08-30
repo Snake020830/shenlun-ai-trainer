@@ -157,7 +157,7 @@
 - [ ] 应用没有任何“读取并显示明文 API key”的入口。
 - [ ] “测试连接”只验证连接与结构化 JSON，不宣称评分质量已验证。
 - [ ] 正式启用前运行“完整自检并启用 AI 批改”；自检使用短内置题真实执行材料盲抽 → rubric → 答案映射 → 字数审计，并且不写训练记录/Human Gold。
-- [ ] 完整自检通过后的报告使用当前 `shenlun-grader-skill@0.3.0`，provider kind 为 remote。
+- [ ] 完整自检通过后的报告使用当前 `shenlun-grader-skill@0.5.0`，provider kind 为 remote。
 - [ ] Stage 3 的 `errorCodes` 只能返回 `error-taxonomy.json` 中的正式代码；结构化 schema 不接受自造错误码。
 - [ ] 一个正确完整覆盖的 rubric 点允许 `errorCodes: []`，不得强迫模型为 hit 点制造错误类型。
 - [ ] Remote workflow 失败时不会伪造成功结果，也不会自动启用 provider。
@@ -183,7 +183,7 @@
 - [ ] Draft Human Gold 不能运行 benchmark experiment。
 - [ ] 每次模型实验生成新的 immutable Model Run，旧 run 不被覆盖。
 - [ ] Model Run 冻结 provider / model / protocol / reasoning / workflow / promptset / scoring policy。
-- [ ] 当前题型/错误 taxonomy Prompt 条件记录为 `shenlun-stage-prompts@0.3.0`；不同 promptset version 的 run 不混算。
+- [ ] 当前题型/错误 taxonomy Prompt 条件记录为 `shenlun-stage-prompts@0.5.0`；不同 promptset version 的 run 不混算。
 - [ ] 默认实验不注入参考答案；只有显式 Stage 5 实验才注入。
 - [ ] Human Alignment 只能建立 ID 对应关系，不能修改模型原始 score / status / error code / diagnosis。
 - [ ] 真正的模型漏点可以标为 unmatched Gold；模型额外点可以标为 unmatched Predicted，不能被迫硬匹配。

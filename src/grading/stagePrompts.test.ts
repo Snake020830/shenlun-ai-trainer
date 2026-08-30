@@ -98,6 +98,23 @@ describe("grading stage prompt isolation", () => {
     }
   });
 
+  it("adds the user grading style to every stage without removing hard guardrails", () => {
+    const custom = "采用袁东风格，直接指出失分位置。";
+    const requests = [
+      buildMaterialExtractionRequest(question, custom),
+      buildRubricConstructionRequest(question, sampleCandidates(), custom),
+      buildAnswerMappingRequest(question, sampleRubric(), "推进事项下沉。", custom),
+      buildWordBudgetRequest(question, "推进事项下沉。", custom),
+      buildReferenceCrossCheckRequest(question, sampleRubric(), question.referenceAnswer!, custom)
+    ];
+    for (const request of requests) {
+      expect(request.instructions).toContain(custom);
+      expect(request.instructions).toContain("只补充批改侧重点、反馈语气和表达方式");
+      expect(request.instructions).toContain("与底层规则冲突时以底层规则为准");
+      expect(request.instructions).toContain("只依据题干、给定材料");
+    }
+  });
+
   it("uses distinct practical guidance for all five supported question types", () => {
     const expected: Record<QuestionType, string> = {
       "概括归纳": "多个主体或多个对象必须先分别归属",

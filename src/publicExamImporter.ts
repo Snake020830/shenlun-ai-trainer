@@ -1,4 +1,5 @@
 import { canImportParsedPublicExam, parseGkzhentiExamHtml, type ParsedPublicExam } from "./publicExamParser";
+import { inferPaperLevel } from "./examPaper";
 import { fetchPublicSourceText, getPublicExamYearRange, isRecentPublicExamYear } from "./publicSourceDiscovery";
 import { getPublicSourceProvider } from "./publicSourceProviders";
 import { publicSourceStore, type PublicSourceCandidate } from "./publicSourceStore";
@@ -34,17 +35,15 @@ function sortedExamMaterials(exam: ParsedPublicExam): ParsedPublicExam["material
 }
 
 /**
- * Per-question practice should only carry the material scope named by the task.
- * This keeps the workspace focused and prevents the grader from receiving unrelated
- * material from the same paper. Essay questions intentionally keep the whole paper.
+ * Every task belongs to a paper. Keep the entire paper attached to every task so
+ * the workspace can switch questions without losing cross-material context.
+ * We still validate every explicit material reference before writing anything.
  */
 export function selectTaskMaterials(
   exam: ParsedPublicExam,
   task: ParsedPublicExam["tasks"][number]
 ): ParsedPublicExam["materials"] {
   const materials = sortedExamMaterials(exam);
-  if (task.questionType === "文章写作" || task.materialNumbers.length === 0) return materials;
-
   const requestedNumbers = [...new Set(task.materialNumbers)].sort((left, right) => left - right);
   const requested = new Set(requestedNumbers);
   const selected = materials.filter(material => requested.has(material.sourceNumber));
@@ -53,7 +52,7 @@ export function selectTaskMaterials(
   if (missingNumbers.length) {
     throw new Error(`第 ${task.taskIndex + 1} 题引用的材料 ${missingNumbers.join("、")} 未在整卷材料中找到，禁止自动导入。`);
   }
-  return selected;
+  return materials;
 }
 
 function buildMaterialText(materials: ParsedPublicExam["materials"]): string {
@@ -77,6 +76,7 @@ function questionInputForTask(candidate: PublicSourceCandidate, exam: ParsedPubl
   }
 
   const scopedMaterials = selectTaskMaterials(exam, task);
+  const paperLevel = inferPaperLevel(candidate.region, candidate.paperVariant, candidate.title);
   return {
     id: publicQuestionId(candidate.id, taskIndex),
     title: `${candidate.title} · 第${taskIndex + 1}题`,
@@ -87,6 +87,11 @@ function questionInputForTask(candidate: PublicSourceCandidate, exam: ParsedPubl
     score: task.score,
     wordLimit: task.wordLimit,
     prompt: taskPrompt(task),
+    paperId: `paper:${candidate.id}`,
+    paperTitle: candidate.title,
+    paperLevel,
+    ...(candidate.paperVariant ? { paperVariant: candidate.paperVariant } : {}),
+    taskIndex,
     // Compatibility fallback only. Structured materials below are the authoritative path.
     materialText: buildMaterialText(scopedMaterials),
     materials: scopedMaterials.map(material => ({ label: material.label, content: material.content })),
@@ -124,6 +129,9 @@ export async function previewPublicExam(candidate: PublicSourceCandidate): Promi
 export async function importPublicExam(preview: PublicExamPreview): Promise<PublicExamImportResult> {
   const { candidate, exam, retrievedAt } = preview;
   assertRecentCandidate(candidate);
+  if (inferPaperLevel(candidate.region, candidate.paperVariant, candidate.title) === "省考乡镇级") {
+    throw new Error("乡镇卷当前不纳入正式题库。");
+  }
   if (!canImportParsedPublicExam(exam)) {
     throw new Error("整卷解析仍有结构警告或缺少分值/字数，禁止自动写入正式题库。请先人工核验。");
   }
@@ -143,13 +151,9 @@ export async function importPublicExam(preview: PublicExamPreview): Promise<Publ
 
   for (let taskIndex = 0; taskIndex < exam.tasks.length; taskIndex += 1) {
     const existingLink = linksByTask.get(taskIndex);
-    if (existingLink) {
-      reusedQuestionIds.push(existingLink.questionId);
-      continue;
-    }
-
     // Deterministic id means a retry after a partial persistence failure upserts the
-    // same question instead of creating a second UUID-backed copy.
+    // same question instead of creating a second UUID-backed copy. Re-running an
+    // existing link also repairs older imports that stored only one material.
     const question = await persistence.addImportedQuestion(questionInputForTask(candidate, exam, taskIndex));
     const now = new Date().toISOString();
     await publicSourceStore.saveQuestionSource({
@@ -171,7 +175,8 @@ export async function importPublicExam(preview: PublicExamPreview): Promise<Publ
       createdAt: now
     });
     importedQuestions.push(question);
-    newlyImportedQuestionIds.push(question.id);
+    if (existingLink) reusedQuestionIds.push(existingLink.questionId);
+    else newlyImportedQuestionIds.push(question.id);
   }
 
   const finalLinks = await publicSourceStore.listCandidateQuestionLinks(candidate.id);

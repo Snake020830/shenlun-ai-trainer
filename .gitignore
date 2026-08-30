@@ -7,3 +7,7 @@ src-tauri/target/
 .env
 .env.*
 !.env.example
+.tauri/
+.playwright-cli/
+output/
+*.tsbuildinfo

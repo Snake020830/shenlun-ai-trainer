@@ -1,10 +1,8 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   BookOpenText,
-  Check,
   ChevronLeft,
   ChevronRight,
-  CircleAlert,
   Clock3,
   Eraser,
   Highlighter,
@@ -21,8 +19,11 @@ import {
   Undo2
 } from "lucide-react";
 import { errorMessage } from "./errorMessage";
+import { taskNumber } from "./examPaper";
+import EssayDrillPanel from "./EssayDrillPanel";
 import { gradingService } from "./grading";
 import { deepReadQuestion, type MaterialDeepReadOutput } from "./materialLearning";
+import { loadMaterialDeepReadSnapshot, saveMaterialDeepReadSnapshot } from "./materialLearningStore";
 import {
   answerSheetCapacity,
   answerSheetMarkers,
@@ -42,7 +43,7 @@ import {
   type PracticeInkStroke,
   type PracticeTextAnnotation
 } from "./practiceSessionStore";
-import ReferenceCrossCheckPanel from "./ReferenceCrossCheckPanel";
+import ReviewPanel from "./ReviewPanel";
 import { persistence } from "./storage";
 import type { MockReview, Question, TrainingRecord } from "./types";
 import "./practiceExam.css";
@@ -50,19 +51,25 @@ import "./practiceResultsDock.css";
 
 type AnnotationMode = PracticeTextAnnotation["type"] | null;
 type InkMode = "pen" | "eraser" | null;
-type MaterialView = "single" | "all";
 type ResultTab = "review" | "learning";
 
 const MATERIAL_FONT_KEY = "shenlun:material-font-size:v2";
 const MATERIAL_FONT_MIN = 16;
 const MATERIAL_FONT_MAX = 24;
 const MATERIAL_FONT_DEFAULT = 18;
-const HIGHLIGHT_COLORS: Array<{ value: PracticeHighlightColor; label: string }> = [
-  { value: "yellow", label: "黄色" },
-  { value: "blue", label: "蓝色" },
-  { value: "green", label: "绿色" },
-  { value: "pink", label: "粉色" }
+const HIGHLIGHT_COLORS: Array<{ value: PracticeHighlightColor; label: string; hint: string }> = [
+  { value: "yellow", label: "核心/帽子", hint: "主题、主体、分类、总括句" },
+  { value: "red", label: "问题/风险", hint: "问题表现、短板、矛盾、隐患" },
+  { value: "blue", label: "原因/机制", hint: "原因、条件、影响路径、制约因素" },
+  { value: "green", label: "对策/动作", hint: "措施、制度、执行动作、解决方案" },
+  { value: "purple", label: "成效/影响", hint: "结果、意义、作用、经验启示" }
 ];
+
+function cycleHighlightColor(current: PracticeHighlightColor, direction: 1 | -1): PracticeHighlightColor {
+  const currentIndex = HIGHLIGHT_COLORS.findIndex(item => item.value === current);
+  const nextIndex = (currentIndex + direction + HIGHLIGHT_COLORS.length) % HIGHLIGHT_COLORS.length;
+  return HIGHLIGHT_COLORS[nextIndex].value;
+}
 
 function clampMaterialFontSize(value: number): number {
   return Math.min(MATERIAL_FONT_MAX, Math.max(MATERIAL_FONT_MIN, Math.round(value)));
@@ -299,14 +306,6 @@ function MaterialTextStage({
   </div>;
 }
 
-function Badge({ children, tone = "neutral" }: { children: React.ReactNode; tone?: "neutral" | "green" | "amber" }) {
-  return <span className={`badge badge-${tone}`}>{children}</span>;
-}
-
-function ReviewPanel({ review }: { review: MockReview }) {
-  return <div className="review-content"><div className="score-panel"><span>本次得分</span><strong>{review.score}<small> / {review.maxScore}</small></strong><p>{review.summary}</p></div><div className="review-metrics"><div><span>要点覆盖</span><strong>{review.coverage}</strong></div><div><span>分类</span><strong>{review.classification}</strong></div><div><span>表达</span><strong>{review.expression}</strong></div><div><span>冗余</span><strong>{review.redundancy}</strong></div></div><div className="point-list"><h4>逐点核对</h4>{review.points.map(point => <article key={point.title} className={`point point-${point.status}`}><div className="point-heading">{point.status === "hit" ? <Check size={16}/> : <CircleAlert size={16}/>}<strong>{point.title}</strong><Badge tone={point.status === "hit" ? "green" : "amber"}>{point.status === "hit" ? "已覆盖" : point.status === "partial" ? "部分覆盖" : "遗漏"}</Badge></div><p><b>材料依据：</b>{point.evidence}</p>{point.suggestion && <p className="suggestion"><b>修改：</b>{point.suggestion}</p>}</article>)}</div>{review.referenceCrossCheck && <ReferenceCrossCheckPanel crossCheck={review.referenceCrossCheck}/>}</div>;
-}
-
 function DeepReadPanel({ result }: { result: MaterialDeepReadOutput }) {
   return <div className="practice-deep-read">
     <section className="deep-read-reference">
@@ -341,7 +340,35 @@ function ResultEmpty({ tab }: { tab: ResultTab }) {
   return <div className="practice-result-empty"><strong>{tab === "review" ? "还没有批改结果" : "还没有精读结果"}</strong><span>{tab === "review" ? "完成作答后点击“提交批改”，结果会显示在这里；上方答题卡不会被滚走。" : "无需提交答案，直接点击“精读文章”即可生成参考作答、规范表达、机制和作文素材。"}</span></div>;
 }
 
-export default function PracticeWorkspace({ question, onExit, onSubmitted }: { question: Question; onExit: () => void; onSubmitted: (record: TrainingRecord) => void }) {
+function FullAnswerGrid({ question, answer, draftLoaded, onAnswerChange, onBackToDrill }: {
+  question: Question;
+  answer: string;
+  draftLoaded: boolean;
+  onAnswerChange: (value: string) => void;
+  onBackToDrill?: () => void;
+}) {
+  const gridRows = answerSheetRows(question.wordLimit);
+  const gridCapacity = answerSheetCapacity(question.wordLimit);
+  const gridMarkers = answerSheetMarkers(question.wordLimit);
+  const gridCells = countExamGridCells(answer);
+  const chars = answer.replace(/\s/g, "").length;
+  const gridStyle = { "--answer-rows": gridRows } as React.CSSProperties;
+  return <div className="grid-answer-wrap">
+    <div className="answer-paper-label"><span>完整作答</span><small>每行 {EXAM_GRID_COLUMNS} 格 · 共 {gridRows} 行 · 按本题字数上限生成</small>{onBackToDrill && <button className="essay-back-to-drill" onClick={onBackToDrill}>返回短练</button>}</div>
+    <div className="grid-answer-stage" style={gridStyle}>
+      <div className="answer-grid-layer" aria-hidden="true"/>
+      <div className="answer-grid-markers" aria-hidden="true">
+        {gridMarkers.map(marker => <span key={marker} style={{ top: `${Math.min(100, marker / gridCapacity * 100)}%` }}>{marker}字线</span>)}
+      </div>
+      <textarea className="grid-answer-input" spellCheck={false} value={answer} onChange={event => onAnswerChange(event.target.value)} placeholder={draftLoaded ? "" : "正在读取本地草稿……"} disabled={!draftLoaded}/>
+    </div>
+    <div className="answer-sheet-hint"><span>字数 {chars}/{question.wordLimit}</span><span>稿纸占格 {gridCells}/{gridCapacity}</span><small>建议先完成一轮短练，再把提纲和论证段落组装成整篇文章。</small></div>
+  </div>;
+}
+
+export default function PracticeWorkspace({ initialQuestion, paperQuestions, onExit, onSubmitted }: { initialQuestion: Question; paperQuestions: Question[]; onExit: () => void; onSubmitted: (record: TrainingRecord) => void }) {
+  const [selectedQuestionId, setSelectedQuestionId] = useState(initialQuestion.id);
+  const question = paperQuestions.find(item => item.id === selectedQuestionId) ?? initialQuestion;
   const countdownSeconds = useMemo(
     () => recommendedPracticeSeconds(question.wordLimit, question.type),
     [question.type, question.wordLimit]
@@ -366,21 +393,61 @@ export default function PracticeWorkspace({ question, onExit, onSubmitted }: { q
   const [inkLoaded, setInkLoaded] = useState(false);
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
   const [activeMaterialId, setActiveMaterialId] = useState(question.materials[0]?.id ?? "");
-  const [materialView, setMaterialView] = useState<MaterialView>("single");
+  const materialScrollRef = useRef<HTMLDivElement>(null);
+  const materialRefs = useRef(new Map<string, HTMLElement>());
   const [materialFontSize, setMaterialFontSize] = useState(readMaterialFontSize);
+  const [essayView, setEssayView] = useState<"drill" | "full">(question.type === "文章写作" ? "drill" : "full");
   const chars = answer.replace(/\s/g, "").length;
   const elapsedSeconds = Math.max(0, countdownSeconds - remainingSeconds);
   const overtimeSeconds = Math.max(0, -remainingSeconds);
-  const gridCells = countExamGridCells(answer);
-  const gridRows = answerSheetRows(question.wordLimit);
-  const gridCapacity = answerSheetCapacity(question.wordLimit);
-  const gridMarkers = answerSheetMarkers(question.wordLimit);
-  const gridStyle = { "--answer-rows": gridRows } as React.CSSProperties;
   const activeMaterialIndex = Math.max(0, question.materials.findIndex(item => item.id === activeMaterialId));
-  const visibleMaterials = useMemo(
-    () => materialView === "all" ? question.materials : question.materials.filter(item => item.id === activeMaterialId),
-    [activeMaterialId, materialView, question.materials]
-  );
+  const visibleMaterials = question.materials;
+
+  useEffect(() => {
+    setSelectedQuestionId(initialQuestion.id);
+  }, [initialQuestion.id]);
+
+  useEffect(() => {
+    const root = materialScrollRef.current;
+    if (!root) return;
+    const observer = typeof IntersectionObserver === "undefined" ? null : new IntersectionObserver(entries => {
+      const visible = entries
+        .filter(entry => entry.isIntersecting)
+        .sort((left, right) => left.boundingClientRect.top - right.boundingClientRect.top);
+      const first = visible[0]?.target as HTMLElement | undefined;
+      if (first?.dataset.materialId) setActiveMaterialId(first.dataset.materialId);
+    }, { root, rootMargin: "-10% 0px -70% 0px", threshold: 0 });
+    for (const block of question.materials) {
+      const element = materialRefs.current.get(block.id);
+      if (element) observer?.observe(element);
+    }
+    return () => observer?.disconnect();
+  }, [question.id, question.materials]);
+
+  useEffect(() => {
+    const root = materialScrollRef.current;
+    if (!root || annotationMode !== "highlight") return;
+    const handleWheel = (event: WheelEvent) => {
+      if (!event.shiftKey || Math.abs(event.deltaY) < 1) return;
+      event.preventDefault();
+      setHighlightColor(current => cycleHighlightColor(current, event.deltaY > 0 ? 1 : -1));
+    };
+    root.addEventListener("wheel", handleWheel, { passive: false });
+    return () => root.removeEventListener("wheel", handleWheel);
+  }, [annotationMode]);
+
+  useEffect(() => {
+    if (annotationMode !== "highlight") return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!event.altKey || !/^[1-5]$/.test(event.key)) return;
+      const activeElement = document.activeElement;
+      if (activeElement instanceof HTMLInputElement || activeElement instanceof HTMLTextAreaElement || activeElement?.getAttribute("contenteditable") === "true") return;
+      event.preventDefault();
+      setHighlightColor(HIGHLIGHT_COLORS[Number(event.key) - 1].value);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [annotationMode]);
 
   useEffect(() => {
     let cancelled = false;
@@ -392,7 +459,7 @@ export default function PracticeWorkspace({ question, onExit, onSubmitted }: { q
     setInkMode(null);
     setSelectedAnnotationId(null);
     setActiveMaterialId(question.materials[0]?.id ?? "");
-    setMaterialView("single");
+    setEssayView(question.type === "文章写作" ? "drill" : "full");
     setRemainingSeconds(countdownSeconds);
     setTimerRunning(true);
     Promise.all([
@@ -463,8 +530,18 @@ export default function PracticeWorkspace({ question, onExit, onSubmitted }: { q
         console.error("Failed to load draft.", error);
         if (!cancelled) setDraftLoaded(true);
       });
-    return () => { cancelled = true; };
+      return () => { cancelled = true; };
   }, [question.id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void loadMaterialDeepReadSnapshot(question)
+      .then(snapshot => {
+        if (!cancelled && snapshot) setDeepReadResult(snapshot.result);
+      })
+      .catch(error => console.error("Failed to load AI deep-read snapshot.", error));
+    return () => { cancelled = true; };
+  }, [question]);
 
   useEffect(() => {
     if (!draftLoaded) return;
@@ -509,6 +586,11 @@ export default function PracticeWorkspace({ question, onExit, onSubmitted }: { q
     try {
       const result = await deepReadQuestion(question);
       setDeepReadResult(result);
+      try {
+        await saveMaterialDeepReadSnapshot(question, result);
+      } catch (error) {
+        console.error("AI deep-read succeeded but snapshot persistence failed.", error);
+      }
     } catch (error) {
       console.error("Failed to deep-read question.", error);
       setDeepReadError(errorMessage(error, "AI精读失败，请重试。"));
@@ -570,9 +652,19 @@ export default function PracticeWorkspace({ question, onExit, onSubmitted }: { q
   function changeMaterial(step: -1 | 1) {
     if (!question.materials.length) return;
     const nextIndex = Math.min(question.materials.length - 1, Math.max(0, activeMaterialIndex + step));
-    setActiveMaterialId(question.materials[nextIndex].id);
-    setMaterialView("single");
+    scrollToMaterial(question.materials[nextIndex].id);
     setSelectedAnnotationId(null);
+  }
+
+  function scrollToMaterial(materialId: string) {
+    const element = materialRefs.current.get(materialId);
+    const root = materialScrollRef.current;
+    if (!element || !root) return;
+    setActiveMaterialId(materialId);
+    const rootRect = root.getBoundingClientRect();
+    const elementRect = element.querySelector(".material-label")?.getBoundingClientRect() ?? element.getBoundingClientRect();
+    const targetTop = root.scrollTop + elementRect.top - rootRect.top - root.clientTop - 18;
+    root.scrollTo({ top: Math.max(0, targetTop), behavior: "smooth" });
   }
 
   function changeMaterialFontSize(delta: number) {
@@ -605,19 +697,18 @@ export default function PracticeWorkspace({ question, onExit, onSubmitted }: { q
       <section className="materials-pane exam-materials-pane">
         <div className="material-navigation">
           <div className="material-tabs" role="tablist">
-            {question.materials.map((block, index) => <button key={block.id} className={materialView === "single" && block.id === activeMaterialId ? "active" : ""} onClick={() => { setActiveMaterialId(block.id); setMaterialView("single"); setSelectedAnnotationId(null); }}>材料{index + 1}</button>)}
-            {question.materials.length > 1 && <button className={materialView === "all" ? "active" : ""} onClick={() => { setMaterialView("all"); setSelectedAnnotationId(null); }}>查看全部</button>}
+            {question.materials.map((block, index) => <button key={block.id} className={block.id === activeMaterialId ? "active" : ""} onClick={() => { scrollToMaterial(block.id); setSelectedAnnotationId(null); }}>材料{index + 1}</button>)}
           </div>
-          <div className="material-nav-stepper"><button disabled={materialView === "all" || activeMaterialIndex === 0} onClick={() => changeMaterial(-1)}><ChevronLeft size={15}/></button><span>{materialView === "all" ? "全部材料" : `${activeMaterialIndex + 1} / ${question.materials.length}`}</span><button disabled={materialView === "all" || activeMaterialIndex >= question.materials.length - 1} onClick={() => changeMaterial(1)}><ChevronRight size={15}/></button></div>
+          <div className="material-nav-stepper"><button disabled={activeMaterialIndex === 0} onClick={() => changeMaterial(-1)}><ChevronLeft size={15}/></button><span>{question.materials.length ? `${activeMaterialIndex + 1} / ${question.materials.length}` : "无材料"}</span><button disabled={!question.materials.length || activeMaterialIndex >= question.materials.length - 1} onClick={() => changeMaterial(1)}><ChevronRight size={15}/></button></div>
         </div>
         <div className="annotation-toolbar" aria-label="材料标注工具">
           <div className="annotation-tool-group"><BookOpenText size={15}/><strong>给定资料</strong></div>
-          <button disabled={!annotationsLoaded} className={annotationMode === "highlight" ? "active" : ""} onClick={() => { setInkMode(null); setAnnotationMode(mode => mode === "highlight" ? null : "highlight"); }}><Highlighter size={15}/><span>记号笔</span></button>
+          <button title="按申论答题要素给材料分类标记" disabled={!annotationsLoaded} className={annotationMode === "highlight" ? "active" : ""} onClick={() => { setInkMode(null); setAnnotationMode(mode => mode === "highlight" ? null : "highlight"); }}><Highlighter size={15}/><span>要素标注</span></button>
           {annotationMode === "highlight" && <div className="highlight-color-palette" aria-label="记号笔颜色">
-            {HIGHLIGHT_COLORS.map(item => <button type="button" key={item.value} className={`highlight-color-dot color-${item.value} ${highlightColor === item.value ? "selected" : ""}`} title={`${item.label}记号笔`} aria-label={`${item.label}记号笔`} onClick={() => setHighlightColor(item.value)}/>) }
+            {HIGHLIGHT_COLORS.map(item => <button type="button" key={item.value} className={`highlight-color-dot color-${item.value} ${highlightColor === item.value ? "selected" : ""}`} title={`${item.label}：${item.hint}`} aria-label={`${item.label}：${item.hint}`} onClick={() => setHighlightColor(item.value)}><i aria-hidden="true"/><span className="highlight-color-name">{item.label}</span></button>) }
           </div>}
-          <button disabled={!annotationsLoaded} className={annotationMode === "underline" ? "active" : ""} onClick={() => { setInkMode(null); setAnnotationMode(mode => mode === "underline" ? null : "underline"); }}><Underline size={15}/><span>下划线</span></button>
-          <button disabled={!inkLoaded} className={inkMode === "pen" ? "active" : ""} onClick={() => { setAnnotationMode(null); setInkMode(mode => mode === "pen" ? null : "pen"); }}><PenLine size={15}/><span>画笔</span></button>
+          <button title="标出转折、因果、递进、并列等关联关系" disabled={!annotationsLoaded} className={annotationMode === "underline" ? "active" : ""} onClick={() => { setInkMode(null); setAnnotationMode(mode => mode === "underline" ? null : "underline"); }}><Underline size={15}/><span>逻辑线</span></button>
+          <button title="在材料旁记录段落功能、归纳词或自己的提醒" disabled={!inkLoaded} className={inkMode === "pen" ? "active" : ""} onClick={() => { setAnnotationMode(null); setInkMode(mode => mode === "pen" ? null : "pen"); }}><PenLine size={15}/><span>段落批注</span></button>
           <button disabled={!inkLoaded || !inkStrokes.length} className={inkMode === "eraser" ? "active" : ""} onClick={() => { setAnnotationMode(null); setInkMode(mode => mode === "eraser" ? null : "eraser"); }}><Eraser size={15}/><span>橡皮</span></button>
           <button disabled={!annotations.length} onClick={undoLastAnnotation}><Undo2 size={15}/><span>撤销标记</span></button>
           <button disabled={!selectedAnnotationId} onClick={deleteSelectedAnnotation}><Trash2 size={15}/><span>删除当前</span></button>
@@ -629,13 +720,16 @@ export default function PracticeWorkspace({ question, onExit, onSubmitted }: { q
             <button type="button" className="material-font-reset" disabled={materialFontSize === MATERIAL_FONT_DEFAULT} onClick={resetMaterialFontSize}>默认</button>
           </div>
         </div>
-        <div key={`${materialView}:${activeMaterialId}`} className="material-scroll exam-paper-scroll">
+        <div ref={materialScrollRef} className="material-scroll exam-paper-scroll">
           {visibleMaterials.map((block, visibleIndex) => {
             const blockAnnotations = annotations.filter(item => item.materialId === block.id);
             const blockInk = inkStrokes.filter(item => item.materialId === block.id);
             const trueIndex = question.materials.findIndex(item => item.id === block.id);
-            return <article className="material exam-material" key={block.id}>
-              <div className="material-label"><span>材料{trueIndex + 1}</span>{materialView === "all" && visibleIndex > 0 ? <i/> : null}</div>
+            return <article className="material exam-material" key={block.id} data-material-id={block.id} ref={element => {
+              if (element) materialRefs.current.set(block.id, element);
+              else materialRefs.current.delete(block.id);
+            }}>
+              <div className="material-label"><span>材料{trueIndex + 1}</span>{visibleIndex > 0 ? <i/> : null}</div>
               <MaterialTextStage
                 materialId={block.id}
                 content={block.content}
@@ -654,22 +748,38 @@ export default function PracticeWorkspace({ question, onExit, onSubmitted }: { q
             </article>;
           })}
         </div>
+        {annotationMode === "highlight" && <div className="material-color-dock" aria-label="滚动中的颜色快捷切换">
+          <span>颜色</span>
+          {HIGHLIGHT_COLORS.map((item, index) => <button
+            type="button"
+            key={item.value}
+            className={`highlight-color-dot color-${item.value} ${highlightColor === item.value ? "selected" : ""}`}
+            title={`${item.label}（Alt+${index + 1}）`}
+            aria-label={`${item.label}，快捷键 Alt+${index + 1}`}
+            onClick={() => setHighlightColor(item.value)}
+          ><i aria-hidden="true"/></button>)}
+          <small>Shift+滚轮</small>
+        </div>}
       </section>
 
       <section className="answer-pane exam-answer-pane integrated-answer-pane">
         <div className="answer-fixed-zone">
-          <div className="prompt-box exam-prompt-box"><span>题目要求</span><p>{question.prompt}</p></div>
-          <div className="grid-answer-wrap">
-            <div className="answer-paper-label"><span>你的作答</span><small>每行 {EXAM_GRID_COLUMNS} 格 · 共 {gridRows} 行 · 按本题字数上限生成</small></div>
-            <div className="grid-answer-stage" style={gridStyle}>
-              <div className="answer-grid-layer" aria-hidden="true"/>
-              <div className="answer-grid-markers" aria-hidden="true">
-                {gridMarkers.map(marker => <span key={marker} style={{ top: `${Math.min(100, marker / gridCapacity * 100)}%` }}>{marker}字线</span>)}
-              </div>
-              <textarea className="grid-answer-input" spellCheck={false} value={answer} onChange={event => setAnswer(event.target.value)} placeholder={draftLoaded ? "" : "正在读取本地草稿……"} disabled={!draftLoaded}/>
-            </div>
-            <div className="answer-sheet-hint"><span>字数 {chars}/{question.wordLimit}</span><span>稿纸占格 {gridCells}/{gridCapacity}</span><small>稿纸占格为书写模拟：常见数字两位一格，1. / 1、等短序号按一格；评分字数仍按提交文本独立统计。</small></div>
+          <div className="paper-task-navigation" role="tablist" aria-label="本套卷题目切换">
+            {paperQuestions.map((item, index) => <button
+              key={item.id}
+              className={item.id === question.id ? "active" : ""}
+              onClick={() => setSelectedQuestionId(item.id)}
+              role="tab"
+              aria-selected={item.id === question.id}
+            >
+              <strong>{taskNumber(item, index)}-{item.type}</strong>
+              <small>{item.score}分 · ≤{item.wordLimit}字</small>
+            </button>)}
           </div>
+          <div className="prompt-box exam-prompt-box"><span>题目要求</span><p>{question.prompt}</p></div>
+          {question.type === "文章写作" && essayView === "drill"
+            ? <EssayDrillPanel question={question} deepReadResult={deepReadResult} onOpenFullAnswer={() => setEssayView("full")}/>
+            : <FullAnswerGrid question={question} answer={answer} draftLoaded={draftLoaded} onAnswerChange={setAnswer} onBackToDrill={question.type === "文章写作" ? () => setEssayView("drill") : undefined}/>}
         </div>
 
         <div className="answer-footer exam-answer-footer">
@@ -679,7 +789,7 @@ export default function PracticeWorkspace({ question, onExit, onSubmitted }: { q
           <span className="answer-footer-spacer"/>
           <div className="answer-action-group">
             <button className="learning-action" disabled={!draftLoaded || deepReadBusy || submitting} onClick={() => void runDeepRead()}><BookOpenText size={16}/>{deepReadBusy ? "精读中…" : "精读文章"}</button>
-            <button className="primary" disabled={chars < 10 || !draftLoaded || submitting || deepReadBusy} onClick={submit}><Sparkles size={16}/>{submitting ? "批改中…" : "提交批改"}</button>
+            <button className="primary" disabled={chars < 10 || !draftLoaded || submitting || deepReadBusy || (question.type === "文章写作" && essayView === "drill")} onClick={submit}><Sparkles size={16}/>{submitting ? "批改中…" : question.type === "文章写作" ? "提交整篇批改" : "提交批改"}</button>
           </div>
         </div>
 

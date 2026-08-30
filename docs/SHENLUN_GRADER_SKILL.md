@@ -10,9 +10,9 @@
 
 Benchmark / calibration 仍可通过 `gradeDetailed()` 直接取得冻结的 workflow artifacts；日常训练必须经过 Skill 的输入预检与质量门禁。
 
-当前版本：`shenlun-grader-skill@0.3.0`。
+当前版本：`shenlun-grader-skill@0.5.0`。
 
-当前 Prompt 条件：`shenlun-stage-prompts@0.3.0`。
+当前 Prompt 条件：`shenlun-stage-prompts@0.5.0`。
 
 ## 2. 输入契约
 

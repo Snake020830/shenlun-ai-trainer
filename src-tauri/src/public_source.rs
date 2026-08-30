@@ -14,6 +14,8 @@ const ALLOWED_PUBLIC_SOURCE_HOSTS: &[&str] = &[
     "cpc.people.com.cn",
     "www.people.com.cn",
     "people.com.cn",
+    "www.ah.gov.cn",
+    "ah.gov.cn",
 ];
 
 fn validate_public_source_url(raw: &str) -> Result<reqwest::Url, String> {
@@ -29,9 +31,14 @@ fn validate_public_source_url(raw: &str) -> Result<reqwest::Url, String> {
         .ok_or_else(|| "Public source URL must contain a host.".to_string())?
         .to_ascii_lowercase();
     if host.parse::<IpAddr>().is_ok() {
-        return Err("Public source URL must use an allow-listed hostname, not an IP address.".to_string());
+        return Err(
+            "Public source URL must use an allow-listed hostname, not an IP address.".to_string(),
+        );
     }
-    if !ALLOWED_PUBLIC_SOURCE_HOSTS.iter().any(|allowed| *allowed == host) {
+    if !ALLOWED_PUBLIC_SOURCE_HOSTS
+        .iter()
+        .any(|allowed| *allowed == host)
+    {
         return Err("Public source host is not allow-listed.".to_string());
     }
     Ok(url)
@@ -46,7 +53,10 @@ fn validate_content_type(content_type: Option<&str>) -> Result<(), String> {
         return Ok(());
     }
     if normalized.starts_with("application/pdf") {
-        return Err("PDF source detected. Use the PDF import pipeline instead of HTML extraction.".to_string());
+        return Err(
+            "PDF source detected. Use the PDF import pipeline instead of HTML extraction."
+                .to_string(),
+        );
     }
     Err("Public source returned an unsupported content type.".to_string())
 }
@@ -94,10 +104,16 @@ pub async fn fetch_public_source_text(
 
     let status = response.status();
     if status.is_redirection() {
-        return Err("Public source redirected. Add and review the final HTTPS source URL explicitly.".to_string());
+        return Err(
+            "Public source redirected. Add and review the final HTTPS source URL explicitly."
+                .to_string(),
+        );
     }
     if !status.is_success() {
-        return Err(format!("Public source request failed with HTTP {}.", status.as_u16()));
+        return Err(format!(
+            "Public source request failed with HTTP {}.",
+            status.as_u16()
+        ));
     }
 
     let content_type = response
@@ -121,8 +137,9 @@ pub async fn fetch_public_source_text(
     if bytes.len() > MAX_PUBLIC_SOURCE_BYTES {
         return Err("Public source exceeded the 4 MB text limit.".to_string());
     }
-    let body = String::from_utf8(bytes.to_vec())
-        .map_err(|_| "Public source text was not UTF-8. A source-specific decoder is required.".to_string())?;
+    let body = String::from_utf8(bytes.to_vec()).map_err(|_| {
+        "Public source text was not UTF-8. A source-specific decoder is required.".to_string()
+    })?;
 
     Ok(PublicSourceFetchResponse {
         url: url.to_string(),
@@ -140,6 +157,7 @@ mod tests {
         assert!(validate_public_source_url("https://www.gwybs.com/").is_ok());
         assert!(validate_public_source_url("https://gwy.gkzhenti.cn/path").is_ok());
         assert!(validate_public_source_url("https://edu.people.com.cn/n1/test.html").is_ok());
+        assert!(validate_public_source_url("https://www.ah.gov.cn/zwyw/jryw/index.html").is_ok());
     }
 
     #[test]

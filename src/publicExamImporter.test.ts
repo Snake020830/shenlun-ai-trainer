@@ -30,6 +30,11 @@ vi.mock("./storage", () => ({
         prompt: input.prompt,
         materials,
         tags: input.tags,
+        paperId: input.paperId,
+        paperTitle: input.paperTitle,
+        paperLevel: input.paperLevel,
+        paperVariant: input.paperVariant,
+        taskIndex: input.taskIndex,
         source: "local"
       };
       state.questionById.set(id, question);
@@ -102,9 +107,9 @@ describe("publicQuestionId", () => {
 });
 
 describe("selectTaskMaterials", () => {
-  it("keeps only explicitly referenced materials for a small question", () => {
-    expect(selectTaskMaterials(exam, exam.tasks[0]).map(item => item.sourceNumber)).toEqual([1]);
-    expect(selectTaskMaterials(exam, exam.tasks[1]).map(item => item.sourceNumber)).toEqual([2]);
+  it("keeps the full paper while validating explicit material references", () => {
+    expect(selectTaskMaterials(exam, exam.tasks[0]).map(item => item.sourceNumber)).toEqual([1, 2]);
+    expect(selectTaskMaterials(exam, exam.tasks[1]).map(item => item.sourceNumber)).toEqual([1, 2]);
   });
 
   it("keeps the full paper for essay questions", () => {
@@ -118,7 +123,7 @@ describe("selectTaskMaterials", () => {
 });
 
 describe("importPublicExam", () => {
-  it("imports each task with its own relevant material scope while essays keep the whole paper", async () => {
+  it("imports every task with the complete paper and paper metadata", async () => {
     const result = await importPublicExam({ candidate, exam, retrievedAt: "2026-08-22T13:30:00+08:00" });
     expect(result.newlyImportedQuestionIds).toEqual([
       "publicq:candidate-1:task:1",
@@ -126,13 +131,12 @@ describe("importPublicExam", () => {
       "publicq:candidate-1:task:3"
     ]);
     expect(state.created).toHaveLength(3);
-    expect(state.created[0].materials).toEqual([
-      { id: "m1", label: "材料1", content: "材料一第一段。\n\n材料一第二段。" }
-    ]);
-    expect(state.created[1].materials).toEqual([
-      { id: "m1", label: "材料2", content: "材料二正文。" }
-    ]);
+    expect(state.created.every(question => question.materials.length === 2)).toBe(true);
+    expect(state.created[0].materials).toHaveLength(2);
+    expect(state.created[1].materials).toHaveLength(2);
     expect(state.created[2].materials).toHaveLength(2);
+    expect(state.created.every(question => question.paperId === "paper:candidate-1")).toBe(true);
+    expect(state.created.map(question => question.taskIndex)).toEqual([0, 1, 2]);
     expect(state.links.map(item => item.taskIndex)).toEqual([0, 1, 2]);
     expect(state.savedSources).toHaveLength(3);
     expect(state.markedImported).toBe(1);
@@ -146,7 +150,7 @@ describe("importPublicExam", () => {
     const result = await importPublicExam({ candidate, exam, retrievedAt: "2026-08-22T13:30:00+08:00" });
     expect(result.reusedQuestionIds).toEqual(["publicq:candidate-1:task:1", "publicq:candidate-1:task:2"]);
     expect(result.newlyImportedQuestionIds).toEqual(["publicq:candidate-1:task:3"]);
-    expect(state.created).toHaveLength(1);
+    expect(state.created).toHaveLength(3);
     expect(state.links).toHaveLength(3);
     expect(state.markedImported).toBe(1);
   });

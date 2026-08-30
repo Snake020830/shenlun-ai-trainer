@@ -82,11 +82,11 @@ export function validateProviderSmokeResult(
   };
 }
 
-export async function runProviderSmokeTest(config: RemoteProviderPublicConfig): Promise<ProviderSmokeTestReport> {
+export async function runProviderSmokeTest(config: RemoteProviderPublicConfig, customSkillInstructions = ""): Promise<ProviderSmokeTestReport> {
   const testConfig: RemoteProviderPublicConfig = { ...config, enabled: true };
   validatePublicProviderConfig(testConfig);
   const transport = createRemoteModelTransport(testConfig, tauriSecureRemoteExecutor);
-  const provider = createRemoteWorkflowProvider(transport);
+  const provider = createRemoteWorkflowProvider(transport, undefined, customSkillInstructions);
   const result = await runShenlunGraderSkillWithProvider({
     question: SMOKE_QUESTION,
     answer: SMOKE_ANSWER

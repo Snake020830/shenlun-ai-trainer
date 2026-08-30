@@ -1,13 +1,23 @@
 import { useEffect, useMemo, useState } from "react";
 import { isTauri } from "@tauri-apps/api/core";
-import { BadgeCheck, CircleAlert, KeyRound, RotateCcw, Save, ShieldCheck, TestTube2 } from "lucide-react";
+import { BadgeCheck, CircleAlert, KeyRound, RotateCcw, Save, ShieldCheck, Sparkles, TestTube2 } from "lucide-react";
 import BenchmarkLabSection from "./BenchmarkLabSection";
+import {
+  DEFAULT_GRADING_STYLE,
+  GRADING_STYLE_MAX_LENGTH,
+  GRADING_STYLE_PRESETS,
+  gradingStylePreset,
+  loadGradingStyleProfile,
+  saveGradingStyleProfile,
+  type GradingStyleProfile
+} from "./grading/gradingStyleSettings";
 import {
   loadRemoteProviderConfig,
   resetRemoteProviderConfig,
   saveRemoteProviderConfig
 } from "./grading/providerSettings";
 import { runProviderSmokeTest, type ProviderSmokeTestReport } from "./grading/providerSmokeTest";
+import { saveProviderSmokeGate } from "./grading/providerGate";
 import type { ReasoningEffort, RemoteProviderPublicConfig, RemoteProtocol } from "./grading/remote/config";
 import { createRemoteModelTransport } from "./grading/remote/transport";
 import { tauriProviderSecretStore, tauriSecureRemoteExecutor } from "./grading/remote/tauriExecutor";
@@ -31,6 +41,7 @@ type StatusTone = "neutral" | "success" | "error";
 export default function ProviderSettingsPage() {
   const desktop = isTauri();
   const [config, setConfig] = useState<RemoteProviderPublicConfig | null>(null);
+  const [gradingStyle, setGradingStyle] = useState<GradingStyleProfile>({ ...DEFAULT_GRADING_STYLE });
   const [apiKey, setApiKey] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [smokeReport, setSmokeReport] = useState<ProviderSmokeTestReport | null>(null);
@@ -41,8 +52,8 @@ export default function ProviderSettingsPage() {
 
   useEffect(() => {
     let cancelled = false;
-    loadRemoteProviderConfig()
-      .then(value => { if (!cancelled) setConfig(value); })
+    Promise.all([loadRemoteProviderConfig(), loadGradingStyleProfile()])
+      .then(([providerConfig, style]) => { if (!cancelled) { setConfig(providerConfig); setGradingStyle(style); } })
       .catch(error => {
         console.error("Failed to load remote provider config.", error);
         if (!cancelled) setStatus({ tone: "error", text: "无法读取评分引擎配置。" });
@@ -71,6 +82,34 @@ export default function ProviderSettingsPage() {
     } finally {
       setBusy(null);
     }
+  }
+
+  async function saveGradingStyle() {
+    if (busy) return;
+    setBusy("style");
+    try {
+      const saved = await saveGradingStyleProfile(gradingStyle);
+      setGradingStyle(saved);
+      setStatus({ tone: "success", text: `批改 Skill“${saved.name}”已保存，将从下一次 AI 批改开始生效。` });
+    } catch (error) {
+      console.error("Failed to save grading style.", error);
+      setStatus({ tone: "error", text: "批改 Skill 保存失败。" });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  function selectGradingPreset(id: "default" | "yuan-dong" | "bailu") {
+    setGradingStyle(gradingStylePreset(id));
+  }
+
+  function editGradingStyle(patch: Partial<Pick<GradingStyleProfile, "name" | "prompt">>) {
+    setGradingStyle(current => ({
+      ...current,
+      ...patch,
+      presetId: "custom",
+      name: patch.name ?? (current.presetId === "default" ? "自定义风格" : current.name)
+    }));
   }
 
   async function saveCredential() {
@@ -138,8 +177,9 @@ export default function ProviderSettingsPage() {
     setSmokeReport(null);
     setStatus({ tone: "neutral", text: "正在运行真实负载批改链自检：材料盲抽 → rubric → 答案映射 → 字数审计。该过程会发送 4 个结构化 AI 请求。" });
     try {
-      const report = await runProviderSmokeTest(config);
+      const report = await runProviderSmokeTest(config, gradingStyle.prompt);
       const enabledConfig: RemoteProviderPublicConfig = { ...config, enabled: true };
+      await saveProviderSmokeGate(enabledConfig, report);
       await saveRemoteProviderConfig(enabledConfig);
       setConfig(enabledConfig);
       setSmokeReport(report);
@@ -206,6 +246,24 @@ export default function ProviderSettingsPage() {
       </div>
       <small className="provider-smoke-note">完整自检会使用一则中等长度、包含多个独立要点的内置申论题发送 4 个结构化请求，更接近真实小题的 Stage 1—4 负载；不写入训练记录，也不进入 Human Gold。通过仍只代表模型能够稳定执行当前批改 Skill，不代表诊断分已经完成真实阅卷校准。</small>
       {smokeReport && <div className="provider-smoke-report"><BadgeCheck size={16}/><div><strong>完整批改链已通过</strong><span>{smokeReport.model} · candidates {smokeReport.materialCandidateCount} · rubric {smokeReport.rubricCount} · mappings {smokeReport.mappingCount}</span><small>{smokeReport.skillVersion} · {smokeReport.scoreInterpretation}</small></div></div>}
+    </section>
+
+    <section className="settings-section grading-style-section">
+      <div className="settings-section-heading">
+        <div><h2>批改 Skill 与反馈风格</h2><p>选择一个预设作为起点，也可以直接修改名称和提示词。保存后会加入材料抽取、得分点构造、答案映射和表达审计。</p></div>
+        <Sparkles size={22}/>
+      </div>
+      <div className="grading-style-presets">
+        {GRADING_STYLE_PRESETS.map(preset => <button key={preset.presetId} className={gradingStyle.presetId === preset.presetId ? "active" : ""} onClick={() => selectGradingPreset(preset.presetId as "default" | "yuan-dong" | "bailu")}>
+          <strong>{preset.name}</strong><span>{preset.presetId === "default" ? "保持系统原有严谨反馈" : preset.presetId === "yuan-dong" ? "直接、实战、强调失分位置" : "温和、清晰、强调可执行改法"}</span>
+        </button>)}
+      </div>
+      <div className="grading-style-editor">
+        <label className="field"><span>风格名称</span><input value={gradingStyle.name} maxLength={40} onChange={event => editGradingStyle({ name: event.target.value })} placeholder="例如：我的考场批改风格"/></label>
+        <label className="field"><span>自定义批改提示词</span><textarea value={gradingStyle.prompt} maxLength={GRADING_STYLE_MAX_LENGTH} onChange={event => editGradingStyle({ prompt: event.target.value })} placeholder="写明希望重点检查什么、反馈语气如何、建议应怎样表达……"/><small>{gradingStyle.prompt.length} / {GRADING_STYLE_MAX_LENGTH} 字</small></label>
+      </div>
+      <div className="grading-style-guardrail"><ShieldCheck size={16}/><span>自定义提示词可以调整侧重点和表达风格，但不能取消材料事实边界、题型规则、结构化输出与评分校验。历史批改快照不会被改写。</span></div>
+      <div className="settings-actions"><button className="primary" disabled={busy !== null || !gradingStyle.name.trim()} onClick={saveGradingStyle}><Save size={16}/>{busy === "style" ? "保存中…" : "保存批改 Skill"}</button><button className="secondary" disabled={busy !== null} onClick={() => selectGradingPreset("default")}><RotateCcw size={16}/>恢复内置风格</button></div>
     </section>
 
     <section className="settings-section">

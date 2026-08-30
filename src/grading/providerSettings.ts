@@ -4,6 +4,7 @@ import {
   validatePublicProviderConfig
 } from "./remote/config";
 import type { ReasoningEffort, RemoteProviderPublicConfig, RemoteProtocol } from "./remote/config";
+import { hasValidProviderSmoke } from "./providerGate";
 
 const PROVIDER_CONFIG_KEY = "public:remote-provider.v1";
 const PROTOCOLS = new Set<RemoteProtocol>(["openai-responses", "openai-chat-completions"]);
@@ -47,12 +48,17 @@ function sanitizePublicConfig(value: unknown): RemoteProviderPublicConfig {
 
 export async function loadRemoteProviderConfig(): Promise<RemoteProviderPublicConfig> {
   const stored = await persistence.getPublicSetting<unknown>(PROVIDER_CONFIG_KEY, null);
-  return sanitizePublicConfig(stored);
+  const config = sanitizePublicConfig(stored);
+  if (config.enabled && !(await hasValidProviderSmoke(config))) return { ...config, enabled: false };
+  return config;
 }
 
 export async function saveRemoteProviderConfig(config: RemoteProviderPublicConfig): Promise<void> {
   const sanitized = sanitizePublicConfig(config);
   validatePublicProviderConfig(sanitized);
+  if (sanitized.enabled && !(await hasValidProviderSmoke(sanitized))) {
+    throw new Error("启用远程 AI 批改前，必须先对当前模型配置运行一次完整批改链自检。");
+  }
   await persistence.setPublicSetting(PROVIDER_CONFIG_KEY, sanitized);
 }
 

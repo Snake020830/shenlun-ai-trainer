@@ -1,4 +1,5 @@
 import { groupPublicExamCandidates } from "./publicExamCatalog";
+import { inferPaperLevel } from "./examPaper";
 import { canImportParsedPublicExam } from "./publicExamParser";
 import { importPublicExam, previewPublicExam } from "./publicExamImporter";
 import { isRecentPublicExamYear } from "./publicSourceDiscovery";
@@ -6,6 +7,10 @@ import { publicSourceStore, type PublicSourceCandidate } from "./publicSourceSto
 
 export const PUBLIC_EXAM_AUDIT_VERSION = "public-exam-audit@0.2.0";
 export const PUBLIC_EXAM_BATCH_STATE_VERSION = "public-exam-batch@0.2.0";
+
+function isExcludedTownshipPaper(candidate: PublicSourceCandidate): boolean {
+  return inferPaperLevel(candidate.region, candidate.paperVariant, candidate.title) === "省考乡镇级";
+}
 
 export interface PublicExamAuditMetadata {
   version: typeof PUBLIC_EXAM_AUDIT_VERSION;
@@ -135,7 +140,7 @@ export function isPublicExamBatchFailure(candidate: PublicSourceCandidate): bool
 
 export function selectPendingPublicExamAuditCandidates(candidates: PublicSourceCandidate[]): PublicSourceCandidate[] {
   return groupPublicExamCandidates(candidates)
-    .filter(group => !group.hasImportedVersion)
+    .filter(group => !group.hasImportedVersion && !isExcludedTownshipPaper(group.preferred))
     .map(group => group.preferred)
     .filter(item =>
       isRecentPublicExamYear(item.year)
@@ -148,7 +153,7 @@ export function selectPendingPublicExamAuditCandidates(candidates: PublicSourceC
 
 export function selectRetryablePublicExamCandidates(candidates: PublicSourceCandidate[]): PublicSourceCandidate[] {
   return groupPublicExamCandidates(candidates)
-    .filter(group => !group.hasImportedVersion)
+    .filter(group => !group.hasImportedVersion && !isExcludedTownshipPaper(group.preferred))
     .map(group => group.preferred)
     .filter(item =>
       isRecentPublicExamYear(item.year)
@@ -166,7 +171,7 @@ function preferredBatchAuditQueue(candidates: PublicSourceCandidate[], retryFail
 
 function preferredBatchImportQueue(candidates: PublicSourceCandidate[]): PublicSourceCandidate[] {
   return groupPublicExamCandidates(candidates)
-    .filter(group => !group.hasImportedVersion)
+    .filter(group => !group.hasImportedVersion && !isExcludedTownshipPaper(group.preferred))
     .map(group => group.members.find(isAuditedImportableCandidate))
     .filter((item): item is PublicSourceCandidate => Boolean(item));
 }

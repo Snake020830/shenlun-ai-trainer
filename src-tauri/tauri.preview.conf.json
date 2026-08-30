@@ -3,6 +3,7 @@
   "identifier": "com.shenlun.trainer.preview",
   "bundle": {
     "active": true,
-    "targets": ["nsis"]
+    "targets": ["nsis"],
+    "createUpdaterArtifacts": false
   }
 }

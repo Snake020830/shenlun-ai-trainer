@@ -82,7 +82,8 @@ async function runValidatedStage<T>(
 
 export function createRemoteWorkflowProvider(
   transport: RemoteModelTransport,
-  scorePolicy: ScorePolicy = equalRubricDiagnosticPolicy
+  scorePolicy: ScorePolicy = equalRubricDiagnosticPolicy,
+  customSkillInstructions = ""
 ): GradingProvider {
   return {
     id: `remote:${transport.config.id}`,
@@ -100,7 +101,7 @@ export function createRemoteWorkflowProvider(
       const extraction = await runValidatedStage(
         transport,
         "Stage 1 材料抽取",
-        buildMaterialExtractionRequest(question),
+        buildMaterialExtractionRequest(question, customSkillInstructions),
         value => validateMaterialExtraction(value, materialIds)
       );
 
@@ -108,7 +109,7 @@ export function createRemoteWorkflowProvider(
       const rubricOutput = await runValidatedStage(
         transport,
         "Stage 2 Rubric 构造",
-        buildRubricConstructionRequest(question, extraction.materialCandidates),
+        buildRubricConstructionRequest(question, extraction.materialCandidates, customSkillInstructions),
         value => validateRubricConstruction(value, candidateIds)
       );
       const rubricIds = new Set(rubricOutput.rubric.map(item => item.id));
@@ -117,13 +118,13 @@ export function createRemoteWorkflowProvider(
         runValidatedStage(
           transport,
           "Stage 3 答案映射",
-          buildAnswerMappingRequest(question, rubricOutput.rubric, answer),
+          buildAnswerMappingRequest(question, rubricOutput.rubric, answer, customSkillInstructions),
           value => validateAnswerMapping(value, rubricIds)
         ),
         runValidatedStage(
           transport,
           "Stage 4 表达与字数审计",
-          buildWordBudgetRequest(question, answer),
+          buildWordBudgetRequest(question, answer, customSkillInstructions),
           value => validateWordBudget(value, question.wordLimit, answer.replace(/\s/g, "").length)
         )
       ]);
@@ -133,7 +134,7 @@ export function createRemoteWorkflowProvider(
         const validatedReference = await runValidatedStage(
           transport,
           "Stage 5 参考答案交叉核验",
-          buildReferenceCrossCheckRequest(question, rubricOutput.rubric, referenceAnswer),
+          buildReferenceCrossCheckRequest(question, rubricOutput.rubric, referenceAnswer, customSkillInstructions),
           validateReferenceCrossCheck
         );
         referenceCrossCheck = {

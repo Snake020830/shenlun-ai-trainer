@@ -7,6 +7,7 @@ import {
   type PublicExamBatchImportResult
 } from "./publicExamBatch";
 import { groupPublicExamCandidates } from "./publicExamCatalog";
+import { inferPaperLevel } from "./examPaper";
 import { discoverProviderCandidates, isRecentPublicExamYear } from "./publicSourceDiscovery";
 import { PUBLIC_SOURCE_PROVIDERS } from "./publicSourceProviders";
 import { publicSourceStore, type PublicSourceCandidate } from "./publicSourceStore";
@@ -47,6 +48,7 @@ export function selectBootstrapCandidates(
     item.providerId === providerId
     && item.sourceKind === "public-web"
     && isRecentPublicExamYear(item.year)
+    && inferPaperLevel(item.region, item.paperVariant, item.title) !== "省考乡镇级"
   );
 }
 

@@ -37,7 +37,8 @@ fn load_secret(secret_ref: &str) -> Result<String, String> {
 }
 
 fn validate_remote_url(raw: &str) -> Result<reqwest::Url, String> {
-    let url = reqwest::Url::parse(raw).map_err(|_| "Remote provider URL is invalid.".to_string())?;
+    let url =
+        reqwest::Url::parse(raw).map_err(|_| "Remote provider URL is invalid.".to_string())?;
     if !url.username().is_empty() || url.password().is_some() {
         return Err("Remote provider URL must not contain embedded credentials.".to_string());
     }
@@ -72,14 +73,24 @@ fn provider_error_detail(bytes: &[u8]) -> Option<String> {
         .and_then(|value| value.get("error"))
         .and_then(|error| error.get("message"))
         .and_then(Value::as_str)
-        .or_else(|| parsed.as_ref().and_then(|value| value.get("message")).and_then(Value::as_str))
+        .or_else(|| {
+            parsed
+                .as_ref()
+                .and_then(|value| value.get("message"))
+                .and_then(Value::as_str)
+        })
         .map(str::to_owned)
         .or_else(|| String::from_utf8(bytes.to_vec()).ok());
 
-    message.map(|value| {
-        let compact = value.split_whitespace().collect::<Vec<_>>().join(" ");
-        compact.chars().take(MAX_PROVIDER_ERROR_CHARS).collect::<String>()
-    }).filter(|value| !value.is_empty())
+    message
+        .map(|value| {
+            let compact = value.split_whitespace().collect::<Vec<_>>().join(" ");
+            compact
+                .chars()
+                .take(MAX_PROVIDER_ERROR_CHARS)
+                .collect::<String>()
+        })
+        .filter(|value| !value.is_empty())
 }
 
 fn reqwest_error_detail(error: &reqwest::Error) -> String {
@@ -168,7 +179,12 @@ pub async fn secure_post_json(request: SecurePostRequest) -> Result<SecurePostRe
         .json(&request.body)
         .send()
         .await
-        .map_err(|error| format!("Remote provider request failed: {}", reqwest_error_detail(&error)))?;
+        .map_err(|error| {
+            format!(
+                "Remote provider request failed: {}",
+                reqwest_error_detail(&error)
+            )
+        })?;
 
     let status = response.status();
     let response_version = format!("{:?}", response.version());
@@ -185,20 +201,22 @@ pub async fn secure_post_json(request: SecurePostRequest) -> Result<SecurePostRe
         .and_then(|value| value.to_str().ok())
         .map(str::to_owned);
 
-    if response.content_length().is_some_and(|length| length as usize > MAX_RESPONSE_BYTES) {
+    if response
+        .content_length()
+        .is_some_and(|length| length as usize > MAX_RESPONSE_BYTES)
+    {
         return Err("Remote provider response exceeded the size limit.".to_string());
     }
 
-    let bytes = response
-        .bytes()
-        .await
-        .map_err(|error| format!(
+    let bytes = response.bytes().await.map_err(|error| {
+        format!(
             "Could not read remote provider response [{}; content-encoding={}; timeout={}ms]: {}",
             response_version,
             content_encoding,
             timeout_ms,
             reqwest_error_detail(&error)
-        ))?;
+        )
+    })?;
     if bytes.len() > MAX_RESPONSE_BYTES {
         return Err("Remote provider response exceeded the size limit.".to_string());
     }
@@ -206,8 +224,15 @@ pub async fn secure_post_json(request: SecurePostRequest) -> Result<SecurePostRe
     if !status.is_success() {
         let detail = provider_error_detail(&bytes);
         return Err(match detail {
-            Some(detail) => format!("Remote provider request failed with HTTP {}: {}", status.as_u16(), detail),
-            None => format!("Remote provider request failed with HTTP {}.", status.as_u16()),
+            Some(detail) => format!(
+                "Remote provider request failed with HTTP {}: {}",
+                status.as_u16(),
+                detail
+            ),
+            None => format!(
+                "Remote provider request failed with HTTP {}.",
+                status.as_u16()
+            ),
         });
     }
 

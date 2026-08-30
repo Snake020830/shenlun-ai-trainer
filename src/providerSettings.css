@@ -240,6 +240,107 @@
   line-height: 1.6;
 }
 
+.grading-style-section {
+  border-color: #c8d8cd;
+  background: linear-gradient(180deg, #fbfdfb 0%, #ffffff 58%);
+}
+
+.grading-style-presets {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.grading-style-presets button {
+  min-height: 78px;
+  padding: 13px 14px;
+  border: 1px solid #d9dfdb;
+  border-radius: 12px;
+  background: #fff;
+  color: #26342c;
+  text-align: left;
+}
+
+.grading-style-presets button:hover {
+  border-color: #9fb8a8;
+}
+
+.grading-style-presets button.active {
+  border-color: #37664e;
+  background: #e8f1ea;
+  box-shadow: inset 0 0 0 1px #37664e;
+}
+
+.grading-style-presets strong,
+.grading-style-presets span {
+  display: block;
+}
+
+.grading-style-presets strong {
+  font-size: 13px;
+}
+
+.grading-style-presets span {
+  margin-top: 6px;
+  color: #68736c;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.grading-style-editor {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.grading-style-editor textarea {
+  width: 100%;
+  min-height: 150px;
+  resize: vertical;
+  border: 1px solid #d8ddd9;
+  border-radius: 10px;
+  padding: 11px 12px;
+  background: #fff;
+  color: #26312a;
+  font-size: 13px;
+  line-height: 1.7;
+  outline: none;
+}
+
+.grading-style-editor textarea:focus {
+  border-color: #6e9a7f;
+  box-shadow: 0 0 0 3px rgba(55, 102, 78, .1);
+}
+
+.grading-style-editor small {
+  display: block;
+  margin-top: 5px;
+  color: #7d857f;
+  font-size: 10.5px;
+  text-align: right;
+}
+
+.grading-style-guardrail {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 9px;
+  background: #f1f5f2;
+  color: #536259;
+  font-size: 11.5px;
+  line-height: 1.6;
+}
+
+.grading-style-guardrail svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: #37664e;
+}
+
 .settings-loading {
   padding: 36px;
   color: #6c756f;
@@ -247,7 +348,12 @@
 
 @media (max-width: 980px) {
   .settings-grid,
-  .provider-quick-fields {
+  .provider-quick-fields,
+  .grading-style-editor {
+    grid-template-columns: 1fr;
+  }
+
+  .grading-style-presets {
     grid-template-columns: 1fr;
   }
 

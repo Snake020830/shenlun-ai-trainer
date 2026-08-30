@@ -1,6 +1,6 @@
-export const STORAGE_SCHEMA_VERSION = 8;
+export const STORAGE_SCHEMA_VERSION = 10;
 
-// 运行时数据库的结构镜像。正式迁移文件位于 src-tauri/migrations/0001..0008。
+// 运行时数据库的结构镜像。正式迁移文件位于 src-tauri/migrations/0001..0010。
 export const SQLITE_SCHEMA_V8 = `
 PRAGMA foreign_keys = ON;
 
@@ -20,6 +20,11 @@ CREATE TABLE IF NOT EXISTS questions (
   word_limit INTEGER NOT NULL,
   prompt TEXT NOT NULL,
   tags_json TEXT NOT NULL,
+  paper_id TEXT,
+  paper_title TEXT,
+  paper_level TEXT,
+  paper_variant TEXT,
+  task_index INTEGER,
   source TEXT NOT NULL DEFAULT 'local',
   created_at TEXT NOT NULL,
   reference_answer_content TEXT,
@@ -143,4 +148,5 @@ CREATE INDEX IF NOT EXISTS idx_public_source_candidates_provider ON public_sourc
 CREATE INDEX IF NOT EXISTS idx_public_source_candidates_status ON public_source_candidates(status, discovered_at DESC);
 CREATE INDEX IF NOT EXISTS idx_question_sources_url ON question_sources(source_url);
 CREATE INDEX IF NOT EXISTS idx_public_source_question_links_question ON public_source_question_links(question_id);
+CREATE INDEX IF NOT EXISTS idx_questions_paper ON questions(paper_id, task_index);
 `;

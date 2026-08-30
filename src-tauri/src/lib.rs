@@ -56,9 +56,22 @@ pub fn run() {
             sql: include_str!("../migrations/0008_practice_ink_strokes.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 9,
+            description: "add_question_library_performance_indexes",
+            sql: include_str!("../migrations/0009_performance_indexes.sql"),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 10,
+            description: "add_exam_paper_metadata",
+            sql: include_str!("../migrations/0010_exam_paper_metadata.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(
             tauri_plugin_sql::Builder::default()
                 .add_migrations(DATABASE_URL, migrations)

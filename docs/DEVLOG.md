@@ -22,7 +22,7 @@
 
 ### Shenlun Grader Skill v0.3
 
-- 日常 `gradingService.grade()` 继续统一进入 `shenlunGraderSkill`；当前 Skill 版本为 `shenlun-grader-skill@0.3.0`。
+- 日常 `gradingService.grade()` 继续统一进入 `shenlunGraderSkill`；当前 Skill 版本为 `shenlun-grader-skill@0.5.0`。
 - 五类题型专用约束：概括归纳、提出对策、综合分析、贯彻执行、文章写作。
 - 四类小题的题型约束已注入材料盲抽、rubric 构造、答案映射、字数审计和参考答案交叉验证全部五阶段。
 - 当前远程 score policy 仍是小题“材料点 → rubric → 逐点映射”逻辑；文章写作不再误用该流程生成数值分，真实 AI 作文评分等待专用论证/结构 workflow。
@@ -33,7 +33,7 @@
 - Stage 3 现在把 `rules/error-taxonomy.json` 的正式代码、标签和定义显式写入 Prompt。
 - Stage 3 JSON Schema 同时把 `errorCodes` 约束为正式 taxonomy ID 枚举；模型不得自造代码。
 - `hit` 且没有实质错误时允许返回空 `errorCodes`，避免为了满足结构而制造伪错误。
-- 因 Prompt 行为再次实质改变，`STAGE_PROMPTSET_VERSION` 升级为 `shenlun-stage-prompts@0.3.0`；Benchmark 不同版本禁止混算。
+- 因 Prompt 行为再次实质改变，`STAGE_PROMPTSET_VERSION` 升级为 `shenlun-stage-prompts@0.5.0`；Benchmark 不同版本禁止混算。
 
 ### Provider 真实协议自检
 

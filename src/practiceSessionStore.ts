@@ -6,7 +6,7 @@ const ANNOTATION_KEY_PREFIX = "shenlun:practice-annotations:v1:";
 const INK_KEY_PREFIX = "shenlun:practice-ink:v1:";
 const META_KEY = "shenlun:training-practice-meta:v1";
 
-export type PracticeHighlightColor = "yellow" | "blue" | "green" | "pink";
+export type PracticeHighlightColor = "yellow" | "blue" | "green" | "pink" | "red" | "purple";
 export type PracticeInkColor = "graphite" | "blue" | "red";
 
 export interface PracticeTextAnnotation {
@@ -48,14 +48,22 @@ interface InkRow {
 }
 
 let databasePromise: Promise<Database> | null = null;
+let sqliteUnavailable = false;
 
 async function getDatabase(): Promise<Database | null> {
-  if (!isTauri()) return null;
+  if (!isTauri() || sqliteUnavailable) return null;
   if (!databasePromise) {
     databasePromise = import("@tauri-apps/plugin-sql")
-      .then(({ default: DatabaseApi }) => DatabaseApi.load(DATABASE_URL));
+      .then(({ default: DatabaseApi }) => DatabaseApi.load(DATABASE_URL))
+      .catch(error => {
+        sqliteUnavailable = true;
+        databasePromise = null;
+        console.error("Practice SQLite initialization failed; falling back to localStorage.", error);
+        return null as unknown as Database;
+      });
   }
-  return databasePromise;
+  const database = await databasePromise;
+  return sqliteUnavailable ? null : database;
 }
 
 function readJson<T>(key: string, fallback: T): T {
@@ -69,7 +77,7 @@ function readJson<T>(key: string, fallback: T): T {
 
 function validateAnnotations(annotations: PracticeTextAnnotation[]): void {
   const seen = new Set<string>();
-  const highlightColors = new Set<PracticeHighlightColor>(["yellow", "blue", "green", "pink"]);
+  const highlightColors = new Set<PracticeHighlightColor>(["yellow", "blue", "green", "pink", "red", "purple"]);
   for (const item of annotations) {
     if (!item.id.trim()) throw new Error("Practice annotation id is required.");
     if (seen.has(item.id)) throw new Error(`Duplicate practice annotation id: ${item.id}.`);

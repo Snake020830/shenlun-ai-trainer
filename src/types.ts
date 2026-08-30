@@ -13,6 +13,10 @@ export interface QuestionReferenceAnswer {
 
 export type QuestionType = "概括归纳" | "提出对策" | "综合分析" | "贯彻执行" | "文章写作";
 export type Difficulty = "基础" | "进阶" | "挑战";
+export type PaperLevel =
+  | "国考副省级" | "国考地市级" | "国考行政执法类" | "国考公安类"
+  | "省考省市级" | "省考县乡级" | "省考行政执法类" | "省考公安类"
+  | "省考A类" | "省考B类" | "省考C类" | "省考乡镇级" | "其他/未标注";
 
 export interface Question {
   id: string;
@@ -26,6 +30,11 @@ export interface Question {
   prompt: string;
   materials: MaterialBlock[];
   tags: string[];
+  paperId?: string;
+  paperTitle?: string;
+  paperLevel?: PaperLevel;
+  paperVariant?: string;
+  taskIndex?: number;
   referenceAnswer?: QuestionReferenceAnswer;
   source?: "builtin" | "local";
   createdAt?: string;
@@ -114,6 +123,11 @@ export interface LocalQuestionInput {
   /** Authoritative structured material path for public/PDF/OCR imports. */
   materials?: StructuredMaterialInput[];
   tags: string[];
+  paperId?: string;
+  paperTitle?: string;
+  paperLevel?: PaperLevel;
+  paperVariant?: string;
+  taskIndex?: number;
   referenceAnswerContent?: string;
   referenceAnswerSource?: string;
 }

@@ -61,7 +61,7 @@ describe("practice session store", () => {
     ])).rejects.toThrow("Duplicate practice annotation id");
 
     await expect(savePracticeAnnotations("q1", [
-      { id: "a2", materialId: "m1", start: 0, end: 2, type: "highlight", color: "purple" as never }
+      { id: "a2", materialId: "m1", start: 0, end: 2, type: "highlight", color: "orange" as never }
     ])).rejects.toThrow("unsupported highlight color");
 
     await expect(savePracticeAnnotations("q1", [
