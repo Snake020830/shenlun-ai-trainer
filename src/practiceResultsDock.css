@@ -1,0 +1,543 @@
+/* Integrated practice result dock: materials on the left; answer + results on the right. */
+.exam-practice-shell .practice-grid.practice-integrated-grid {
+  display: grid;
+  grid-template-columns: minmax(560px, 1.08fr) minmax(640px, .92fr);
+  grid-template-rows: minmax(0, 1fr);
+  min-height: 0;
+}
+
+.practice-integrated-grid > .exam-materials-pane,
+.practice-integrated-grid > .integrated-answer-pane {
+  min-height: 0;
+}
+
+.integrated-answer-pane {
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  /* Do not size the answer area with vh. The practice shell already owns the
+     viewport height, so vh can make the result row overflow and get clipped.
+     Split the actual available pane height instead: answer stays fixed above,
+     result dock stays visible below and scrolls independently. */
+  grid-template-rows: minmax(0, 1.22fr) 48px minmax(0, 1fr);
+  overflow: hidden;
+  background: #fff;
+  border-left: 1px solid #e7e7e3;
+}
+
+.answer-fixed-zone {
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: #fff;
+}
+
+.integrated-answer-pane .grid-answer-wrap {
+  overflow: visible;
+  padding-bottom: 12px;
+}
+
+.integrated-answer-pane .exam-answer-footer {
+  min-height: 48px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-top: 1px solid #e8e9eb;
+  border-bottom: 1px solid #e3e4df;
+  background: #fff;
+  z-index: 4;
+}
+
+.integrated-answer-pane .exam-answer-footer > span {
+  flex: 0 0 auto;
+}
+
+.answer-footer-spacer {
+  flex: 1 1 auto;
+  min-width: 8px;
+}
+
+.answer-action-group {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.answer-action-group button {
+  min-height: 34px;
+  padding: 0 13px;
+}
+
+.answer-action-group .learning-action {
+  border: 1px solid #cfd9d1;
+  background: #f5f8f5;
+  color: #315d46;
+}
+
+.answer-action-group .learning-action:hover:not(:disabled) {
+  border-color: #9eb4a5;
+  background: #edf4ef;
+}
+
+.practice-result-dock {
+  min-height: 0;
+  height: 100%;
+  display: grid;
+  grid-template-rows: 40px minmax(0, 1fr);
+  overflow: hidden;
+  border-top: 1px solid #e2e3de;
+  background: #fafaf7;
+}
+
+.practice-result-tabs {
+  display: flex;
+  align-items: end;
+  gap: 18px;
+  padding: 0 18px;
+  border-bottom: 1px solid #e1e2dd;
+  background: #fff;
+}
+
+.practice-result-tabs button {
+  height: 40px;
+  padding: 0 2px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: #858a8f;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.practice-result-tabs button.active {
+  color: #2f6248;
+  border-bottom-color: #397052;
+}
+
+.practice-result-tabs button:disabled {
+  opacity: .45;
+  cursor: default;
+}
+
+.practice-result-scroll {
+  min-height: 0;
+  height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 16px 18px 34px;
+  scrollbar-gutter: stable;
+}
+
+.practice-result-empty {
+  min-height: 150px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 6px;
+  color: #a0a4a1;
+  text-align: center;
+}
+
+.practice-result-empty strong {
+  color: #777d79;
+  font-size: 13px;
+}
+
+.practice-result-empty span {
+  max-width: 36em;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.practice-result-error {
+  padding: 12px 14px;
+  border: 1px solid #edc8c2;
+  border-radius: 10px;
+  background: #fff8f7;
+  color: #8f4d46;
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.practice-result-scroll .review-content {
+  max-width: none;
+  margin: 0;
+}
+
+.practice-deep-read {
+  display: grid;
+  gap: 14px;
+  color: #343936;
+}
+
+.deep-read-reference,
+.deep-read-section {
+  border: 1px solid #e1e4de;
+  border-radius: 10px;
+  background: #fff;
+  padding: 14px 15px;
+}
+
+.deep-read-reference > header,
+.deep-read-section > header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.deep-read-reference h3,
+.deep-read-section h3 {
+  margin: 0;
+  font-size: 13px;
+  color: #315d46;
+}
+
+.deep-read-reference header span,
+.deep-read-section header span {
+  color: #9a9f9b;
+  font-size: 10px;
+}
+
+.deep-read-reference > p {
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.78;
+}
+
+.deep-read-notes {
+  margin: 11px 0 0;
+  padding: 10px 12px 10px 28px;
+  border-radius: 8px;
+  background: #f5f6f2;
+  color: #656b67;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.deep-read-card-list {
+  display: grid;
+  gap: 8px;
+}
+
+.deep-read-card {
+  padding: 10px 11px;
+  border: 1px solid #ecece7;
+  border-radius: 8px;
+  background: #fcfcfa;
+}
+
+.deep-read-card strong {
+  display: block;
+  margin-bottom: 4px;
+  color: #3d4841;
+  font-size: 12px;
+}
+
+.deep-read-card p {
+  margin: 0;
+  color: #5e6561;
+  font-size: 11px;
+  line-height: 1.62;
+}
+
+.deep-read-card small {
+  display: block;
+  margin-top: 6px;
+  color: #9a9f9b;
+  font-size: 9.5px;
+  line-height: 1.5;
+}
+
+.deep-read-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 7px;
+}
+
+.deep-read-tags span {
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #edf3ee;
+  color: #58705f;
+  font-size: 9px;
+}
+
+.deep-read-loading {
+  min-height: 160px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  color: #6c7770;
+  font-size: 12px;
+}
+
+.deep-read-loading svg {
+  animation: practice-deep-read-spin 1.15s linear infinite;
+}
+
+/* Short, repeatable essay practice lives above the full-answer paper. */
+.essay-drill-panel {
+  margin: 12px 14px 18px;
+  border: 1px solid #d9e1da;
+  border-radius: 12px;
+  background: #fbfcfa;
+  color: #334039;
+  overflow: hidden;
+}
+
+.essay-drill-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 17px 13px;
+  background: #f1f6f1;
+  border-bottom: 1px solid #dfe8df;
+}
+
+.essay-drill-kicker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #356449;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.essay-drill-header h3 {
+  margin: 7px 0 4px;
+  color: #25392d;
+  font-size: 16px;
+}
+
+.essay-drill-header p {
+  margin: 0;
+  color: #718078;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.essay-full-answer-link,
+.essay-back-to-drill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid #c7d8ca;
+  border-radius: 7px;
+  background: #fff;
+  color: #356449;
+  white-space: nowrap;
+}
+
+.essay-full-answer-link {
+  min-height: 32px;
+  padding: 0 9px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.essay-full-answer-link:hover,
+.essay-back-to-drill:hover {
+  border-color: #8fb19a;
+  background: #f5faf5;
+}
+
+.essay-drill-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border-bottom: 1px solid #e0e5df;
+  background: #fff;
+}
+
+.paper-task-navigation {
+  display: flex;
+  gap: 7px;
+  padding: 10px 14px 9px;
+  border-bottom: 1px solid #e7e8e3;
+  background: #fbfcf9;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.paper-task-navigation button {
+  flex: 0 0 auto;
+  min-width: 112px;
+  padding: 7px 10px;
+  border: 1px solid #dfe5df;
+  border-radius: 8px;
+  background: #fff;
+  color: #707a73;
+  text-align: left;
+}
+
+.paper-task-navigation button:hover {
+  border-color: #a5bca9;
+  background: #f5faf5;
+}
+
+.paper-task-navigation button.active {
+  border-color: #78a184;
+  background: #edf6ee;
+  color: #2f6248;
+  box-shadow: inset 0 -2px 0 #397052;
+}
+
+.paper-task-navigation strong,
+.paper-task-navigation small {
+  display: block;
+  white-space: nowrap;
+}
+
+.paper-task-navigation strong {
+  font-size: 11px;
+}
+
+.paper-task-navigation small {
+  margin-top: 3px;
+  color: #9aa49d;
+  font-size: 9px;
+}
+
+.paper-task-navigation button.active small {
+  color: #6f8d77;
+}
+
+.essay-drill-tabs button {
+  min-height: 52px;
+  border: 0;
+  border-right: 1px solid #e9ece7;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: #7b8580;
+  text-align: left;
+  padding: 8px 11px;
+}
+
+.essay-drill-tabs button:last-child { border-right: 0; }
+.essay-drill-tabs button:hover { background: #f7faf7; }
+.essay-drill-tabs button.active { color: #2f6248; border-bottom-color: #397052; background: #f7fbf7; }
+.essay-drill-tabs button span,
+.essay-drill-tabs button small { display: block; }
+.essay-drill-tabs button span { font-size: 12px; font-weight: 750; }
+.essay-drill-tabs button small { margin-top: 3px; color: #9ba49f; font-size: 9px; }
+.essay-drill-tabs button.active small { color: #6f8d77; }
+
+.essay-drill-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(180px, .65fr);
+  gap: 16px;
+  padding: 15px 16px 16px;
+}
+
+.essay-drill-main,
+.essay-drill-aside { min-width: 0; }
+
+.essay-drill-fields { display: grid; gap: 11px; }
+.essay-drill-fields label { display: grid; gap: 5px; }
+.essay-drill-fields label > span,
+.essay-field-heading > span { color: #4c5b52; font-size: 11px; font-weight: 700; }
+.essay-drill-fields label em { margin-left: 5px; color: #99a29c; font-size: 9px; font-style: normal; font-weight: 400; }
+.essay-drill-fields input,
+.essay-drill-fields textarea {
+  width: 100%;
+  border: 1px solid #d9e0da;
+  border-radius: 7px;
+  outline: 0;
+  background: #fff;
+  color: #334039;
+  padding: 8px 9px;
+  font-size: 12px;
+  line-height: 1.6;
+  resize: vertical;
+}
+.essay-drill-fields input:focus,
+.essay-drill-fields textarea:focus { border-color: #80a68a; box-shadow: 0 0 0 2px rgba(80, 133, 92, .12); }
+.essay-drill-fields textarea { min-height: 64px; }
+.essay-drill-fields textarea.essay-long-textarea { min-height: 190px; }
+
+.essay-subpoint-fields { display: grid; gap: 7px; }
+.essay-field-heading { display: flex; align-items: center; justify-content: space-between; }
+.essay-field-heading small { color: #98a39b; font-size: 9px; }
+.essay-subpoint-fields label { display: grid; grid-template-columns: 23px 1fr; align-items: center; gap: 6px; }
+.essay-subpoint-fields label b { width: 23px; height: 23px; display: grid; place-items: center; border-radius: 6px; background: #e9f1ea; color: #467154; font-size: 10px; }
+
+.essay-structure-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 9px;
+  border-radius: 7px;
+  background: #f1f5f0;
+  color: #69776d;
+  font-size: 10px;
+}
+.essay-structure-hint strong { color: #477158; font-size: 10px; }
+
+.essay-drill-count { color: #95a099; font-size: 9px; text-align: right; }
+.essay-drill-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.essay-drill-actions button { min-height: 31px; padding: 0 10px; font-size: 11px; }
+
+.essay-drill-feedback { margin-top: 13px; border: 1px solid #e1e4dc; border-radius: 9px; background: #fff; overflow: hidden; }
+.essay-drill-feedback.is-passed { border-color: #c5dcc9; }
+.essay-drill-feedback > header { display: flex; justify-content: space-between; gap: 12px; padding: 10px 11px; background: #f7f8f5; border-bottom: 1px solid #e7ebe4; }
+.essay-drill-feedback > header div { display: flex; align-items: baseline; gap: 8px; }
+.essay-drill-feedback > header span { color: #8d9790; font-size: 9px; }
+.essay-drill-feedback > header strong { color: #356449; font-size: 12px; }
+.essay-check-list { display: grid; gap: 0; padding: 3px 11px; }
+.essay-check-list > div { display: flex; gap: 7px; padding: 7px 0; border-bottom: 1px solid #eff1ed; }
+.essay-check-list > div:last-child { border-bottom: 0; }
+.essay-check-icon { width: 15px; height: 15px; display: grid; place-items: center; margin-top: 1px; border-radius: 50%; background: #e2eee4; color: #397052; font-size: 15px; line-height: 1; }
+.essay-check-list .missed .essay-check-icon { background: #f5e9de; color: #b47a48; }
+.essay-check-list strong,
+.essay-check-list small { display: block; }
+.essay-check-list strong { color: #4b574f; font-size: 10px; }
+.essay-check-list small { margin-top: 2px; color: #88918b; font-size: 9px; line-height: 1.45; }
+.essay-next-step { display: flex; gap: 5px; align-items: flex-start; margin: 0; padding: 8px 11px; background: #fff9ed; color: #846a3f; font-size: 9px; line-height: 1.5; }
+.essay-drill-save { display: flex; justify-content: space-between; gap: 8px; margin-top: 10px; color: #9ba49e; font-size: 9px; }
+
+.essay-drill-aside { display: grid; align-content: start; gap: 12px; }
+.essay-drill-suggestions { display: grid; gap: 13px; }
+.essay-drill-suggestions > div > header { display: flex; justify-content: space-between; margin-bottom: 6px; }
+.essay-drill-suggestions header span { color: #596960; font-size: 10px; font-weight: 700; }
+.essay-drill-suggestions header small { color: #a0aaa3; font-size: 9px; }
+.essay-suggestion-list { display: grid; gap: 6px; }
+.essay-suggestion-list button { display: block; width: 100%; padding: 8px 9px; border: 1px solid #e0e6df; border-radius: 7px; background: #fff; color: #536058; text-align: left; }
+.essay-suggestion-list button:hover { border-color: #9db8a3; background: #f6faf6; }
+.essay-suggestion-list strong,
+.essay-suggestion-list small { display: block; }
+.essay-suggestion-list strong { color: #456a50; font-size: 10px; line-height: 1.4; }
+.essay-suggestion-list small { margin-top: 3px; color: #8d9790; font-size: 9px; line-height: 1.45; }
+.essay-drill-suggestion-empty { display: flex; gap: 7px; align-items: flex-start; padding: 11px; border: 1px dashed #d6dfd7; border-radius: 8px; color: #87928a; font-size: 9px; line-height: 1.55; }
+.essay-drill-suggestion-empty svg { flex: 0 0 auto; color: #6b9675; }
+.essay-drill-rule { display: grid; gap: 5px; padding: 11px; border-radius: 8px; background: #f0f5f0; }
+.essay-drill-rule strong { color: #3e6549; font-size: 10px; }
+.essay-drill-rule span { color: #77837a; font-size: 9px; line-height: 1.5; }
+
+.answer-paper-label .essay-back-to-drill { min-height: 23px; margin-left: auto; padding: 0 7px; font-size: 9px; }
+
+@media (max-width: 1280px) {
+  .essay-drill-layout { grid-template-columns: minmax(0, 1fr); }
+  .essay-drill-aside { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+}
+
+@keyframes practice-deep-read-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 1280px) {
+  .exam-practice-shell .practice-grid.practice-integrated-grid {
+    grid-template-columns: minmax(500px, 1fr) minmax(590px, 1fr);
+  }
+
+  .integrated-answer-pane {
+    grid-template-rows: minmax(0, 1.12fr) 48px minmax(0, 1fr);
+  }
+}

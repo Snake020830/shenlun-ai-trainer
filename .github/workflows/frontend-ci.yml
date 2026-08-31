@@ -1,0 +1,35 @@
+name: Frontend CI
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - feat/v0.1-product-shell
+  pull_request:
+    branches:
+      - main
+    types:
+      - ready_for_review
+      - reopened
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Unit tests
+        run: npm test
+      - name: TypeScript and Vite build
+        run: npm run build

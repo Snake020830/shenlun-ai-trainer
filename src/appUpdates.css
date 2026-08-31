@@ -1,0 +1,53 @@
+.app-update-banner {
+  position: fixed;
+  top: 16px;
+  right: 18px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(460px, calc(100vw - 36px));
+  padding: 10px 12px;
+  border: 1px solid #c7dfcc;
+  border-radius: 10px;
+  background: rgba(247, 253, 248, .97);
+  box-shadow: 0 8px 24px rgba(42, 67, 49, .14);
+  color: #315d3f;
+  font-size: 12px;
+}
+
+.app-update-banner span {
+  line-height: 1.45;
+}
+
+.app-update-banner strong {
+  font-weight: 750;
+}
+
+.app-update-banner button {
+  flex: 0 0 auto;
+  min-height: 28px;
+  padding: 0 9px;
+  border: 1px solid #a7c7ae;
+  border-radius: 6px;
+  background: #fff;
+  color: #356448;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.app-update-banner button:hover:not(:disabled) {
+  background: #edf7ef;
+}
+
+.app-update-banner button:disabled {
+  opacity: .55;
+  cursor: wait;
+}
+
+.app-update-banner .app-update-dismiss {
+  border-color: transparent;
+  background: transparent;
+  color: #7f9b86;
+  font-weight: 500;
+}

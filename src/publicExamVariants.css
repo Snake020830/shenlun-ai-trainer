@@ -1,0 +1,105 @@
+.public-exam-card-heading span.preferred {
+  background: #edf4ef;
+  color: #416553;
+}
+
+.public-exam-card-heading .variant-toggle {
+  min-width: 0;
+  width: auto;
+  height: auto;
+  min-height: 20px;
+  border: 0;
+  border-radius: 999px;
+  padding: 2px 7px;
+  display: inline-flex;
+  align-items: center;
+  background: #f3f5f4;
+  color: #68736d;
+  font-size: 9px;
+}
+
+.public-exam-card-heading .variant-toggle:hover {
+  border: 0;
+  background: #e9efeb;
+  color: #365d49;
+}
+
+.public-exam-variants {
+  margin-top: 9px;
+  padding-top: 8px;
+  border-top: 1px dashed #e2e7e4;
+  display: grid;
+  gap: 6px;
+}
+
+.public-exam-variants > div {
+  min-height: 36px;
+  padding: 7px 8px;
+  border: 1px solid #e7ebe9;
+  border-radius: 8px;
+  background: #fafbfa;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.public-exam-variants > div > div:first-child {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.public-exam-variants strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #535d58;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.public-exam-variants span {
+  color: #858c88;
+  font-size: 9px;
+}
+
+.public-exam-variants > div > div:last-child {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.public-exam-variants button,
+.public-exam-variants a {
+  min-height: 25px;
+  border: 1px solid #dce4df;
+  border-radius: 6px;
+  padding: 0 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background: #fff;
+  color: #52645a;
+  font-size: 9px;
+  text-decoration: none;
+}
+
+.public-exam-variants button:hover:not(:disabled),
+.public-exam-variants a:hover {
+  border-color: #b6c8bd;
+  color: #315a47;
+}
+
+.public-exam-variants button:disabled {
+  opacity: .5;
+}
+
+@media (max-width: 760px) {
+  .public-exam-variants > div {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

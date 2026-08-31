@@ -1,0 +1,49 @@
+name: Desktop CI
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+    types:
+      - ready_for_review
+      - reopened
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tauri-check:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Install frontend dependencies
+        run: npm install --no-audit --no-fund
+      - name: Unit tests
+        run: npm test
+      - name: Build frontend
+        run: npm run build
+      - name: Check Tauri Rust shell
+        run: cargo check --manifest-path src-tauri/Cargo.toml
+      - name: Build Windows preview installer
+        run: npm run tauri build -- --bundles nsis --config src-tauri/tauri.preview.conf.json
+      - name: Upload Windows preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: Shenlun-Trainer-Windows-Preview
+          path: |
+            src-tauri/target/release/bundle/nsis/*-setup.exe
+            docs/ACCEPTANCE_CHECKLIST.md
+          if-no-files-found: error
+          retention-days: 14

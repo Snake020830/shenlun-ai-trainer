@@ -1,0 +1,33 @@
+{
+  "name": "shenlun-ai-trainer",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "app:dev": "tauri dev",
+    "ui:dev": "vite",
+    "build": "tsc -b && vite build",
+    "test": "vitest run",
+    "preview": "vite preview",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.8.0",
+    "@tauri-apps/plugin-sql": "^2.4.0",
+    "@tauri-apps/plugin-updater": "^2.10.1",
+    "lucide-react": "^0.468.0",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.8.0",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.1.10",
+    "@types/react-dom": "^19.1.7",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "~5.8.3",
+    "vite": "^6.1.0",
+    "vitest": "^4.1.11"
+  }
+}

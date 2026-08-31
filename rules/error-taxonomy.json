@@ -1,0 +1,96 @@
+{
+  "version": "0.1.0",
+  "description": "Model-agnostic error taxonomy for Shenlun grading and review analytics.",
+  "categories": [
+    {
+      "id": "OMISSION",
+      "label": "独立要点遗漏",
+      "definition": "材料中存在可独立得分的信息维度，但答案未形成可靠覆盖。",
+      "severity": "score_relevant"
+    },
+    {
+      "id": "PARTIAL_COVERAGE",
+      "label": "要点覆盖不完整",
+      "definition": "答案方向正确，但缺少关键主体、动作、对象、机制或限定条件。",
+      "severity": "score_relevant"
+    },
+    {
+      "id": "CATEGORY_CONFUSION",
+      "label": "要素混淆",
+      "definition": "将问题、原因、措施、成效、意义、观点等不同功能的信息混为同类。",
+      "severity": "score_relevant"
+    },
+    {
+      "id": "OVER_ABSTRACTION",
+      "label": "过度抽象",
+      "definition": "概括层级过高，导致材料中可区分的主体、动作、机制或对象丢失。",
+      "severity": "score_relevant"
+    },
+    {
+      "id": "OVER_MERGE",
+      "label": "过度合并",
+      "definition": "把本应独立呈现的对象或信息维度压成一个大类，降低材料密度。",
+      "severity": "score_relevant"
+    },
+    {
+      "id": "MECHANISM_LOSS",
+      "label": "机制层缺失",
+      "definition": "只写结果或抽象判断，未保留材料中‘通过何种方式产生何种作用’的机制信息。",
+      "severity": "score_relevant"
+    },
+    {
+      "id": "UNGROUNDED_INFERENCE",
+      "label": "材料外推断",
+      "definition": "答案加入材料和题干均不能支持的事实、因果或评价。",
+      "severity": "high"
+    },
+    {
+      "id": "MODALITY_SHIFT",
+      "label": "情态/时态错置",
+      "definition": "把可能、预计、规划、建议等非既成事实改写为已经发生的措施或成效。",
+      "severity": "high"
+    },
+    {
+      "id": "OBJECT_CONFUSION",
+      "label": "作答对象混淆",
+      "definition": "多对象题中未区分主体、立场或评价对象，导致归属错误。",
+      "severity": "score_relevant"
+    },
+    {
+      "id": "EVIDENCE_NOISE",
+      "label": "例证噪声",
+      "definition": "在字数有限时保留过多案例、人名、背景、数字或修饰，而挤占独立得分点。",
+      "severity": "efficiency"
+    },
+    {
+      "id": "REDUNDANCY",
+      "label": "重复表达",
+      "definition": "同一信息维度被多次改写，没有增加新的材料信息。",
+      "severity": "efficiency"
+    },
+    {
+      "id": "STRUCTURE_WEAKNESS",
+      "label": "分类结构不清",
+      "definition": "答案缺少稳定的同类合并、异类分开或必要的层次组织。",
+      "severity": "presentation"
+    },
+    {
+      "id": "WORD_BUDGET_MISALLOCATION",
+      "label": "字数预算失衡",
+      "definition": "未优先压缩点内表达，而直接删掉独立信息维度，或把过多字数用于低价值信息。",
+      "severity": "efficiency"
+    },
+    {
+      "id": "EXPRESSION_AMBIGUITY",
+      "label": "表达指向不清",
+      "definition": "省略主体、对象或逻辑关系后，表述无法稳定映射到材料得分点。",
+      "severity": "presentation"
+    }
+  ],
+  "invariants": {
+    "evidence_required_for_substantive_error": true,
+    "reference_answer_is_secondary_validation": true,
+    "probabilistic_statement_must_not_become_realized_outcome": true,
+    "compress_inside_point_before_dropping_independent_dimension": true
+  }
+}

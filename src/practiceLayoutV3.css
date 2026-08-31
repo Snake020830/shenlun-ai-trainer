@@ -1,0 +1,226 @@
+/*
+ * Practice layout V3
+ * - material text follows the calm sans-serif rhythm of the prompt panel;
+ * - answer paper uses exact 25-column geometry with no partial trailing cells;
+ * - word-count milestones live outside the writing grid and appear every 200 cells.
+ */
+
+.exam-practice-shell {
+  --answer-cell: 25px;
+  --answer-font-size: 18px;
+}
+
+/* ---------- Material reading ---------- */
+.exam-paper-scroll {
+  padding: 24px clamp(24px, 3.2vw, 46px) 64px;
+}
+
+.exam-material {
+  max-width: 860px;
+}
+
+.exam-material + .exam-material {
+  margin-top: 34px;
+  padding-top: 30px;
+}
+
+.material-label {
+  margin-bottom: 12px;
+}
+
+.material-label > span {
+  font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", system-ui, sans-serif;
+  font-size: 15px;
+  font-weight: 650;
+  color: #34383d;
+}
+
+.exam-material p,
+.exam-material-text {
+  color: #34383d;
+  font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", system-ui, sans-serif;
+  font-weight: 400;
+  line-height: 1.58;
+  letter-spacing: 0;
+  text-align: left;
+  text-rendering: auto;
+  -webkit-font-smoothing: antialiased;
+  /* Fallback: always indent the first paragraph by two Chinese character widths. */
+  text-indent: 2em;
+}
+
+/*
+ * Chromium/WebView2 146+ supports the CSS Text `each-line` keyword. It applies
+ * the same two-character indent after each forced material line break, so every
+ * source paragraph is indented without inserting spaces into the original text.
+ * This keeps annotation offsets and anchored ink coordinates stable.
+ */
+@supports (text-indent: 2em each-line) {
+  .exam-material p,
+  .exam-material-text {
+    text-indent: 2em each-line;
+  }
+}
+
+/* Keep annotations readable after the denser line rhythm. */
+.material-underline {
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+}
+
+/* ---------- Answer paper ---------- */
+.grid-answer-wrap {
+  grid-template-rows: 32px auto 34px;
+  padding: 10px 44px 16px 12px;
+}
+
+.answer-paper-label {
+  padding: 0;
+}
+
+.answer-paper-label small {
+  color: #9b9fa4;
+  font-size: 8.5px;
+}
+
+.grid-answer-stage {
+  position: relative;
+  width: calc(var(--answer-cell) * 25 + 2px);
+  height: calc(var(--answer-cell) * var(--answer-rows) + 2px);
+  max-width: none;
+  aspect-ratio: auto;
+  justify-self: center;
+  overflow: visible;
+  border: 1px solid #e8a9b5;
+  border-radius: 2px;
+  background: #fffdfd;
+  box-shadow: none;
+}
+
+/*
+ * The drawing area is always exactly 25 cells wide. Cell size is controlled by
+ * --answer-cell, so increasing the paper never reintroduces partial trailing cells.
+ */
+.answer-grid-layer {
+  position: absolute;
+  inset: 1px;
+  z-index: 0;
+  pointer-events: none;
+  background-color: #fffdfd;
+  background-image:
+    repeating-linear-gradient(
+      to right,
+      transparent 0 calc(var(--answer-cell) - 1px),
+      rgba(220, 113, 134, .38) calc(var(--answer-cell) - 1px) var(--answer-cell)
+    ),
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0 calc(var(--answer-cell) - 1px),
+      rgba(220, 113, 134, .38) calc(var(--answer-cell) - 1px) var(--answer-cell)
+    );
+  background-position: 0 0;
+}
+
+.answer-pane .grid-answer-input {
+  position: absolute;
+  inset: 1px;
+  z-index: 1;
+  width: calc(100% - 2px);
+  height: calc(100% - 2px);
+  box-sizing: border-box;
+  resize: none;
+  overflow: hidden;
+  border: 0;
+  outline: 0;
+  padding: 0 3px;
+  color: #30343a;
+  background: transparent !important;
+  box-shadow: none !important;
+  font-family: "Songti SC", "STSong", "SimSun", serif;
+  font-size: var(--answer-font-size);
+  font-weight: 400;
+  line-height: var(--answer-cell);
+  letter-spacing: calc(var(--answer-cell) - var(--answer-font-size));
+  font-variant-east-asian: full-width;
+  tab-size: 1;
+  caret-color: #355ed0;
+  white-space: pre-wrap;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+}
+
+.answer-pane .grid-answer-input:focus {
+  background: transparent !important;
+  box-shadow: inset 0 0 0 1px rgba(76, 111, 213, .10) !important;
+}
+
+/* ---------- Sparse side milestones ---------- */
+.answer-grid-markers {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  left: 100%;
+  right: auto;
+  width: 34px;
+  z-index: 3;
+  overflow: visible;
+  pointer-events: none;
+  counter-reset: answer-char-marker 0;
+}
+
+.answer-grid-markers span {
+  position: absolute;
+  left: 7px;
+  right: auto;
+  width: 24px;
+  height: 12px;
+  transform: translateY(-50%);
+  padding: 0;
+  overflow: visible;
+  background: transparent;
+  color: #b66a78;
+  font-size: 0;
+  line-height: 12px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+  counter-increment: answer-char-marker 200;
+}
+
+/* Hide the legacy “字线” suffix visually and render only 200 / 400 / 600 ... */
+.answer-grid-markers span::before {
+  content: counter(answer-char-marker);
+  display: inline-block;
+  font-size: 8px;
+  line-height: 12px;
+}
+
+.answer-grid-markers span::after {
+  content: "";
+  position: absolute;
+  right: calc(100% + 2px);
+  top: 50%;
+  width: 5px;
+  border-top: 1px solid rgba(220, 113, 134, .55);
+}
+
+.answer-sheet-hint {
+  min-height: 30px;
+  gap: 10px;
+  padding-top: 5px;
+}
+
+.answer-sheet-hint small {
+  max-width: 64%;
+  font-size: 8.5px;
+}
+
+@media (max-width: 1280px) {
+  .exam-practice-shell {
+    --answer-cell: 22px;
+    --answer-font-size: 16px;
+  }
+
+  .grid-answer-wrap {
+    padding-right: 40px;
+  }
+}

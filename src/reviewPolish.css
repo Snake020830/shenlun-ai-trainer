@@ -1,0 +1,687 @@
+.review-pane {
+  padding: 18px 16px 28px;
+  background: #fafaf7;
+}
+
+.review-content {
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+.review-content .score-panel {
+  padding: 16px 18px;
+  border: 1px solid #dce6de;
+  border-radius: 12px;
+  background: #edf4ef;
+}
+
+.review-content .score-panel > strong {
+  margin: 2px 0 4px;
+  font-size: 32px;
+  line-height: 1.1;
+}
+
+.review-content .score-panel p {
+  max-width: 44em;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.review-provenance {
+  margin-top: 9px;
+  padding: 9px 10px;
+  border: 1px solid #dfe5df;
+  border-radius: 9px;
+  background: #f8fbf8;
+  color: #68736b;
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.review-provenance-badges,
+.review-provenance-meta,
+.review-provenance-warnings {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px 8px;
+}
+
+.review-provenance-badges span {
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #edf0eb;
+}
+
+.review-provenance-badges .review-provenance-interpretation {
+  color: #2f6d4b;
+  background: #e5f2e8;
+  font-weight: 700;
+}
+
+.review-provenance-meta {
+  margin-top: 5px;
+  color: #879089;
+}
+
+.review-provenance-warnings {
+  margin-top: 6px;
+  color: #856d43;
+}
+
+.review-provenance-warnings strong {
+  color: #9a712d;
+}
+
+.review-content .review-metrics {
+  margin: 8px 0 16px;
+  gap: 6px;
+}
+
+.review-content .review-metrics div {
+  padding: 8px 10px;
+  background: #f0f0eb;
+}
+
+.review-content .point-list h4 {
+  margin: 0 0 8px;
+  font-size: 13px;
+}
+
+.review-content .point {
+  margin-bottom: 7px;
+  padding: 11px 12px;
+  border-color: #e3e4de;
+  border-radius: 9px;
+  box-shadow: none;
+}
+
+.review-content .point-heading {
+  align-items: flex-start;
+}
+
+.review-content .point-heading strong {
+  flex: 1;
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+.review-content .point-heading .badge {
+  flex: 0 0 auto;
+  padding: 4px 7px;
+  font-size: 10px;
+}
+
+/* 已经拿到的分不再占据整屏：只保留一行确认。 */
+.review-content .point-hit {
+  padding-top: 9px;
+  padding-bottom: 9px;
+  background: #fbfcfa;
+  border-color: #e1e9e2;
+}
+
+.review-content .point-hit > p {
+  display: none;
+}
+
+/* 材料候选 ID 是内部审计信息，不作为正常用户的第一层反馈。 */
+.review-content .point-partial > p:not(.suggestion),
+.review-content .point-missed > p:not(.suggestion) {
+  display: none;
+}
+
+.review-content .point-partial {
+  border-left: 3px solid #c99a45;
+  background: #fffdf8;
+}
+
+.review-content .point-missed {
+  border-left: 3px solid #b66a5f;
+  background: #fffafa;
+}
+
+.review-content .point .suggestion {
+  margin-top: 7px;
+  padding: 7px 8px;
+  background: #f7f0e4;
+  color: #625640;
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+
+/* 复盘页右栏同样使用紧凑规则，避免长卡片瀑布。 */
+.record-review .point-hit > p,
+.record-review .point-partial > p:not(.suggestion),
+.record-review .point-missed > p:not(.suggestion) {
+  display: none;
+}
+
+/* 批改结果采用“先结论、后证据”的单层结构。默认只给出下一步动作，
+   全量逐点与评分口径按需展开，避免右栏高度压过答题纸。 */
+.review-content-compact {
+  display: grid;
+  gap: 10px;
+  max-width: none;
+  margin: 0;
+}
+
+.review-summary-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+  padding: 13px 14px;
+  border: 1px solid #d5e1d7;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #eef6ef 0%, #f8faf6 100%);
+}
+
+.review-score-block {
+  min-width: 82px;
+  padding-right: 14px;
+  border-right: 1px solid #d7e4d9;
+}
+
+.review-score-block > span,
+.review-summary-copy > span,
+.review-focus-section header span {
+  display: block;
+  color: #5d7563;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.review-score-block > strong {
+  display: block;
+  margin-top: 2px;
+  color: #214d35;
+  font-size: 29px;
+  line-height: 1.05;
+}
+
+.review-score-block > strong small {
+  color: #718177;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.review-summary-copy {
+  min-width: 0;
+}
+
+.review-summary-label {
+  display: inline-flex !important;
+  align-items: center;
+  width: fit-content;
+  padding: 3px 7px;
+  border-radius: 999px;
+  font-size: 10px !important;
+}
+
+.review-summary-label-warn {
+  color: #8b5e20 !important;
+  background: #fff0d4;
+}
+
+.review-summary-label-good {
+  color: #2c6948 !important;
+  background: #e1f1e4;
+}
+
+.review-summary-copy p {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  margin: 5px 0 0;
+  color: #3d4c42;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.review-signal-row {
+  display: flex;
+  gap: 6px;
+}
+
+.review-signal-row > span {
+  min-width: 0;
+  flex: 1 1 0;
+  padding: 7px 8px;
+  border: 1px solid #e0e4dc;
+  border-radius: 8px;
+  background: #f4f4ef;
+}
+
+.review-signal-row small,
+.review-signal-row b {
+  display: block;
+}
+
+.review-signal-row small {
+  overflow: hidden;
+  color: #737d74;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.review-signal-row b {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  margin-top: 2px;
+  color: #26362b;
+  font-size: 10.5px;
+  line-height: 1.35;
+}
+
+.review-provenance-details,
+.review-all-points,
+.review-reference-details {
+  overflow: hidden;
+  border: 1px solid #dfe4dc;
+  border-radius: 9px;
+  background: #fff;
+}
+
+.review-provenance-details > summary,
+.review-all-points > summary,
+.review-reference-details > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 35px;
+  padding: 0 10px;
+  cursor: pointer;
+  list-style: none;
+  color: #58655b;
+  font-size: 10.5px;
+  font-weight: 700;
+}
+
+.review-provenance-details > summary::-webkit-details-marker,
+.review-all-points > summary::-webkit-details-marker,
+.review-reference-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.review-provenance-details > summary svg,
+.review-reference-details > summary svg {
+  margin-left: auto;
+  transition: transform .16s ease;
+}
+
+.review-provenance-details[open] > summary svg,
+.review-reference-details[open] > summary svg,
+.review-all-points[open] > summary svg {
+  transform: rotate(180deg);
+}
+
+.review-provenance-details > .review-provenance {
+  margin: 0;
+  border: 0;
+  border-top: 1px solid #e7ebe5;
+  border-radius: 0;
+}
+
+.review-focus-section {
+  padding: 12px 13px 11px;
+  border: 1px solid #dfe4dc;
+  border-radius: 11px;
+  background: #fff;
+}
+
+.review-focus-section > header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 9px;
+  border-bottom: 1px solid #edf0eb;
+}
+
+.review-focus-section header strong {
+  display: block;
+  margin-top: 3px;
+  color: #28382d;
+  font-size: 13px;
+}
+
+.review-focus-section header em {
+  flex: 0 0 auto;
+  color: #768178;
+  font-size: 9px;
+  font-style: normal;
+}
+
+.review-focus-list {
+  display: grid;
+  gap: 6px;
+  margin-top: 9px;
+}
+
+.review-focus-item {
+  padding: 8px 9px;
+  border-left: 3px solid #cf9c43;
+  border-radius: 7px;
+  background: #fff9ef;
+}
+
+.review-focus-item-missed {
+  border-left-color: #bc6e64;
+  background: #fff7f5;
+}
+
+.review-focus-item > div {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: #765b2d;
+}
+
+.review-focus-item-missed > div { color: #8b443e; }
+
+.review-focus-item strong {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: #354239;
+  font-size: 12px;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.review-point-status {
+  flex: 0 0 auto;
+  padding: 2px 6px;
+  border-radius: 999px;
+  color: #8c6728;
+  background: #f9e8c2;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.review-point-status-hit {
+  color: #2c6d49;
+  background: #e2f0e4;
+}
+
+.review-point-status-missed {
+  color: #984a42;
+  background: #f8ded9;
+}
+
+.review-focus-item p {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  margin: 5px 0 0 21px;
+  color: #6d5b3d;
+  font-size: 11.5px;
+  line-height: 1.6;
+}
+
+.review-focus-hint,
+.review-all-covered {
+  margin: 8px 0 0;
+  color: #8a938b;
+  font-size: 9.5px;
+  line-height: 1.5;
+}
+
+.review-all-points > summary em {
+  margin-left: auto;
+  color: #8a938b;
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 400;
+}
+
+.review-all-points > summary svg { flex: 0 0 auto; }
+
+.review-detail-list {
+  display: grid;
+  gap: 6px;
+  padding: 0 10px 10px;
+}
+
+.review-detail-point {
+  border-top: 1px solid #edf0eb;
+  padding-top: 8px;
+}
+
+.review-detail-point > header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.review-detail-point > header strong {
+  min-width: 0;
+  flex: 1;
+  color: #354239;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.review-detail-point-hit > header { color: #397052; }
+.review-detail-point-partial > header { color: #a07128; }
+.review-detail-point-missed > header { color: #a25249; }
+
+.review-detail-copy {
+  padding: 4px 0 2px 21px;
+}
+
+.review-detail-copy p {
+  margin: 3px 0 0;
+  color: #737d75;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.review-detail-copy b { color: #4c5d52; font-size: 11.5px; }
+
+.review-detail-copy .review-detail-evidence {
+  color: #68766d;
+}
+
+.review-detail-copy .review-detail-suggestion {
+  padding: 7px 8px;
+  border-radius: 6px;
+  background: #fff6e7;
+  color: #735e3d;
+}
+
+.review-reference-details .reference-crosscheck {
+  border: 0;
+  border-top: 1px solid #e7ebe5;
+  border-radius: 0;
+  margin-top: 0;
+}
+
+@media (max-width: 520px) {
+  .review-summary-card { grid-template-columns: 1fr; gap: 8px; }
+  .review-score-block { min-width: 0; padding: 0 0 7px; border-right: 0; border-bottom: 1px solid #d7e4d9; }
+  .review-score-block > strong { display: inline-block; margin-right: 7px; }
+  .review-signal-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* 复盘详情按“答案 → 原文 → 批改”纵向展开，原文成为对照基准。 */
+.record-detail-stack {
+  display: grid;
+  gap: 16px;
+  max-width: 1120px;
+  margin: 0 auto;
+}
+
+.record-detail-stack .answer-snapshot {
+  min-height: 0;
+  padding: 24px 30px 28px;
+}
+
+.record-detail-stack .answer-snapshot > span {
+  display: block;
+  margin-bottom: 12px;
+  font-size: 12px;
+}
+
+.record-detail-stack .answer-snapshot p {
+  margin: 0;
+  max-width: 78em;
+  font-size: 16px;
+  line-height: 2;
+}
+
+.record-material-reference {
+  overflow: hidden;
+  border: 1px solid #cbd6cd;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 7px 22px rgba(32, 50, 38, .045);
+}
+
+.record-material-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 20px 26px 16px;
+  border-bottom: 1px solid #e3e9e3;
+  background: #f5f9f5;
+}
+
+.record-section-kicker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #296444;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.record-material-heading h2 {
+  margin: 6px 0 4px;
+  color: #1d2b22;
+  font-size: 18px;
+}
+
+.record-material-heading p {
+  margin: 0;
+  color: #69766d;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.record-material-count {
+  flex: 0 0 auto;
+  padding-top: 4px;
+  color: #607267;
+  font-size: 10px;
+}
+
+.record-material-legend {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 10px 26px;
+  border-bottom: 1px solid #edf1ed;
+  color: #6a766e;
+  font-size: 10px;
+}
+
+.record-material-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.record-material-legend i {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+}
+
+.record-legend-hit { color: #287049; background: #dff0e2; }
+.record-legend-partial { color: #8f6725; background: #f9e8c2; }
+.record-legend-missed { color: #974b42; background: #f7ded9; }
+
+.record-material-list {
+  padding: 2px 30px 30px;
+}
+
+.record-material-list article {
+  padding: 21px 0 5px;
+}
+
+.record-material-list article + article {
+  border-top: 1px solid #e4e9e4;
+}
+
+.record-material-list h3 {
+  margin: 0 0 10px;
+  color: #276341;
+  font-size: 12px;
+  letter-spacing: .05em;
+}
+
+.record-material-list p {
+  margin: 0;
+  color: #263229;
+  font-family: var(--serif-cn);
+  font-size: 16px;
+  line-height: 2.15;
+  text-align: justify;
+  white-space: pre-wrap;
+}
+
+.record-evidence-mark {
+  padding: 1px 2px;
+  border-radius: 3px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.record-evidence-mark sup {
+  display: inline-grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  margin-left: 3px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .8);
+  color: #45564b;
+  font-family: Inter, "PingFang SC", sans-serif;
+  font-size: 8px;
+  font-weight: 800;
+  line-height: 1;
+  vertical-align: super;
+}
+
+.record-evidence-hit { background: #dff0e2; box-shadow: inset 0 -2px 0 #8fc39a; }
+.record-evidence-partial { background: #fff0cf; box-shadow: inset 0 -2px 0 #d2a65a; }
+.record-evidence-missed { background: #f9dfda; box-shadow: inset 0 -2px 0 #ca8176; }
+
+.record-detail-stack > .detail-review {
+  padding: 0;
+  background: transparent;
+}
+
+.record-detail-stack > .detail-review .review-content-compact {
+  max-width: none;
+}
+
+@media (max-width: 700px) {
+  .record-material-heading { flex-direction: column; gap: 8px; padding: 17px 20px 14px; }
+  .record-material-count { padding-top: 0; }
+  .record-material-legend { padding: 9px 20px; }
+  .record-material-list { padding: 0 20px 22px; }
+  .record-material-list p { font-size: 15px; line-height: 2; }
+  .record-detail-stack .answer-snapshot { padding: 20px; }
+}

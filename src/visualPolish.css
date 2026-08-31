@@ -1,0 +1,212 @@
+:root {
+  --shadow-xs: 0 1px 2px rgba(32, 34, 31, .04);
+  --shadow-sm: 0 7px 22px rgba(32, 34, 31, .055);
+  --shadow-md: 0 16px 44px rgba(32, 34, 31, .075);
+  --focus-ring: 0 0 0 3px rgba(55, 102, 78, .13);
+  --serif-cn: "Songti SC", "STSong", "Noto Serif CJK SC", "Noto Serif SC", Georgia, serif;
+}
+
+body {
+  background:
+    radial-gradient(circle at 76% 0%, rgba(55, 102, 78, .045), transparent 27rem),
+    #f5f5f1;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+select,
+textarea {
+  transition: border-color .16s ease, box-shadow .16s ease, background-color .16s ease, color .16s ease, transform .16s ease;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.sidebar {
+  background: linear-gradient(180deg, #f1f1eb 0%, #ecece6 100%);
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, .45);
+}
+
+.brand-mark {
+  box-shadow: 0 7px 18px rgba(55, 102, 78, .18);
+}
+
+.nav-item {
+  position: relative;
+}
+
+.nav-item.active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  width: 3px;
+  height: 18px;
+  border-radius: 99px;
+  background: var(--green);
+}
+
+.page-header h1,
+.detail-header h1,
+.placeholder h2 {
+  font-family: var(--serif-cn);
+  font-weight: 650;
+  letter-spacing: -.015em;
+}
+
+.page-header h1 {
+  line-height: 1.24;
+}
+
+.hero-card,
+.question-card,
+.history-table,
+.form-card,
+.review-card,
+.answer-snapshot,
+.settings-section {
+  box-shadow: var(--shadow-xs);
+}
+
+.hero-card {
+  box-shadow: var(--shadow-md);
+  border-color: rgba(55, 102, 78, .14);
+}
+
+.question-card,
+.review-card,
+.form-card {
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+
+.question-card:hover,
+.review-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+  border-color: #d1d5cc;
+}
+
+.primary {
+  box-shadow: 0 5px 14px rgba(55, 102, 78, .13);
+}
+
+.primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(55, 102, 78, .17);
+}
+
+.primary:active:not(:disabled),
+.secondary:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.secondary:hover:not(:disabled) {
+  border-color: #cfd2c9;
+}
+
+.metric-card {
+  border: 1px solid rgba(32, 34, 31, .035);
+}
+
+.search-box:focus-within {
+  border-color: #9bb2a3;
+  box-shadow: var(--focus-ring);
+}
+
+.practice-header {
+  backdrop-filter: blur(12px);
+  background: rgba(250, 250, 246, .94);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, .75);
+  z-index: 2;
+}
+
+.material p,
+.answer-snapshot p,
+.material-input {
+  font-family: var(--serif-cn);
+}
+
+.answer-pane textarea {
+  font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  caret-color: var(--green);
+}
+
+.answer-pane textarea:focus {
+  background: #fffefb;
+}
+
+.material-scroll,
+.review-pane {
+  scrollbar-width: thin;
+  scrollbar-color: #cfd2ca transparent;
+}
+
+.material-scroll::-webkit-scrollbar,
+.review-pane::-webkit-scrollbar {
+  width: 8px;
+}
+
+.material-scroll::-webkit-scrollbar-thumb,
+.review-pane::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  border-radius: 999px;
+  background-color: #cfd2ca;
+}
+
+.score-panel {
+  border: 1px solid rgba(55, 102, 78, .09);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .55);
+}
+
+.point {
+  box-shadow: var(--shadow-xs);
+}
+
+.badge {
+  letter-spacing: .01em;
+}
+
+.history-button:hover {
+  background: #f8f8f3;
+}
+
+.form-card,
+.settings-section,
+.benchmark-case-card {
+  overflow: clip;
+}
+
+.field input,
+.field select,
+.form-textarea {
+  background: #fffefa;
+}
+
+.field input:hover,
+.field select:hover,
+.form-textarea:hover {
+  border-color: #cfd2ca;
+}
+
+.benchmark-case-card,
+.benchmark-experiment-panel,
+.human-gold-editor,
+.human-alignment-editor {
+  --paper: #fffefa;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    transition-duration: .01ms !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
