@@ -12,6 +12,10 @@
 
 开发环境需要 Node.js 24。首次运行 npm ci，然后使用 npm run dev 预览前端，或使用 npm run app:dev 启动 Tauri 桌面版。
 
+## 参与开发
+
+如果要用 Codex 在现有基础上添加功能，请先阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。当前可直接开发的产品代码位于 `feat/v0.1-product-shell` 分支；后续稳定后再合并到 `main`。普通用户不需要克隆源码，直接从 Releases 下载安装包即可。
+
 ## 发布
 
 发布和自动更新配置见 docs/RELEASING.md。推送形如 v0.1.1 的 Git 标签后，GitHub Actions 会运行测试、构建 Windows NSIS 安装包并创建 Release。
