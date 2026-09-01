@@ -1,5 +1,6 @@
 mod public_source;
 mod secure_remote;
+mod external_link;
 
 use tauri_plugin_sql::{Migration, MigrationKind};
 
@@ -81,7 +82,8 @@ pub fn run() {
             secure_remote::store_provider_secret,
             secure_remote::delete_provider_secret,
             secure_remote::secure_post_json,
-            public_source::fetch_public_source_text
+            public_source::fetch_public_source_text,
+            external_link::open_external_url
         ])
         .run(tauri::generate_context!())
         .expect("error while running Shenlun AI Trainer");

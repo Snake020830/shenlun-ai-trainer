@@ -10,6 +10,7 @@ import "./practiceInk.css";
 import "./practiceLayoutV3.css";
 import "./smartAnswerGrid.css";
 import "./reviewPolish.css";
+import "./essayReview.css";
 import "./smartAnswerGrid";
 
 const MATERIAL_LAYOUT_V3_MIGRATION_KEY = "shenlun:material-layout:v3";

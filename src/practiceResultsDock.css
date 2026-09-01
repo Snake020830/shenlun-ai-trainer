@@ -121,6 +121,124 @@
   cursor: default;
 }
 
+/* The result area is a permanent part of the answer pane. Keep its heading
+   visible even before the first submission so the feedback destination is
+   obvious and cannot be mistaken for a missing page. */
+.practice-result-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 40px;
+  padding: 0 18px;
+  border-bottom: 1px solid #e1e2dd;
+  background: #fff;
+}
+
+.practice-result-heading strong {
+  color: #2f6248;
+  font-size: 12px;
+}
+
+.practice-result-heading span {
+  overflow: hidden;
+  color: #8a918b;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Flex sizing is intentional here: a fixed-height action strip must not
+   become a flexible grid track and push the feedback dock below the window. */
+/* main styles.css is loaded after component styles and gives .answer-pane a
+   generic grid display. Use the page-scoped selector so this result layout
+   wins in the final cascade as well. */
+.exam-practice-shell .integrated-answer-pane {
+  display: flex;
+  flex-direction: column;
+}
+
+.exam-practice-shell .integrated-answer-pane .answer-fixed-zone {
+  flex: 1 1 0;
+}
+
+.exam-practice-shell .integrated-answer-pane .exam-answer-footer {
+  flex: 0 0 48px;
+}
+
+.exam-practice-shell .integrated-answer-pane .practice-result-dock {
+  flex: 0 0 var(--result-dock-height, 300px);
+  min-height: 112px;
+  max-height: calc(100% - 236px);
+  height: auto;
+}
+
+.integrated-answer-pane .exam-answer-footer {
+  height: 48px;
+  max-height: 48px;
+  overflow: hidden;
+}
+
+.practice-result-dock { min-height: 112px; }
+
+.practice-result-resizer {
+  position: relative;
+  flex: 0 0 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border-top: 1px solid #e2e5df;
+  border-bottom: 1px solid #e2e5df;
+  outline: 0;
+  background: #f5f6f2;
+  color: #9aa19b;
+  cursor: ns-resize;
+  touch-action: none;
+  user-select: none;
+  z-index: 6;
+}
+
+.practice-result-resizer::before {
+  content: "";
+  position: absolute;
+  inset: -4px 0;
+}
+
+.practice-result-resizer span { font-size: 8px; opacity: 0; transition: opacity .15s ease; }
+.practice-result-resizer:hover,
+.practice-result-resizer:focus-visible,
+.integrated-answer-pane.is-result-resizing .practice-result-resizer { background: #eaf2eb; color: #3f7253; }
+.practice-result-resizer:hover span,
+.practice-result-resizer:focus-visible span,
+.integrated-answer-pane.is-result-resizing .practice-result-resizer span { opacity: 1; }
+.integrated-answer-pane.is-result-resizing,
+.integrated-answer-pane.is-result-resizing * { cursor: ns-resize !important; user-select: none !important; }
+
+.exam-practice-shell .integrated-answer-pane .practice-result-dock.is-collapsed {
+  flex-basis: 40px;
+  min-height: 40px;
+  max-height: 40px;
+}
+
+.practice-result-dock.is-collapsed .practice-result-scroll { display: none; }
+
+.practice-result-heading > div { min-width: 0; display: flex; align-items: baseline; gap: 10px; }
+.practice-result-heading button {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 26px;
+  padding: 0 7px;
+  border: 1px solid #d7ded8;
+  border-radius: 7px;
+  background: #f8faf7;
+  color: #577060;
+  font-size: 9px;
+}
+.practice-result-heading button:hover { border-color: #9db4a4; background: #eef5ef; }
+
 .practice-result-scroll {
   min-height: 0;
   height: 100%;
@@ -352,7 +470,7 @@
 
 .essay-drill-tabs {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   border-bottom: 1px solid #e0e5df;
   background: #fff;
 }
@@ -446,7 +564,8 @@
 .essay-field-heading > span { color: #4c5b52; font-size: 11px; font-weight: 700; }
 .essay-drill-fields label em { margin-left: 5px; color: #99a29c; font-size: 9px; font-style: normal; font-weight: 400; }
 .essay-drill-fields input,
-.essay-drill-fields textarea {
+.essay-drill-fields textarea,
+.essay-drill-fields select {
   width: 100%;
   border: 1px solid #d9e0da;
   border-radius: 7px;
@@ -459,7 +578,8 @@
   resize: vertical;
 }
 .essay-drill-fields input:focus,
-.essay-drill-fields textarea:focus { border-color: #80a68a; box-shadow: 0 0 0 2px rgba(80, 133, 92, .12); }
+.essay-drill-fields textarea:focus,
+.essay-drill-fields select:focus { border-color: #80a68a; box-shadow: 0 0 0 2px rgba(80, 133, 92, .12); }
 .essay-drill-fields textarea { min-height: 64px; }
 .essay-drill-fields textarea.essay-long-textarea { min-height: 190px; }
 
@@ -468,6 +588,15 @@
 .essay-field-heading small { color: #98a39b; font-size: 9px; }
 .essay-subpoint-fields label { display: grid; grid-template-columns: 23px 1fr; align-items: center; gap: 6px; }
 .essay-subpoint-fields label b { width: 23px; height: 23px; display: grid; place-items: center; border-radius: 6px; background: #e9f1ea; color: #467154; font-size: 10px; }
+
+.essay-question-anchor { padding: 10px 11px; border-left: 3px solid #6d9477; border-radius: 7px; background: #f4f7f2; }
+.essay-question-anchor span { color: #54705e; font-size: 9px; font-weight: 750; }
+.essay-question-anchor p { margin: 5px 0 0; color: #59655d; font-size: 10px; line-height: 1.65; }
+.essay-subpoint-cards { display: grid; gap: 9px; }
+.essay-subpoint-cards article { display: grid; gap: 7px; padding: 10px; border: 1px solid #e0e5de; border-radius: 8px; background: #fbfcf9; }
+.essay-subpoint-cards header { display: flex; align-items: center; justify-content: space-between; gap: 9px; }
+.essay-subpoint-cards header b { color: #456b51; font-size: 10px; }
+.essay-subpoint-cards header select { width: auto; min-width: 130px; padding: 5px 7px; font-size: 9px; }
 
 .essay-structure-hint {
   display: flex;

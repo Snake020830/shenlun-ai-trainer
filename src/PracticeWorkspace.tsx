@@ -3,9 +3,12 @@ import {
   BookOpenText,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   Clock3,
   Eraser,
   Highlighter,
+  GripHorizontal,
   LoaderCircle,
   Minus,
   Pause,
@@ -22,8 +25,6 @@ import { errorMessage } from "./errorMessage";
 import { taskNumber } from "./examPaper";
 import EssayDrillPanel from "./EssayDrillPanel";
 import { gradingService } from "./grading";
-import { deepReadQuestion, type MaterialDeepReadOutput } from "./materialLearning";
-import { loadMaterialDeepReadSnapshot, saveMaterialDeepReadSnapshot } from "./materialLearningStore";
 import {
   answerSheetCapacity,
   answerSheetMarkers,
@@ -43,6 +44,7 @@ import {
   type PracticeInkStroke,
   type PracticeTextAnnotation
 } from "./practiceSessionStore";
+import { clampResultDockHeight, resizedResultDockHeight, RESULT_DOCK_DEFAULT_HEIGHT } from "./practiceResultDock";
 import ReviewPanel from "./ReviewPanel";
 import { persistence } from "./storage";
 import type { MockReview, Question, TrainingRecord } from "./types";
@@ -51,12 +53,11 @@ import "./practiceResultsDock.css";
 
 type AnnotationMode = PracticeTextAnnotation["type"] | null;
 type InkMode = "pen" | "eraser" | null;
-type ResultTab = "review" | "learning";
-
 const MATERIAL_FONT_KEY = "shenlun:material-font-size:v2";
 const MATERIAL_FONT_MIN = 16;
 const MATERIAL_FONT_MAX = 24;
 const MATERIAL_FONT_DEFAULT = 18;
+const RESULT_DOCK_HEIGHT_KEY = "shenlun:practice-result-dock-height:v1";
 const HIGHLIGHT_COLORS: Array<{ value: PracticeHighlightColor; label: string; hint: string }> = [
   { value: "yellow", label: "核心/帽子", hint: "主题、主体、分类、总括句" },
   { value: "red", label: "问题/风险", hint: "问题表现、短板、矛盾、隐患" },
@@ -306,38 +307,13 @@ function MaterialTextStage({
   </div>;
 }
 
-function DeepReadPanel({ result }: { result: MaterialDeepReadOutput }) {
-  return <div className="practice-deep-read">
-    <section className="deep-read-reference">
-      <header><h3>参考作答</h3><span>AI精读 · 不参与评分</span></header>
-      <p>{result.referenceAnswer}</p>
-      {result.answerNotes.length > 0 && <ul className="deep-read-notes">{result.answerNotes.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}</ul>}
-    </section>
-
-    {result.expressions.length > 0 && <section className="deep-read-section">
-      <header><h3>规范表达 / 中观词</h3><span>{result.expressions.length} 条</span></header>
-      <div className="deep-read-card-list">{result.expressions.map((item, index) => <article className="deep-read-card" key={`${item.phrase}-${index}`}><strong>{item.phrase}</strong><p>{item.meaning}</p>{item.useCases.length > 0 && <div className="deep-read-tags">{item.useCases.map(tag => <span key={tag}>{tag}</span>)}</div>}<small>材料依据：{item.sourceEvidence}</small></article>)}</div>
-    </section>}
-
-    {result.mechanisms.length > 0 && <section className="deep-read-section">
-      <header><h3>论证机制 / 因果链</h3><span>{result.mechanisms.length} 条</span></header>
-      <div className="deep-read-card-list">{result.mechanisms.map((item, index) => <article className="deep-read-card" key={`${item.title}-${index}`}><strong>{item.title}</strong><p>{item.chain}</p>{item.transferableTo.length > 0 && <div className="deep-read-tags">{item.transferableTo.map(tag => <span key={tag}>{tag}</span>)}</div>}<small>材料依据：{item.sourceEvidence}</small></article>)}</div>
-    </section>}
-
-    {result.cases.length > 0 && <section className="deep-read-section">
-      <header><h3>案例素材</h3><span>{result.cases.length} 条</span></header>
-      <div className="deep-read-card-list">{result.cases.map((item, index) => <article className="deep-read-card" key={`${item.title}-${index}`}><strong>{item.title}</strong><p>{item.summary}</p>{item.transferableTo.length > 0 && <div className="deep-read-tags">{item.transferableTo.map(tag => <span key={tag}>{tag}</span>)}</div>}<small>材料依据：{item.sourceEvidence}</small></article>)}</div>
-    </section>}
-
-    {result.essayAngles.length > 0 && <section className="deep-read-section">
-      <header><h3>大作文观点 / 论证角度</h3><span>{result.essayAngles.length} 条</span></header>
-      <div className="deep-read-card-list">{result.essayAngles.map((item, index) => <article className="deep-read-card" key={`${item.claim}-${index}`}><strong>{item.claim}</strong><p>{item.reasoning}</p><small>适合放在：{item.paragraphUse}</small>{item.transferableTo.length > 0 && <div className="deep-read-tags">{item.transferableTo.map(tag => <span key={tag}>{tag}</span>)}</div>}</article>)}</div>
-    </section>}
-  </div>;
+function ResultEmpty() {
+  return <div className="practice-result-empty"><strong>还没有批改结果</strong><span>完成作答后点击“提交批改”，结果会固定显示在答题卡下方，并可独立滚动查看。</span></div>;
 }
 
-function ResultEmpty({ tab }: { tab: ResultTab }) {
-  return <div className="practice-result-empty"><strong>{tab === "review" ? "还没有批改结果" : "还没有精读结果"}</strong><span>{tab === "review" ? "完成作答后点击“提交批改”，结果会显示在这里；上方答题卡不会被滚走。" : "无需提交答案，直接点击“精读文章”即可生成参考作答、规范表达、机制和作文素材。"}</span></div>;
+function readResultDockHeight(): number {
+  const raw = Number(localStorage.getItem(RESULT_DOCK_HEIGHT_KEY));
+  return Number.isFinite(raw) && raw > 0 ? raw : RESULT_DOCK_DEFAULT_HEIGHT;
 }
 
 function FullAnswerGrid({ question, answer, draftLoaded, onAnswerChange, onBackToDrill }: {
@@ -375,10 +351,6 @@ export default function PracticeWorkspace({ initialQuestion, paperQuestions, onE
   );
   const [answer, setAnswer] = useState("");
   const [review, setReview] = useState<MockReview | null>(null);
-  const [resultTab, setResultTab] = useState<ResultTab>("review");
-  const [deepReadResult, setDeepReadResult] = useState<MaterialDeepReadOutput | null>(null);
-  const [deepReadBusy, setDeepReadBusy] = useState(false);
-  const [deepReadError, setDeepReadError] = useState<string | null>(null);
   const [draftLoaded, setDraftLoaded] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -395,13 +367,62 @@ export default function PracticeWorkspace({ initialQuestion, paperQuestions, onE
   const [activeMaterialId, setActiveMaterialId] = useState(question.materials[0]?.id ?? "");
   const materialScrollRef = useRef<HTMLDivElement>(null);
   const materialRefs = useRef(new Map<string, HTMLElement>());
+  const answerPaneRef = useRef<HTMLElement>(null);
+  const resultResizeRef = useRef<{ startY: number; startHeight: number } | null>(null);
   const [materialFontSize, setMaterialFontSize] = useState(readMaterialFontSize);
   const [essayView, setEssayView] = useState<"drill" | "full">(question.type === "文章写作" ? "drill" : "full");
+  const [resultDockHeight, setResultDockHeight] = useState(readResultDockHeight);
+  const [resultDockCollapsed, setResultDockCollapsed] = useState(true);
+  const [resultDockResizing, setResultDockResizing] = useState(false);
   const chars = answer.replace(/\s/g, "").length;
   const elapsedSeconds = Math.max(0, countdownSeconds - remainingSeconds);
   const overtimeSeconds = Math.max(0, -remainingSeconds);
   const activeMaterialIndex = Math.max(0, question.materials.findIndex(item => item.id === activeMaterialId));
   const visibleMaterials = question.materials;
+
+  function finishResultDockResize(event: React.PointerEvent<HTMLDivElement>) {
+    const session = resultResizeRef.current;
+    const paneHeight = answerPaneRef.current?.getBoundingClientRect().height ?? 0;
+    const finalHeight = session
+      ? resizedResultDockHeight(session.startHeight, session.startY, event.clientY, paneHeight)
+      : clampResultDockHeight(resultDockHeight, paneHeight);
+    setResultDockHeight(finalHeight);
+    localStorage.setItem(RESULT_DOCK_HEIGHT_KEY, String(finalHeight));
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    resultResizeRef.current = null;
+    setResultDockResizing(false);
+  }
+
+  function startResultDockResize(event: React.PointerEvent<HTMLDivElement>) {
+    if (!event.isPrimary) return;
+    event.preventDefault();
+    const paneHeight = answerPaneRef.current?.getBoundingClientRect().height ?? 0;
+    const startingHeight = resultDockCollapsed
+      ? clampResultDockHeight(RESULT_DOCK_DEFAULT_HEIGHT, paneHeight)
+      : clampResultDockHeight(resultDockHeight, paneHeight);
+    setResultDockCollapsed(false);
+    setResultDockHeight(startingHeight);
+    resultResizeRef.current = { startY: event.clientY, startHeight: startingHeight };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setResultDockResizing(true);
+  }
+
+  function moveResultDockResize(event: React.PointerEvent<HTMLDivElement>) {
+    const session = resultResizeRef.current;
+    if (!session) return;
+    const paneHeight = answerPaneRef.current?.getBoundingClientRect().height ?? 0;
+    setResultDockHeight(resizedResultDockHeight(session.startHeight, session.startY, event.clientY, paneHeight));
+  }
+
+  function resizeResultDockWithKeyboard(event: React.KeyboardEvent<HTMLDivElement>) {
+    if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+    event.preventDefault();
+    const paneHeight = answerPaneRef.current?.getBoundingClientRect().height ?? 0;
+    const next = clampResultDockHeight(resultDockHeight + (event.key === "ArrowUp" ? 32 : -32), paneHeight);
+    setResultDockCollapsed(false);
+    setResultDockHeight(next);
+    localStorage.setItem(RESULT_DOCK_HEIGHT_KEY, String(next));
+  }
 
   useEffect(() => {
     setSelectedQuestionId(initialQuestion.id);
@@ -514,10 +535,7 @@ export default function PracticeWorkspace({ initialQuestion, paperQuestions, onE
     setDraftLoaded(false);
     setAnswer("");
     setReview(null);
-    setResultTab("review");
-    setDeepReadResult(null);
-    setDeepReadBusy(false);
-    setDeepReadError(null);
+    setResultDockCollapsed(true);
     setSubmitting(false);
     setSubmitError(null);
     persistence.getDraft(question.id)
@@ -534,16 +552,6 @@ export default function PracticeWorkspace({ initialQuestion, paperQuestions, onE
   }, [question.id]);
 
   useEffect(() => {
-    let cancelled = false;
-    void loadMaterialDeepReadSnapshot(question)
-      .then(snapshot => {
-        if (!cancelled && snapshot) setDeepReadResult(snapshot.result);
-      })
-      .catch(error => console.error("Failed to load AI deep-read snapshot.", error));
-    return () => { cancelled = true; };
-  }, [question]);
-
-  useEffect(() => {
     if (!draftLoaded) return;
     const timer = window.setTimeout(() => {
       void persistence.saveDraft({ questionId: question.id, answer, updatedAt: new Date().toISOString() })
@@ -556,10 +564,10 @@ export default function PracticeWorkspace({ initialQuestion, paperQuestions, onE
     if (submitting) return;
     setSubmitting(true);
     setSubmitError(null);
-    setResultTab("review");
     try {
       const result = await gradingService.grade({ question, answer, referenceAnswer: question.referenceAnswer });
       setReview(result);
+      setResultDockCollapsed(false);
       setTimerRunning(false);
       const now = new Date();
       const record: TrainingRecord = { id: crypto.randomUUID(), questionId: question.id, title: question.title, score: result.score, maxScore: result.maxScore, submittedAt: now.toLocaleString("zh-CN"), submittedAtIso: now.toISOString(), answer, review: result };
@@ -573,29 +581,9 @@ export default function PracticeWorkspace({ initialQuestion, paperQuestions, onE
     } catch (error) {
       console.error("Failed to grade or save training record.", error);
       setSubmitError(`批改失败：${errorMessage(error, "未知错误，请重试。")}`);
+      setResultDockCollapsed(false);
     } finally {
       setSubmitting(false);
-    }
-  }
-
-  async function runDeepRead() {
-    if (deepReadBusy) return;
-    setDeepReadBusy(true);
-    setDeepReadError(null);
-    setResultTab("learning");
-    try {
-      const result = await deepReadQuestion(question);
-      setDeepReadResult(result);
-      try {
-        await saveMaterialDeepReadSnapshot(question, result);
-      } catch (error) {
-        console.error("AI deep-read succeeded but snapshot persistence failed.", error);
-      }
-    } catch (error) {
-      console.error("Failed to deep-read question.", error);
-      setDeepReadError(errorMessage(error, "AI精读失败，请重试。"));
-    } finally {
-      setDeepReadBusy(false);
     }
   }
 
@@ -762,7 +750,11 @@ export default function PracticeWorkspace({ initialQuestion, paperQuestions, onE
         </div>}
       </section>
 
-      <section className="answer-pane exam-answer-pane integrated-answer-pane">
+      <section
+        ref={answerPaneRef}
+        className={`answer-pane exam-answer-pane integrated-answer-pane ${resultDockResizing ? "is-result-resizing" : ""}`}
+        style={{ "--result-dock-height": `${resultDockHeight}px` } as React.CSSProperties}
+      >
         <div className="answer-fixed-zone">
           <div className="paper-task-navigation" role="tablist" aria-label="本套卷题目切换">
             {paperQuestions.map((item, index) => <button
@@ -778,7 +770,7 @@ export default function PracticeWorkspace({ initialQuestion, paperQuestions, onE
           </div>
           <div className="prompt-box exam-prompt-box"><span>题目要求</span><p>{question.prompt}</p></div>
           {question.type === "文章写作" && essayView === "drill"
-            ? <EssayDrillPanel question={question} deepReadResult={deepReadResult} onOpenFullAnswer={() => setEssayView("full")}/>
+            ? <EssayDrillPanel question={question} onOpenFullAnswer={() => setEssayView("full")}/>
             : <FullAnswerGrid question={question} answer={answer} draftLoaded={draftLoaded} onAnswerChange={setAnswer} onBackToDrill={question.type === "文章写作" ? () => setEssayView("drill") : undefined}/>}
         </div>
 
@@ -788,26 +780,28 @@ export default function PracticeWorkspace({ initialQuestion, paperQuestions, onE
           <span className={submitError ? "over-limit" : ""} title={submitError ?? undefined}>{persistenceStatus}</span>
           <span className="answer-footer-spacer"/>
           <div className="answer-action-group">
-            <button className="learning-action" disabled={!draftLoaded || deepReadBusy || submitting} onClick={() => void runDeepRead()}><BookOpenText size={16}/>{deepReadBusy ? "精读中…" : "精读文章"}</button>
-            <button className="primary" disabled={chars < 10 || !draftLoaded || submitting || deepReadBusy || (question.type === "文章写作" && essayView === "drill")} onClick={submit}><Sparkles size={16}/>{submitting ? "批改中…" : question.type === "文章写作" ? "提交整篇批改" : "提交批改"}</button>
+            <button className="primary" disabled={chars < 10 || !draftLoaded || submitting || (question.type === "文章写作" && essayView === "drill")} onClick={submit}><Sparkles size={16}/>{submitting ? question.type === "文章写作" ? "作文诊断中…" : "批改中…" : question.type === "文章写作" ? "提交五维作文批改" : "提交批改"}</button>
           </div>
         </div>
 
-        <section className="practice-result-dock">
-          <div className="practice-result-tabs" role="tablist" aria-label="训练结果切换">
-            <button className={resultTab === "review" ? "active" : ""} onClick={() => setResultTab("review")}>批改结果</button>
-            <button className={resultTab === "learning" ? "active" : ""} onClick={() => setResultTab("learning")}>AI精读</button>
-          </div>
+        <div
+          className="practice-result-resizer"
+          role="separator"
+          aria-label="调整答题区与批改结果区高度"
+          aria-orientation="horizontal"
+          aria-valuenow={Math.round(resultDockHeight)}
+          tabIndex={0}
+          onPointerDown={startResultDockResize}
+          onPointerMove={moveResultDockResize}
+          onPointerUp={finishResultDockResize}
+          onPointerCancel={finishResultDockResize}
+          onKeyDown={resizeResultDockWithKeyboard}
+        ><GripHorizontal size={16}/><span>拖动调整批改区高度</span></div>
+
+        <section className={`practice-result-dock ${resultDockCollapsed ? "is-collapsed" : ""}`}>
+          <div className="practice-result-heading"><div><strong>{question.type === "文章写作" ? "大作文五维诊断" : "批改结果"}</strong><span>{review ? question.type === "文章写作" ? "立意、结构、论证、材料、表达已独立评分" : "本题已完成批改，可展开查看全部失分点" : "暂不使用AI时可以收起此区域"}</span></div><button type="button" onClick={() => setResultDockCollapsed(value => !value)} aria-expanded={!resultDockCollapsed}>{resultDockCollapsed ? <><ChevronUp size={14}/>展开</> : <><ChevronDown size={14}/>收起</>}</button></div>
           <div className="practice-result-scroll">
-            {resultTab === "review" ? (
-              review ? <ReviewPanel review={review}/> : submitError ? <div className="practice-result-error">{submitError}</div> : <ResultEmpty tab="review"/>
-            ) : deepReadBusy ? (
-              <div className="deep-read-loading"><LoaderCircle size={22}/><strong>正在精读题干与材料…</strong><span>不读取你的答案，也不参与评分。</span></div>
-            ) : deepReadError ? (
-              <div className="practice-result-error">{deepReadError}</div>
-            ) : deepReadResult ? (
-              <DeepReadPanel result={deepReadResult}/>
-            ) : <ResultEmpty tab="learning"/>}
+            {review ? <ReviewPanel review={review}/> : submitError ? <div className="practice-result-error">{submitError}</div> : <ResultEmpty/>}
           </div>
         </section>
       </section>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getDailyReadingTheme, scoreDailyArticle, type DailyNewsArticle } from "./dailyReading";
+import { DAILY_ARTICLE_TARGET, DAILY_NEWS_PROVIDERS, getDailyReadingTheme, scoreDailyArticle, type DailyNewsArticle } from "./dailyReading";
 
 function article(overrides: Partial<DailyNewsArticle> = {}): DailyNewsArticle {
   return {
@@ -14,12 +14,21 @@ function article(overrides: Partial<DailyNewsArticle> = {}): DailyNewsArticle {
     content: "针对多头检查、重复检查问题，当地建立跨部门联合检查制度，通过数据共享完善检查计划，推动监管提质增效，企业负担明显降低。".repeat(8),
     summary: "",
     score: 0,
-    selectionReason: "",
     ...overrides
   };
 }
 
 describe("daily reading selection", () => {
+  it("keeps a nine-item, central-heavy feed with cross-region coverage", () => {
+    expect(DAILY_ARTICLE_TARGET).toBe(9);
+    const national = DAILY_NEWS_PROVIDERS.filter((provider) => provider.scope === "national").length;
+    const regional = DAILY_NEWS_PROVIDERS.filter((provider) => provider.scope === "regional").length;
+    const anhui = DAILY_NEWS_PROVIDERS.filter((provider) => provider.scope === "anhui").length;
+    expect(national).toBeGreaterThan(regional);
+    expect(regional).toBeGreaterThan(0);
+    expect(anhui).toBeGreaterThan(0);
+  });
+
   it("rotates through distinct themes instead of using one permanent hot-topic list", () => {
     const themes = Array.from({ length: 10 }, (_, offset) => getDailyReadingTheme(new Date(2026, 7, 20 + offset)).id);
     expect(new Set(themes).size).toBe(10);
@@ -41,5 +50,11 @@ describe("daily reading selection", () => {
     }), theme, new Date(2026, 7, 28));
     expect(useful).toBeGreaterThan(ceremony);
     expect(useful).toBeGreaterThanOrEqual(70);
+  });
+
+  it("does not treat future-dated pages as today's fresh news", () => {
+    const theme = getDailyReadingTheme(new Date(2026, 7, 28));
+    const future = scoreDailyArticle(article({ publishedAt: "2026-09-20" }), theme, new Date(2026, 7, 28));
+    expect(future).toBeLessThan(45);
   });
 });

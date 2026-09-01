@@ -11,7 +11,7 @@ import QuestionLibraryPage from "./QuestionLibraryPage";
 import RecordMaterialReference from "./RecordMaterialReference";
 import ReviewPanel from "./ReviewPanel";
 import { persistence } from "./storage";
-import { isTownshipPaper, PAPER_LEVEL_OPTIONS, questionPaperId } from "./examPaper";
+import { isTownshipPaper, PAPER_LEVEL_OPTIONS, questionPaperId, questionPaperTitle, taskNumber } from "./examPaper";
 import type { AppView, Difficulty, LocalQuestionInput, MockReview, PaperLevel, Question, QuestionType, TrainingRecord } from "./types";
 import "./appUpdates.css";
 
@@ -121,14 +121,16 @@ function HistoryPage({ records, onOpen }: { records: TrainingRecord[]; onOpen: (
 }
 
 function ReviewQueue({ records, allQuestions, onOpen }: { records: TrainingRecord[]; allQuestions: Question[]; onOpen: (record: TrainingRecord) => void }) {
-  const queue = records.map(record => ({ record, review: getRecordReview(record) })).map(item => ({ ...item, weak: item.review?.points.filter(point => point.status !== "hit") ?? [] })).filter(item => item.weak.length > 0);
-  return <main className="page page-wide"><header className="page-header compact"><div><p className="eyebrow">错题复盘</p><h1>按“漏了什么”组织复盘</h1><p>不是简单收藏错题，而是把每次批改中未覆盖的要点变成下一轮训练线索。</p></div><Badge tone={queue.length ? "amber" : "green"}>{queue.length} 组待复盘</Badge></header>{queue.length ? <div className="review-queue">{queue.map(({ record, weak }) => <article className="review-card" key={record.id}><div className="review-card-top"><div><span>{record.submittedAt}</span><h3>{record.title}</h3></div><strong>{record.score}/{record.maxScore}</strong></div><div className="weak-list">{weak.map(point => <div key={point.title}><CircleAlert size={15}/><span><strong>{point.title}</strong><small>{point.suggestion ?? point.evidence}</small></span></div>)}</div><button className="secondary" onClick={() => onOpen(record)}>查看完整复盘 <ChevronRight size={15}/></button></article>)}</div> : <div className="empty-state standalone"><Check size={28}/><strong>当前没有待复盘要点</strong><span>新提交的训练会自动根据批改快照进入这里。</span></div>}</main>;
+  const queue = records
+    .map(record => ({ record, review: getRecordReview(record), question: allQuestions.find(question => question.id === record.questionId) }))
+    .filter(item => (item.review?.points.some(point => point.status !== "hit") ?? false));
+  return <main className="page page-wide"><header className="page-header compact"><div><p className="eyebrow">错题复盘</p><h1>把每次作答复盘清楚</h1><p>打开一题，查看题干、答案、材料和批改反馈。</p></div><Badge tone={queue.length ? "amber" : "green"}>{queue.length} 组待复盘</Badge></header>{queue.length ? <div className="review-queue">{queue.map(({ record, question }) => <button className="review-row" key={record.id} onClick={() => onOpen(record)}><div className="review-row-main"><span className="review-row-kicker">{record.submittedAt}{question ? ` · ${question.region}` : ""}</span><h3>{question ? questionPaperTitle(question) : record.title}</h3><p>{question?.prompt ?? "打开查看本次作答与批改反馈"}</p></div><div className="review-row-side"><span>{question ? `第${taskNumber(question)}题 · ${question.type}` : "错题复盘"}</span><strong>{record.score}/{record.maxScore}</strong><ChevronRight size={17}/></div></button>)}</div> : <div className="empty-state standalone"><Check size={28}/><strong>当前没有待复盘题目</strong><span>新提交的训练会自动根据批改快照进入这里。</span></div>}</main>;
 }
 
 function RecordDetail({ record, allQuestions, onBack, onRetry }: { record: TrainingRecord; allQuestions: Question[]; onBack: () => void; onRetry: (question: Question) => void }) {
   const review = getRecordReview(record);
   const question = allQuestions.find(item => item.id === record.questionId);
-  return <main className="page page-wide"><header className="detail-header"><button className="secondary" onClick={onBack}><ArrowLeft size={16}/>返回</button><div><p className="eyebrow">训练复盘</p><h1>{record.title}</h1><p>{record.submittedAt} · 得分 {record.score}/{record.maxScore}</p></div>{question ? <button className="primary" onClick={() => onRetry(question)}>重新作答</button> : <span/>}</header><div className="record-detail-stack"><section className="answer-snapshot"><span>你的答案</span><p>{record.answer}</p></section>{question && review && <RecordMaterialReference question={question} review={review}/>}<section className="detail-review">{review ? <ReviewPanel review={review}/> : <div className="empty-state"><CircleAlert size={24}/><strong>这条旧记录没有批改快照</strong><span>应用不会用新规则重建或伪造历史批改结果。</span></div>}</section></div></main>;
+  return <main className="page page-wide"><header className="detail-header"><button className="secondary" onClick={onBack}><ArrowLeft size={16}/>返回</button><div><p className="eyebrow">训练复盘</p><h1>{question ? questionPaperTitle(question) : record.title}</h1><p>{record.submittedAt}{question ? ` · 第${taskNumber(question)}题 · ${question.type}` : ""} · 得分 {record.score}/{record.maxScore}</p></div>{question ? <button className="primary" onClick={() => onRetry(question)}>重新作答</button> : <span/>}</header><div className="record-detail-stack">{question && <section className="review-question-prompt"><div><span>题干 / 作答要求</span><strong>{questionPaperTitle(question)} · 第{taskNumber(question)}题</strong></div><p>{question.prompt}</p><small>{question.type} · {question.wordLimit} 字以内 · {question.score} 分</small></section>}<section className="answer-snapshot"><span>你的答案</span><p>{record.answer}</p></section>{question && review && <RecordMaterialReference question={question} review={review}/>}<section className="detail-review">{review ? <ReviewPanel review={review}/> : <div className="empty-state"><CircleAlert size={24}/><strong>这条旧记录没有批改快照</strong><span>应用不会用新规则重建或伪造历史批改结果。</span></div>}</section></div></main>;
 }
 
 export default function App() {
@@ -140,7 +142,6 @@ export default function App() {
   const allQuestions = useMemo(() => [...importedQuestions], [importedQuestions]);
   const [activeQuestion, setActiveQuestion] = useState<Question>(builtinQuestions[0]);
   const [activePaperQuestions, setActivePaperQuestions] = useState<Question[]>([builtinQuestions[0]]);
-  const [materialQuestionId, setMaterialQuestionId] = useState<string | null>(null);
   const [history, setHistory] = useState<TrainingRecord[]>([]);
   const [selectedRecord, setSelectedRecord] = useState<TrainingRecord | null>(null);
   const [returnView, setReturnView] = useState<AppView>("history");
@@ -187,7 +188,6 @@ export default function App() {
     setActivePaperQuestions(paperQuestions.length ? paperQuestions : [question]);
     setView("practice");
   }
-  function openMaterials(question?: Question) { setMaterialQuestionId(question?.id ?? null); setView("materials"); }
   function openRecord(record: TrainingRecord, from: AppView) { setSelectedRecord(record); setReturnView(from); setView("record"); }
   function saveImported(question: Question) { setImportedQuestions(current => mergeUniqueById([question], current)); start(question); }
 
@@ -201,13 +201,13 @@ export default function App() {
 
   let content: React.ReactNode;
   if (view === "today") content = <Today onStart={start} history={history} allQuestions={allQuestions}/>;
-  else if (view === "library") content = <QuestionLibraryPage allQuestions={allQuestions} history={history} onStart={start} onImport={() => setView("import")} onRefreshImported={refreshImportedQuestions} onDeepRead={openMaterials}/>;
-  else if (view === "materials") content = <MaterialBankPage questions={allQuestions} initialQuestionId={materialQuestionId}/>;
+  else if (view === "library") content = <QuestionLibraryPage allQuestions={allQuestions} history={history} onStart={start} onImport={() => setView("import")} onRefreshImported={refreshImportedQuestions}/>;
+  else if (view === "materials") content = <MaterialBankPage/>;
   else if (view === "import") content = <ImportQuestion onCancel={() => setView("library")} onSaved={saveImported}/>;
   else if (view === "review") content = <ReviewQueue records={history} allQuestions={allQuestions} onOpen={record => openRecord(record, "review")}/>;
   else if (view === "history") content = <HistoryPage records={history} onOpen={record => openRecord(record, "history")}/>;
   else if (view === "record" && selectedRecord) content = <RecordDetail record={selectedRecord} allQuestions={allQuestions} onBack={() => setView(returnView)} onRetry={start}/>;
   else content = <ProviderSettingsPage/>;
 
-  return <div className="app-shell"><Sidebar view={view} onChange={next => { if (next === "materials") setMaterialQuestionId(null); setView(next); }}/>{content}{updateBanner}</div>;
+  return <div className="app-shell"><Sidebar view={view} onChange={setView}/>{content}{updateBanner}</div>;
 }

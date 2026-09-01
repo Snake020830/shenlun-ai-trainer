@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import { BookOpen, Check, CircleAlert } from "lucide-react";
+import { BookOpen, Check, ChevronDown, CircleAlert } from "lucide-react";
+import { useState } from "react";
 import type { MockReview, Question, ReviewPoint } from "./types";
 
 type EvidenceMarker = {
@@ -56,7 +57,21 @@ function MarkedSource({ content, review }: { content: string; review: MockReview
   return <>{nodes}</>;
 }
 
+function CollapsibleMaterial({ material, review }: { material: Question["materials"][number]; review: MockReview }) {
+  const [open, setOpen] = useState(false);
+  return <article className={`record-material-item ${open ? "open" : ""}`}>
+    <button type="button" className="record-material-toggle" aria-expanded={open} onClick={() => setOpen(value => !value)}>
+      <span><strong>{material.label}</strong><small>{open ? "收起材料" : "展开材料"}</small></span>
+      <ChevronDown size={16}/>
+    </button>
+    {open && <p><MarkedSource content={material.content} review={review}/></p>}
+  </article>;
+}
+
 export default function RecordMaterialReference({ question, review }: { question: Question; review: MockReview }) {
+  // Essay feedback cites course rules and the writer's own argument structure;
+  // small-question material-point markers would be misleading here.
+  if (question.type === "文章写作" || review.essayReview) return null;
   const markedCount = question.materials.reduce((total, material) => total + buildMarkers(material.content, review).length, 0);
   return <section className="record-material-reference">
     <header className="record-material-heading">
@@ -64,6 +79,6 @@ export default function RecordMaterialReference({ question, review }: { question
       <span className="record-material-count">{question.materials.length} 则材料 · {markedCount ? `已定位 ${markedCount} 处` : "暂未匹配原文词"}</span>
     </header>
     <div className="record-material-legend"><span><i className="record-legend-hit"><Check size={10}/></i>已覆盖</span><span><i className="record-legend-partial"><CircleAlert size={10}/></i>部分覆盖</span><span><i className="record-legend-missed"><CircleAlert size={10}/></i>待补</span></div>
-    <div className="record-material-list">{question.materials.map(material => <article key={material.id}><h3>{material.label}</h3><p><MarkedSource content={material.content} review={review}/></p></article>)}</div>
+    <div className="record-material-list">{question.materials.map(material => <CollapsibleMaterial key={material.id} material={material} review={review}/>)}</div>
   </section>;
 }

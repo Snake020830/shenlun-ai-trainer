@@ -1,5 +1,6 @@
 import type { Question, ReviewPoint, StructuredReview } from "../types";
 import type { GradingWorkflowArtifacts } from "./artifacts";
+import { validateEssayReviewDetail } from "./essay/validation";
 
 export const GRADING_RULESET_VERSION = "shenlun-grading@0.1.0";
 
@@ -79,6 +80,7 @@ export function validateReview(review: StructuredReview, expectedMaxScore: numbe
     assertStringArray(review.referenceCrossCheck.mergeDifferences, "referenceCrossCheck.mergeDifferences");
     assertStringArray(review.referenceCrossCheck.notes, "referenceCrossCheck.notes");
   }
+  if (review.essayReview) validateEssayReviewDetail(review.essayReview, expectedMaxScore);
 
   return review;
 }

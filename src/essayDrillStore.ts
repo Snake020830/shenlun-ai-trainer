@@ -1,41 +1,35 @@
+export type EssayDrillMode = "theme" | "outline" | "paragraph" | "evidence" | "closing";
+export type EssaySubpointSource = "prompt" | "prompt-material" | "full-material";
+
 export interface EssayDrillDraft {
   mode: EssayDrillMode;
-  outline: {
-    title: string;
-    thesis: string;
-    subpoints: string[];
-    evidence: string;
-  };
-  paragraph: {
-    claim: string;
-    text: string;
-  };
-  evidence: {
-    caseText: string;
-    mechanism: string;
-    target: string;
-  };
+  theme: { keywords: string; themeType: "" | "single" | "double" | "multi"; title: string; thesis: string };
+  outline: { subpoints: string[]; sources: EssaySubpointSource[]; evidenceLinks: string[] };
+  paragraph: { claim: string; analysis: string; caseText: string; commentary: string; returnToClaim: string };
+  evidence: { caseText: string; mechanism: string; target: string };
+  closing: { thesisReturn: string; subpointEcho: string; outlook: string };
   updatedAt?: string;
 }
 
-export type EssayDrillMode = "outline" | "paragraph" | "evidence";
-
-const STORAGE_KEY = "shenlun:essay-drills:v1";
+const STORAGE_KEY = "shenlun:essay-drills:v2";
+const LEGACY_STORAGE_KEY = "shenlun:essay-drills:v1";
 
 export function createEssayDrillDraft(): EssayDrillDraft {
   return {
-    mode: "outline",
-    outline: { title: "", thesis: "", subpoints: ["", "", ""], evidence: "" },
-    paragraph: { claim: "", text: "" },
-    evidence: { caseText: "", mechanism: "", target: "" }
+    mode: "theme",
+    theme: { keywords: "", themeType: "", title: "", thesis: "" },
+    outline: { subpoints: ["", "", ""], sources: ["prompt", "prompt-material", "full-material"], evidenceLinks: ["", "", ""] },
+    paragraph: { claim: "", analysis: "", caseText: "", commentary: "", returnToClaim: "" },
+    evidence: { caseText: "", mechanism: "", target: "" },
+    closing: { thesisReturn: "", subpointEcho: "", outlook: "" }
   };
 }
 
-function readAll(): Record<string, EssayDrillDraft> {
+function readAll(): Record<string, unknown> {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(LEGACY_STORAGE_KEY);
     if (!raw) return {};
-    const value = JSON.parse(raw) as Record<string, EssayDrillDraft>;
+    const value = JSON.parse(raw) as Record<string, unknown>;
     return value && typeof value === "object" ? value : {};
   } catch {
     return {};
@@ -43,16 +37,36 @@ function readAll(): Record<string, EssayDrillDraft> {
 }
 
 export function loadEssayDrillDraft(questionId: string): EssayDrillDraft {
-  const stored = readAll()[questionId];
-  if (!stored) return createEssayDrillDraft();
+  const raw = readAll()[questionId];
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return createEssayDrillDraft();
+  const stored = raw as Partial<EssayDrillDraft> & {
+    outline?: Partial<EssayDrillDraft["outline"]> & { title?: string; thesis?: string; evidence?: string };
+    paragraph?: Partial<EssayDrillDraft["paragraph"]> & { text?: string };
+  };
   const fallback = createEssayDrillDraft();
+  const legacyEvidence = typeof stored.outline?.evidence === "string" ? stored.outline.evidence : "";
+  const legacyText = typeof stored.paragraph?.text === "string" ? stored.paragraph.text : "";
+  const modes: EssayDrillMode[] = ["theme", "outline", "paragraph", "evidence", "closing"];
   return {
     ...fallback,
     ...stored,
-    mode: stored.mode === "paragraph" || stored.mode === "evidence" ? stored.mode : "outline",
-    outline: { ...fallback.outline, ...(stored.outline ?? {}), subpoints: Array.isArray(stored.outline?.subpoints) ? [...stored.outline.subpoints, "", "", ""].slice(0, 3) : fallback.outline.subpoints },
-    paragraph: { ...fallback.paragraph, ...(stored.paragraph ?? {}) },
-    evidence: { ...fallback.evidence, ...(stored.evidence ?? {}) }
+    mode: modes.includes(stored.mode as EssayDrillMode) ? stored.mode as EssayDrillMode : "theme",
+    theme: {
+      ...fallback.theme,
+      ...(stored.theme ?? {}),
+      title: stored.theme?.title ?? stored.outline?.title ?? "",
+      thesis: stored.theme?.thesis ?? stored.outline?.thesis ?? ""
+    },
+    outline: {
+      ...fallback.outline,
+      ...(stored.outline ?? {}),
+      subpoints: Array.isArray(stored.outline?.subpoints) ? [...stored.outline.subpoints, "", "", ""].slice(0, 3) : fallback.outline.subpoints,
+      sources: Array.isArray(stored.outline?.sources) ? [...stored.outline.sources, ...fallback.outline.sources].slice(0, 3) : fallback.outline.sources,
+      evidenceLinks: Array.isArray(stored.outline?.evidenceLinks) ? [...stored.outline.evidenceLinks, "", "", ""].slice(0, 3) : [legacyEvidence, "", ""]
+    },
+    paragraph: { ...fallback.paragraph, ...(stored.paragraph ?? {}), analysis: stored.paragraph?.analysis ?? legacyText },
+    evidence: { ...fallback.evidence, ...(stored.evidence ?? {}) },
+    closing: { ...fallback.closing, ...(stored.closing ?? {}) }
   };
 }
 

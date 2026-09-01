@@ -11,3 +11,7 @@ src-tauri/target/
 .playwright-cli/
 output/
 *.tsbuildinfo
+*.pyc
+__pycache__/
+vite.config.js
+vite.config.d.ts

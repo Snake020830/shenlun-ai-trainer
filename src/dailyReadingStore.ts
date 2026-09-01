@@ -1,7 +1,7 @@
 import { persistence } from "./storage";
-import type { DailyReadingPlan } from "./dailyReading";
+import { DAILY_ARTICLE_TARGET, type DailyReadingPlan } from "./dailyReading";
 
-const PREFIX = "public:daily-reading.v1:";
+const PREFIX = "public:daily-reading.v3:";
 
 function key(date: string): string {
   return `${PREFIX}${date}`;
@@ -10,7 +10,11 @@ function key(date: string): string {
 function isPlan(value: unknown, date: string): value is DailyReadingPlan {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const plan = value as DailyReadingPlan;
-  return plan.date === date && typeof plan.generatedAt === "string" && Array.isArray(plan.articles) && Array.isArray(plan.readArticleIds);
+  return plan.date === date
+    && typeof plan.generatedAt === "string"
+    && Array.isArray(plan.articles)
+    && plan.articles.length >= DAILY_ARTICLE_TARGET
+    && Array.isArray(plan.readArticleIds);
 }
 
 export const dailyReadingStore = {
