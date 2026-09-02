@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { evaluateEssayDrill } from "./essayDrill";
+import { evaluateEssayDrill, evaluateEssayDrillOverall } from "./essayDrill";
 import { createEssayDrillDraft, loadEssayDrillDraft } from "./essayDrillStore";
 
 afterEach(() => vi.unstubAllGlobals());
@@ -41,6 +41,30 @@ describe("essay drill feedback", () => {
     expect(evaluateEssayDrill("evidence", draft).passed).toBe(true);
   });
 
+  it("supports the compact one-input version of every short-drill stage", () => {
+    const draft = createEssayDrillDraft();
+    draft.theme.quickTitle = "以智慧与勇气开创发展新局";
+    draft.theme.quickText = "以智慧与勇气推动脱贫成果巩固和乡村振兴";
+    expect(evaluateEssayDrill("theme", draft).passed).toBe(true);
+
+    draft.outline.quickText = "以智慧破解发展难题\n以勇气迎难而上\n建立长效机制巩固成果";
+    expect(evaluateEssayDrill("outline", draft).passed).toBe(true);
+
+    draft.paragraph.quickText = "以智慧破解发展难题。贫困地区条件各异，必须因地制宜、精准施策，才能把资源优势转化为发展优势。例如，农业科技工作者研发推广新技术和新品种，帮助农民提高产量、增加收入。这说明科技赋能能够推动产业造血，真正改善贫困地区的发展基础。";
+    expect(evaluateEssayDrill("paragraph", draft).passed).toBe(true);
+
+    draft.evidence.quickText = "某地推广农业新技术和新品种，帮助农民增产增收；这说明因地制宜、科技赋能能够把资源优势转化为产业优势，可用于证明智慧是脱贫发展的重要支撑。";
+    expect(evaluateEssayDrill("evidence", draft).passed).toBe(true);
+
+    draft.closing.quickText = "智慧是破解贫困难题的钥匙，勇气是持续攻坚的力量。新时代仍要以科学谋划发展产业，以担当精神巩固成果，推动乡村振兴。";
+    expect(evaluateEssayDrill("closing", draft).passed).toBe(true);
+
+    const overall = evaluateEssayDrillOverall(draft);
+    expect(overall.passed).toBe(true);
+    expect(overall.stages).toHaveLength(5);
+    expect(overall.scoreLabel).toContain("5/5");
+  });
+
   it("migrates v1 outline and paragraph drafts into the five-stage model", () => {
     const values = new Map<string, string>();
     values.set("shenlun:essay-drills:v1", JSON.stringify({ q1: {
@@ -53,6 +77,7 @@ describe("essay drill feedback", () => {
     const migrated = loadEssayDrillDraft("q1");
     expect(migrated.mode).toBe("paragraph");
     expect(migrated.theme.title).toBe("以协同推动善治");
+    expect(migrated.theme.quickTitle).toBe("以协同推动善治");
     expect(migrated.paragraph.analysis).toBe("原有整段草稿");
     expect(migrated.outline.evidenceLinks[0]).toBe("联席机制材料");
   });

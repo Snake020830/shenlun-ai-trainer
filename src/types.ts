@@ -1,4 +1,4 @@
-export type AppView = "today" | "library" | "materials" | "import" | "practice" | "review" | "history" | "record" | "settings";
+export type AppView = "today" | "inProgress" | "library" | "materials" | "import" | "practice" | "review" | "history" | "record" | "settings";
 
 export interface MaterialBlock {
   id: string;

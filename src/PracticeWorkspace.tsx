@@ -573,6 +573,11 @@ export default function PracticeWorkspace({ initialQuestion, paperQuestions, onE
       const record: TrainingRecord = { id: crypto.randomUUID(), questionId: question.id, title: question.title, score: result.score, maxScore: result.maxScore, submittedAt: now.toLocaleString("zh-CN"), submittedAtIso: now.toISOString(), answer, review: result };
       await persistence.addHistory(record);
       try {
+        await persistence.deleteDraft(question.id);
+      } catch (error) {
+        console.error("Training record was saved, but completed draft cleanup failed.", error);
+      }
+      try {
         await saveTrainingPracticeMeta(record.id, elapsedSeconds, annotations.length + inkStrokes.length, now.toISOString());
       } catch (error) {
         console.error("Training record was saved, but practice timing metadata failed.", error);
@@ -584,6 +589,18 @@ export default function PracticeWorkspace({ initialQuestion, paperQuestions, onE
       setResultDockCollapsed(false);
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function exitPractice() {
+    try {
+      if (draftLoaded) {
+        await persistence.saveDraft({ questionId: question.id, answer, updatedAt: new Date().toISOString() });
+      }
+    } catch (error) {
+      console.error("Failed to save the latest answer before leaving practice.", error);
+    } finally {
+      onExit();
     }
   }
 
@@ -674,7 +691,7 @@ export default function PracticeWorkspace({ initialQuestion, paperQuestions, onE
 
   return <div className="practice-shell exam-practice-shell">
     <header className="practice-header exam-practice-header">
-      <button className="text-button" onClick={onExit}>← 返回题库</button>
+      <button className="text-button" onClick={() => void exitPractice()}>← 返回题库</button>
       <div className="practice-title-block"><strong>{question.title}</strong><span>{question.type} · {question.score} 分 · ≤ {question.wordLimit} 字</span></div>
       <div className="practice-header-actions">
         <div className={`exam-timer ${timerRunning ? "running" : ""} ${remainingSeconds < 0 ? "overtime" : ""}`}><Clock3 size={16}/><strong>{timerText}</strong><small>{Math.round(countdownSeconds / 60)} 分钟建议</small><button title={timerRunning ? "暂停倒计时" : "继续倒计时"} onClick={() => setTimerRunning(value => !value)}>{timerRunning ? <Pause size={14}/> : <Play size={14}/>}</button><button title="重新开始本题倒计时" onClick={() => { setRemainingSeconds(countdownSeconds); setTimerRunning(true); }}><RotateCcw size={13}/></button></div>

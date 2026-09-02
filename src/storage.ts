@@ -653,6 +653,30 @@ export const persistence = {
     );
   },
 
+  async listDrafts(): Promise<Draft[]> {
+    const db = await getDatabase();
+    if (!db) {
+      return Object.values(readJson<Record<string, Draft>>(DRAFT_KEY, {}))
+        .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+    }
+    const rows = await db.select<DraftRow[]>(
+      "SELECT question_id, answer, updated_at FROM drafts ORDER BY updated_at DESC"
+    );
+    return rows.map(row => ({ questionId: row.question_id, answer: row.answer, updatedAt: row.updated_at }));
+  },
+
+  async deleteDraft(questionId: string): Promise<void> {
+    const db = await getDatabase();
+    if (!db) {
+      const all = readJson<Record<string, Draft>>(DRAFT_KEY, {});
+      if (!(questionId in all)) return;
+      delete all[questionId];
+      writeJson(DRAFT_KEY, all);
+      return;
+    }
+    await db.execute("DELETE FROM drafts WHERE question_id = $1", [questionId]);
+  },
+
   async listHistory(): Promise<TrainingRecord[]> {
     const db = await getDatabase();
     if (!db) {

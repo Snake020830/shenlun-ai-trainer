@@ -51,3 +51,6 @@ export async function gradeEssayAnswerDetailed(request: GradingRequest) {
 export async function gradeEssayAnswer(request: GradingRequest): Promise<StructuredReview> {
   return (await gradeEssayAnswerDetailed(request)).review;
 }
+
+export { gradeEssayDrill } from "./drillGrader";
+export type { EssayDrillProfessionalReview, EssayDrillStepReview } from "./drillArtifacts";

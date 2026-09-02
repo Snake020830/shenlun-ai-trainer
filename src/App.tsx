@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import { ArrowLeft, BookMarked, Check, ChevronRight, CircleAlert, FilePlus2, FileText, History, Home, LibraryBig, PenLine, RotateCcw, Settings, Target, TimerReset } from "lucide-react";
+import { ArrowLeft, BookMarked, Check, ChevronRight, CircleAlert, CirclePlay, FilePlus2, FileText, History, Home, LibraryBig, PenLine, RotateCcw, Settings, Target, TimerReset } from "lucide-react";
 import { useAppUpdater } from "./appUpdater";
 import { parseMaterialText, serializeMaterialTextForPersistence } from "./materialParser";
 import MaterialBankPage from "./MaterialBankPage";
+import InProgressPage from "./InProgressPage";
+import { deleteEssayDrillDraft, listEssayDrillDrafts, type EssayDrillDraftEntry } from "./essayDrillStore";
+import { buildInProgressPractices } from "./inProgressPractice";
 import { questions as builtinQuestions } from "./mockData";
 import PracticeWorkspace from "./PracticeWorkspace";
 import ProviderSettingsPage from "./ProviderSettingsPage";
@@ -12,11 +15,12 @@ import RecordMaterialReference from "./RecordMaterialReference";
 import ReviewPanel from "./ReviewPanel";
 import { persistence } from "./storage";
 import { isTownshipPaper, PAPER_LEVEL_OPTIONS, questionPaperId, questionPaperTitle, taskNumber } from "./examPaper";
-import type { AppView, Difficulty, LocalQuestionInput, MockReview, PaperLevel, Question, QuestionType, TrainingRecord } from "./types";
+import type { AppView, Difficulty, Draft, LocalQuestionInput, MockReview, PaperLevel, Question, QuestionType, TrainingRecord } from "./types";
 import "./appUpdates.css";
 
 const navItems = [
   { id: "today" as const, label: "今日训练", icon: Home },
+  { id: "inProgress" as const, label: "进行中", icon: CirclePlay },
   { id: "library" as const, label: "题库", icon: LibraryBig },
   { id: "materials" as const, label: "素材精读", icon: BookMarked },
   { id: "review" as const, label: "错题复盘", icon: RotateCcw },
@@ -28,10 +32,10 @@ function Badge({ children, tone = "neutral" }: { children: React.ReactNode; tone
   return <span className={`badge badge-${tone}`}>{children}</span>;
 }
 
-function Sidebar({ view, onChange }: { view: AppView; onChange: (view: AppView) => void }) {
+function Sidebar({ view, onChange, inProgressCount }: { view: AppView; onChange: (view: AppView) => void; inProgressCount: number }) {
   return <aside className="sidebar">
     <div className="brand"><div className="brand-mark"><PenLine size={19} /></div><div><strong>申论训练助手</strong><span>Shenlun Trainer</span></div></div>
-    <nav>{navItems.map(({ id, label, icon: Icon }) => <button key={id} className={view === id ? "nav-item active" : "nav-item"} onClick={() => onChange(id)}><Icon size={18}/><span>{label}</span></button>)}</nav>
+    <nav>{navItems.map(({ id, label, icon: Icon }) => <button key={id} className={view === id ? "nav-item active" : "nav-item"} onClick={() => onChange(id)}><Icon size={18}/><span>{label}</span>{id === "inProgress" && inProgressCount > 0 && <small className="nav-count">{inProgressCount}</small>}</button>)}</nav>
     <div className="sidebar-footer"><div className="mini-progress"><span>本周训练</span><strong>3 / 5</strong></div><div className="progress-track"><i style={{ width: "60%" }}/></div><small>先保持稳定输出，再追求高分。</small></div>
   </aside>;
 }
@@ -49,7 +53,7 @@ function getRecordReview(record: TrainingRecord): MockReview | null {
   return record.review ?? null;
 }
 
-function Today({ onStart, history, allQuestions }: { onStart: (question: Question) => void; history: TrainingRecord[]; allQuestions: Question[] }) {
+function Today({ onStart, onOpenInProgress, inProgressCount, history, allQuestions }: { onStart: (question: Question) => void; onOpenInProgress: () => void; inProgressCount: number; history: TrainingRecord[]; allQuestions: Question[] }) {
   const q = allQuestions.find(question => !isTownshipPaper(question));
   if (!q) return <main className="page page-wide">
     <header className="page-header"><div><p className="eyebrow">训练工作台</p><h1>从一道真实题目开始</h1><p>三个演示案例已移除。导入或收录的真实题目会出现在这里。</p></div></header>
@@ -58,6 +62,7 @@ function Today({ onStart, history, allQuestions }: { onStart: (question: Questio
   const average = history.length ? Math.round(history.reduce((sum, item) => sum + item.score / item.maxScore, 0) / history.length * 100) : 76;
   return <main className="page page-wide">
     <header className="page-header"><div><p className="eyebrow">2026 · 训练工作台</p><h1>今天做一道，重点练“要点落地”</h1><p>先独立作答，再看结构化反馈。批改不会在作答阶段干扰你的判断。</p></div><div className="streak"><Target size={20}/><div><strong>连续 4 天</strong><span>保持训练节奏</span></div></div></header>
+    {inProgressCount > 0 && <button className="today-resume" onClick={onOpenInProgress}><span><CirclePlay size={20}/></span><div><strong>你有 {inProgressCount} 道题尚未完成</strong><small>草稿已经自动保存，可以从上次停下的位置继续。</small></div><ChevronRight size={18}/></button>}
     <section className="hero-card"><div className="hero-top"><Badge tone="green">今日推荐</Badge><span>预计 18–25 分钟</span></div><h2>{q.title}</h2><p>{q.prompt}</p><div className="meta-row"><span><FileText size={16}/>{q.type}</span><span><TimerReset size={16}/>{q.wordLimit} 字</span><span><Target size={16}/>{q.score} 分</span></div><button className="primary large" onClick={() => onStart(q)}>开始作答 <ChevronRight size={18}/></button></section>
     <section className="dashboard-grid"><article className="metric-card"><span>已完成训练</span><strong>{history.length}</strong><small>本机留存的作答记录</small></article><article className="metric-card"><span>平均得分率</span><strong>{average}%</strong><small>按当前记录计算</small></article><article className="metric-card"><span>当前阶段</span><strong className="metric-text">形成稳定闭环</strong><small>题目 → 作答 → 学习 → 复盘</small></article></section>
   </main>;
@@ -143,13 +148,22 @@ export default function App() {
   const [activeQuestion, setActiveQuestion] = useState<Question>(builtinQuestions[0]);
   const [activePaperQuestions, setActivePaperQuestions] = useState<Question[]>([builtinQuestions[0]]);
   const [history, setHistory] = useState<TrainingRecord[]>([]);
+  const [answerDrafts, setAnswerDrafts] = useState<Draft[]>([]);
+  const [essayDrafts, setEssayDrafts] = useState<EssayDrillDraftEntry[]>([]);
   const [selectedRecord, setSelectedRecord] = useState<TrainingRecord | null>(null);
   const [returnView, setReturnView] = useState<AppView>("history");
-  const hydrationPromise = useRef<Promise<{ questions: Question[]; records: TrainingRecord[] }> | null>(null);
+  const hydrationPromise = useRef<Promise<{ questions: Question[]; records: TrainingRecord[]; drafts: Draft[] }> | null>(null);
+  const inProgress = useMemo(() => buildInProgressPractices(answerDrafts, essayDrafts, history), [answerDrafts, essayDrafts, history]);
 
   async function refreshImportedQuestions() {
     const questions = await persistence.listImportedQuestions();
     setImportedQuestions(questions);
+  }
+
+  async function refreshInProgress() {
+    const drafts = await persistence.listDrafts();
+    setAnswerDrafts(drafts);
+    setEssayDrafts(listEssayDrillDrafts());
   }
 
   useEffect(() => {
@@ -160,17 +174,20 @@ export default function App() {
     if (!hydrationPromise.current) {
       hydrationPromise.current = (async () => {
         await persistence.initialize();
-        const [questions, records] = await Promise.all([
+        const [questions, records, drafts] = await Promise.all([
           persistence.listImportedQuestions(),
-          persistence.listHistory()
+          persistence.listHistory(),
+          persistence.listDrafts()
         ]);
-        return { questions, records };
+        return { questions, records, drafts };
       })();
     }
-    void hydrationPromise.current.then(({ questions, records }) => {
+    void hydrationPromise.current.then(({ questions, records, drafts }) => {
       if (cancelled) return;
       setImportedQuestions(questions);
       setHistory(current => mergeUniqueById(current, records));
+      setAnswerDrafts(drafts);
+      setEssayDrafts(listEssayDrillDrafts());
     }).catch(error => {
       console.error("Failed to initialize persistence.", error);
     });
@@ -190,6 +207,25 @@ export default function App() {
   }
   function openRecord(record: TrainingRecord, from: AppView) { setSelectedRecord(record); setReturnView(from); setView("record"); }
   function saveImported(question: Question) { setImportedQuestions(current => mergeUniqueById([question], current)); start(question); }
+  function changeView(next: AppView) {
+    setView(next);
+    if (next === "inProgress") void refreshInProgress();
+  }
+  function leavePractice() {
+    setView("library");
+    window.setTimeout(() => void refreshInProgress(), 0);
+  }
+  function recordSubmission(record: TrainingRecord) {
+    setHistory(current => mergeUniqueById([record], current));
+    setAnswerDrafts(current => current.filter(draft => draft.questionId !== record.questionId));
+    setEssayDrafts(current => current.filter(entry => entry.questionId !== record.questionId));
+  }
+  async function clearInProgress(questionId: string) {
+    await persistence.deleteDraft(questionId);
+    deleteEssayDrillDraft(questionId);
+    setAnswerDrafts(current => current.filter(draft => draft.questionId !== questionId));
+    setEssayDrafts(current => current.filter(entry => entry.questionId !== questionId));
+  }
 
   const updateBanner = updater.available ? <div className="app-update-banner" role="status">
     <span>{updater.error ?? <>发现新版本 <strong>v{updater.available.version}</strong>，现在安装后会自动重启应用。</>}</span>
@@ -197,10 +233,11 @@ export default function App() {
     <button className="app-update-dismiss" disabled={updater.installing} onClick={updater.dismiss}>稍后</button>
   </div> : null;
 
-  if (view === "practice") return <><Practice question={activeQuestion} paperQuestions={activePaperQuestions} onExit={() => setView("library")} onSubmitted={record => setHistory(current => mergeUniqueById([record], current))}/>{updateBanner}</>;
+  if (view === "practice") return <><Practice question={activeQuestion} paperQuestions={activePaperQuestions} onExit={leavePractice} onSubmitted={recordSubmission}/>{updateBanner}</>;
 
   let content: React.ReactNode;
-  if (view === "today") content = <Today onStart={start} history={history} allQuestions={allQuestions}/>;
+  if (view === "today") content = <Today onStart={start} onOpenInProgress={() => changeView("inProgress")} inProgressCount={inProgress.length} history={history} allQuestions={allQuestions}/>;
+  else if (view === "inProgress") content = <InProgressPage items={inProgress} questions={allQuestions} onResume={start} onClear={clearInProgress}/>;
   else if (view === "library") content = <QuestionLibraryPage allQuestions={allQuestions} history={history} onStart={start} onImport={() => setView("import")} onRefreshImported={refreshImportedQuestions}/>;
   else if (view === "materials") content = <MaterialBankPage/>;
   else if (view === "import") content = <ImportQuestion onCancel={() => setView("library")} onSaved={saveImported}/>;
@@ -209,5 +246,5 @@ export default function App() {
   else if (view === "record" && selectedRecord) content = <RecordDetail record={selectedRecord} allQuestions={allQuestions} onBack={() => setView(returnView)} onRetry={start}/>;
   else content = <ProviderSettingsPage/>;
 
-  return <div className="app-shell"><Sidebar view={view} onChange={setView}/>{content}{updateBanner}</div>;
+  return <div className="app-shell"><Sidebar view={view} onChange={changeView} inProgressCount={inProgress.length}/>{content}{updateBanner}</div>;
 }
