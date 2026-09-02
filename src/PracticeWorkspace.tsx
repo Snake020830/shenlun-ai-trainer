@@ -330,7 +330,7 @@ function FullAnswerGrid({ question, answer, draftLoaded, onAnswerChange, onBackT
   const chars = answer.replace(/\s/g, "").length;
   const gridStyle = { "--answer-rows": gridRows } as React.CSSProperties;
   return <div className="grid-answer-wrap">
-    <div className="answer-paper-label"><span>完整作答</span><small>每行 {EXAM_GRID_COLUMNS} 格 · 共 {gridRows} 行 · 按本题字数上限生成</small>{onBackToDrill && <button className="essay-back-to-drill" onClick={onBackToDrill}>返回短练</button>}</div>
+    <div className="answer-paper-label"><span>完整作答</span><small>每行 {EXAM_GRID_COLUMNS} 格 · 共 {gridRows} 行 · 标号及句末引号按考试规则合并占格</small>{onBackToDrill && <button className="essay-back-to-drill" onClick={onBackToDrill}>返回短练</button>}</div>
     <div className="grid-answer-stage" style={gridStyle}>
       <div className="answer-grid-layer" aria-hidden="true"/>
       <div className="answer-grid-markers" aria-hidden="true">

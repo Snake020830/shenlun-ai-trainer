@@ -55,6 +55,18 @@ describe("visual grid occupancy", () => {
     expect(countExamGridCells("（4）监管")).toBe(3);
   });
 
+  it("packs terminal punctuation with a closing quote or bracket", () => {
+    const text = "一句话。”";
+    const layout = buildExamGridLayout(text);
+    expect(layout.tokens.at(-1)).toMatchObject({ text: "。”", kind: "paired-punctuation", cellIndex: 3 });
+    expect(countExamGridCells(text)).toBe(4);
+    expect(countExamGridCells("“引用”。”")).toBe(5);
+  });
+
+  it("does not merge ordinary punctuation inside a sentence", () => {
+    expect(countExamGridCells("一，二。三")).toBe(5);
+  });
+
   it("packs consecutive Arabic digits into visible pairs", () => {
     const layout = buildExamGridLayout("2026年");
     expect(layout.tokens.map(token => [token.text, token.cellIndex]))
