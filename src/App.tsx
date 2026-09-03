@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
+import { getIdentifier, getVersion } from "@tauri-apps/api/app";
+import { isTauri } from "@tauri-apps/api/core";
 import { ArrowLeft, BookMarked, Check, ChevronRight, CircleAlert, CirclePlay, FilePlus2, FileText, History, Home, LibraryBig, PenLine, RotateCcw, Settings, Target, TimerReset } from "lucide-react";
 import { useAppUpdater } from "./appUpdater";
 import { parseMaterialText, serializeMaterialTextForPersistence } from "./materialParser";
@@ -32,9 +34,15 @@ function Badge({ children, tone = "neutral" }: { children: React.ReactNode; tone
   return <span className={`badge badge-${tone}`}>{children}</span>;
 }
 
-function Sidebar({ view, onChange, inProgressCount }: { view: AppView; onChange: (view: AppView) => void; inProgressCount: number }) {
+interface RuntimeInfo {
+  identifier: string;
+  version: string;
+  isPreview: boolean;
+}
+
+function Sidebar({ view, onChange, inProgressCount, runtimeInfo }: { view: AppView; onChange: (view: AppView) => void; inProgressCount: number; runtimeInfo: RuntimeInfo | null }) {
   return <aside className="sidebar">
-    <div className="brand"><div className="brand-mark"><PenLine size={19} /></div><div><strong>申论训练助手</strong><span>Shenlun Trainer</span></div></div>
+    <div className="brand"><div className="brand-mark"><PenLine size={19} /></div><div><strong>申论训练助手</strong><span>Shenlun Trainer</span>{runtimeInfo && <small className={runtimeInfo.isPreview ? "runtime-badge preview" : "runtime-badge"}>{runtimeInfo.isPreview ? "预览版 · 数据独立" : `正式版 v${runtimeInfo.version}`}</small>}</div></div>
     <nav>{navItems.map(({ id, label, icon: Icon }) => <button key={id} className={view === id ? "nav-item active" : "nav-item"} onClick={() => onChange(id)}><Icon size={18}/><span>{label}</span>{id === "inProgress" && inProgressCount > 0 && <small className="nav-count">{inProgressCount}</small>}</button>)}</nav>
     <div className="sidebar-footer"><div className="mini-progress"><span>本周训练</span><strong>3 / 5</strong></div><div className="progress-track"><i style={{ width: "60%" }}/></div><small>先保持稳定输出，再追求高分。</small></div>
   </aside>;
@@ -51,6 +59,26 @@ function mergeUniqueById<T extends { id: string }>(current: T[], loaded: T[]): T
 
 function getRecordReview(record: TrainingRecord): MockReview | null {
   return record.review ?? null;
+}
+
+function formatStorageError(error: unknown): string {
+  return error instanceof Error && error.message.trim()
+    ? error.message
+    : "本地数据存储初始化失败。为保护题库和训练记录，应用已停止加载。";
+}
+
+function StorageGate({ state, error, onRetry }: { state: "loading" | "error"; error: string | null; onRetry: () => void }) {
+  const loading = state === "loading";
+  return <main className="storage-gate"><section className="storage-gate-card">
+    <div className="storage-gate-icon"><CircleAlert size={24}/></div>
+    <p className="eyebrow">本地数据保护</p>
+    <h1>{loading ? "正在读取本地数据…" : "本地数据没有加载"}</h1>
+    <p>{loading ? "正在打开题库、草稿和训练记录。请不要在此时重复安装或清理应用数据。" : error}</p>
+    {!loading && <>
+      <p className="storage-gate-note">为避免把空存储误当成新数据，桌面版不会在数据库异常时自动切换到空的浏览器存储。若你打开的是“申论训练助手 Preview”，它与正式版使用不同的数据目录，请改开正式版。</p>
+      <button className="primary" onClick={onRetry}><RotateCcw size={16}/>重新读取数据</button>
+    </>}
+  </section></main>;
 }
 
 function Today({ onStart, onOpenInProgress, inProgressCount, history, allQuestions }: { onStart: (question: Question) => void; onOpenInProgress: () => void; inProgressCount: number; history: TrainingRecord[]; allQuestions: Question[] }) {
@@ -152,8 +180,21 @@ export default function App() {
   const [essayDrafts, setEssayDrafts] = useState<EssayDrillDraftEntry[]>([]);
   const [selectedRecord, setSelectedRecord] = useState<TrainingRecord | null>(null);
   const [returnView, setReturnView] = useState<AppView>("history");
+  const [storageState, setStorageState] = useState<"loading" | "ready" | "error">("loading");
+  const [storageError, setStorageError] = useState<string | null>(null);
+  const [runtimeInfo, setRuntimeInfo] = useState<RuntimeInfo | null>(null);
   const hydrationPromise = useRef<Promise<{ questions: Question[]; records: TrainingRecord[]; drafts: Draft[] }> | null>(null);
   const inProgress = useMemo(() => buildInProgressPractices(answerDrafts, essayDrafts, history), [answerDrafts, essayDrafts, history]);
+
+  useEffect(() => {
+    if (!isTauri()) return;
+    let cancelled = false;
+    void Promise.all([getIdentifier(), getVersion()]).then(([identifier, version]) => {
+      if (cancelled) return;
+      setRuntimeInfo({ identifier, version, isPreview: identifier === "com.shenlun.trainer.preview" });
+    }).catch(error => console.warn("Failed to read app identity.", error));
+    return () => { cancelled = true; };
+  }, []);
 
   async function refreshImportedQuestions() {
     const questions = await persistence.listImportedQuestions();
@@ -188,8 +229,13 @@ export default function App() {
       setHistory(current => mergeUniqueById(current, records));
       setAnswerDrafts(drafts);
       setEssayDrafts(listEssayDrillDrafts());
+      setStorageError(null);
+      setStorageState("ready");
     }).catch(error => {
       console.error("Failed to initialize persistence.", error);
+      if (cancelled) return;
+      setStorageError(formatStorageError(error));
+      setStorageState("error");
     });
     return () => { cancelled = true; };
   }, []);
@@ -228,10 +274,12 @@ export default function App() {
   }
 
   const updateBanner = updater.available ? <div className="app-update-banner" role="status">
-    <span>{updater.error ?? <>发现新版本 <strong>v{updater.available.version}</strong>，现在安装后会自动重启应用。</>}</span>
+    <span>{updater.error ?? <>发现新版本 <strong>v{updater.available.version}</strong>，安装前会先备份本地数据。</>}</span>
     <button disabled={updater.installing} onClick={() => void updater.install()}>{updater.installing ? "更新中…" : updater.error ? "重试" : "立即更新"}</button>
     <button className="app-update-dismiss" disabled={updater.installing} onClick={updater.dismiss}>稍后</button>
   </div> : null;
+
+  if (storageState !== "ready") return <StorageGate state={storageState} error={storageError} onRetry={() => window.location.reload()}/>;
 
   if (view === "practice") return <><Practice question={activeQuestion} paperQuestions={activePaperQuestions} onExit={leavePractice} onSubmitted={recordSubmission}/>{updateBanner}</>;
 
@@ -244,7 +292,7 @@ export default function App() {
   else if (view === "review") content = <ReviewQueue records={history} allQuestions={allQuestions} onOpen={record => openRecord(record, "review")}/>;
   else if (view === "history") content = <HistoryPage records={history} onOpen={record => openRecord(record, "history")}/>;
   else if (view === "record" && selectedRecord) content = <RecordDetail record={selectedRecord} allQuestions={allQuestions} onBack={() => setView(returnView)} onRetry={start}/>;
-  else content = <ProviderSettingsPage/>;
+  else content = <ProviderSettingsPage onQuestionsChanged={refreshImportedQuestions}/>;
 
-  return <div className="app-shell"><Sidebar view={view} onChange={changeView} inProgressCount={inProgress.length}/>{content}{updateBanner}</div>;
+  return <div className="app-shell"><Sidebar view={view} onChange={changeView} inProgressCount={inProgress.length} runtimeInfo={runtimeInfo}/>{content}{updateBanner}</div>;
 }

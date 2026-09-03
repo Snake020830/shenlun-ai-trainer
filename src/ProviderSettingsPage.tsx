@@ -38,7 +38,9 @@ const REASONING_LABELS: Record<ReasoningEffort, string> = {
 
 type StatusTone = "neutral" | "success" | "error";
 
-export default function ProviderSettingsPage() {
+export default function ProviderSettingsPage({ onQuestionsChanged }: {
+  onQuestionsChanged?: () => Promise<void> | void;
+}) {
   const desktop = isTauri();
   const [config, setConfig] = useState<RemoteProviderPublicConfig | null>(null);
   const [gradingStyle, setGradingStyle] = useState<GradingStyleProfile>({ ...DEFAULT_GRADING_STYLE });
@@ -286,6 +288,6 @@ export default function ProviderSettingsPage() {
       <div className="settings-actions"><button className="primary" disabled={busy !== null} onClick={savePublicConfig}><Save size={16}/>{busy === "config" ? "保存中…" : "保存模型配置"}</button><button className="secondary" disabled={busy !== null} onClick={resetConfig}><RotateCcw size={16}/>恢复默认配置</button></div>
     </section>
 
-    <BenchmarkLabSection />
+    <BenchmarkLabSection onQuestionsChanged={onQuestionsChanged} />
   </main>;
 }

@@ -27,7 +27,9 @@ function blindInspectionJson(testCase: GradingBenchmarkCase): string {
   return JSON.stringify({ ...testCase, question }, null, 2);
 }
 
-export default function BenchmarkLabSection() {
+export default function BenchmarkLabSection({ onQuestionsChanged }: {
+  onQuestionsChanged?: () => Promise<void> | void;
+}) {
   const [cases, setCases] = useState<GradingBenchmarkCase[]>([]);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState<string>("");
@@ -79,7 +81,7 @@ export default function BenchmarkLabSection() {
   }
 
   return <>
-    <PublicSourceCatalogSection />
+    <PublicSourceCatalogSection onQuestionsChanged={onQuestionsChanged} />
     <section className="settings-section benchmark-lab-section">
       <div className="settings-section-heading">
         <div>

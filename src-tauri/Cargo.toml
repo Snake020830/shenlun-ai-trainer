@@ -1,6 +1,6 @@
 [package]
 name = "shenlun-ai-trainer"
-version = "0.1.5"
+version = "0.1.6"
 description = "Local-first Shenlun training assistant"
 authors = ["Shenlun AI Trainer"]
 edition = "2021"

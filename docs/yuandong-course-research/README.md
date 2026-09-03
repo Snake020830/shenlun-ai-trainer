@@ -11,6 +11,18 @@
 - [lecture-notes-outline.json](lecture-notes-outline.json)：PDF 书签与实际页码。
 - [analysis-aids.json](analysis-aids.json)：重复度、关键词页码和 TF-IDF 页面匹配结果。
 
+## ChatGPT 网页端上传版
+
+`chatgpt-upload/` 是面向 ChatGPT Project 的精简知识包：
+
+- `01_袁东大作文_主规则.txt`：课程方法与独立评分边界，作为主标准。
+- `02_袁东大作文_批改协议.txt`：整篇作文、五步短练和素材积累的固定反馈格式。
+- `03_袁东大作文_课程证据索引.txt`：规则编号、字幕文件、讲义页码和真题单元映射。
+- `04_袁东大作文_素材积累规则与初始索引.txt`：9 个真题实战的机制化素材索引。
+- `05_袁东大作文_项目指令_复制粘贴.txt`：复制到 ChatGPT Project Settings 的项目指令，不必作为知识文件上传。
+
+建议优先上传前 4 个文件；原始 `corpus/` 字幕和 `lecture-notes-pages.txt` 作为核验档案，只有需要查找具体原句、数字或案例出处时再上传或提供。
+
 ## 可复现抽取
 
 ```powershell

@@ -2,9 +2,48 @@ mod public_source;
 mod secure_remote;
 mod external_link;
 
+use std::fs;
+use std::path::PathBuf;
+use std::time::{SystemTime, UNIX_EPOCH};
+use tauri::Manager;
 use tauri_plugin_sql::{Migration, MigrationKind};
 
 const DATABASE_URL: &str = "sqlite:shenlun-trainer.db";
+
+/// Create a recoverable copy of the app-local SQLite database before an
+/// in-place updater install. The frontend checkpoints the WAL first; copying
+/// the sidecar files as well keeps an active database recoverable on Windows.
+#[tauri::command]
+fn backup_local_database(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| format!("无法定位应用数据目录：{error}"))?;
+    let source = app_data_dir.join("shenlun-trainer.db");
+    if !source.exists() {
+        return Ok(None);
+    }
+
+    let backup_dir = app_data_dir.join("backups");
+    fs::create_dir_all(&backup_dir).map_err(|error| format!("无法创建备份目录：{error}"))?;
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|error| format!("无法生成备份时间戳：{error}"))?
+        .as_nanos();
+    let destination = backup_dir.join(format!("shenlun-trainer-{timestamp}.db"));
+    fs::copy(&source, &destination).map_err(|error| format!("无法备份本地数据库：{error}"))?;
+
+    for suffix in ["-wal", "-shm"] {
+        let sidecar = PathBuf::from(format!("{}{}", source.display(), suffix));
+        if sidecar.exists() {
+            let backup_sidecar = PathBuf::from(format!("{}{}", destination.display(), suffix));
+            fs::copy(&sidecar, backup_sidecar)
+                .map_err(|error| format!("无法备份数据库 sidecar 文件：{error}"))?;
+        }
+    }
+
+    Ok(Some(destination.to_string_lossy().into_owned()))
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -79,6 +118,7 @@ pub fn run() {
                 .build(),
         )
         .invoke_handler(tauri::generate_handler![
+            backup_local_database,
             secure_remote::store_provider_secret,
             secure_remote::delete_provider_secret,
             secure_remote::secure_post_json,
