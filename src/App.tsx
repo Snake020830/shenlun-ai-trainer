@@ -67,6 +67,12 @@ function formatStorageError(error: unknown): string {
     : "本地数据存储初始化失败。为保护题库和训练记录，应用已停止加载。";
 }
 
+function waitBeforeStorageRetry(milliseconds: number): Promise<void> {
+  return new Promise(resolve => window.setTimeout(resolve, milliseconds));
+}
+
+const STORAGE_RETRY_DELAYS = [500, 1500, 3000] as const;
+
 function StorageGate({ state, error, onRetry }: { state: "loading" | "error"; error: string | null; onRetry: () => void }) {
   const loading = state === "loading";
   return <main className="storage-gate"><section className="storage-gate-card">
@@ -214,13 +220,24 @@ export default function App() {
     // the currently mounted subscription can still receive the result.
     if (!hydrationPromise.current) {
       hydrationPromise.current = (async () => {
-        await persistence.initialize();
-        const [questions, records, drafts] = await Promise.all([
-          persistence.listImportedQuestions(),
-          persistence.listHistory(),
-          persistence.listDrafts()
-        ]);
-        return { questions, records, drafts };
+        let lastError: unknown = null;
+        for (let attempt = 0; attempt <= STORAGE_RETRY_DELAYS.length; attempt += 1) {
+          try {
+            if (attempt === 0) await persistence.initialize();
+            else await persistence.retryInitialize();
+            const [questions, records, drafts] = await Promise.all([
+              persistence.listImportedQuestions(),
+              persistence.listHistory(),
+              persistence.listDrafts()
+            ]);
+            return { questions, records, drafts };
+          } catch (error) {
+            lastError = error;
+            const retryDelay = STORAGE_RETRY_DELAYS[attempt];
+            if (retryDelay !== undefined) await waitBeforeStorageRetry(retryDelay);
+          }
+        }
+        throw lastError instanceof Error ? lastError : new Error("本地数据初始化失败。");
       })();
     }
     void hydrationPromise.current.then(({ questions, records, drafts }) => {

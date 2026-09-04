@@ -595,6 +595,20 @@ export const persistence = {
   },
 
   /**
+   * Retry the desktop database initialization after a transient startup
+   * failure. This never enables the empty localStorage fallback in Tauri;
+   * it only discards the failed connection promise and reruns idempotent
+   * migrations/repairs.
+   */
+  async retryInitialize(): Promise<"sqlite" | "localStorage"> {
+    if (isTauri()) {
+      databaseFailure = null;
+      databasePromise = null;
+    }
+    return this.initialize();
+  },
+
+  /**
    * Flush the SQLite WAL and copy the current database before an in-place
    * desktop update. The updater must never proceed if the backup fails.
    */
