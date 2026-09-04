@@ -16,9 +16,14 @@ const ALLOWED_PUBLIC_SOURCE_HOSTS: &[&str] = &[
     "people.com.cn",
     "www.ah.gov.cn",
     "ah.gov.cn",
+    "www.gov.cn",
+    "gov.cn",
+    "www.news.cn",
+    "news.cn",
+    "csj.news.cn",
 ];
 
-fn validate_public_source_url(raw: &str) -> Result<reqwest::Url, String> {
+pub(crate) fn validate_public_source_url(raw: &str) -> Result<reqwest::Url, String> {
     let url = reqwest::Url::parse(raw).map_err(|_| "Public source URL is invalid.".to_string())?;
     if url.scheme() != "https" {
         return Err("Public source URL must use HTTPS.".to_string());
@@ -158,6 +163,9 @@ mod tests {
         assert!(validate_public_source_url("https://gwy.gkzhenti.cn/path").is_ok());
         assert!(validate_public_source_url("https://edu.people.com.cn/n1/test.html").is_ok());
         assert!(validate_public_source_url("https://www.ah.gov.cn/zwyw/jryw/index.html").is_ok());
+        assert!(validate_public_source_url("https://www.gov.cn/zhengce/index.htm").is_ok());
+        assert!(validate_public_source_url("https://www.news.cn/local/index.html").is_ok());
+        assert!(validate_public_source_url("https://csj.news.cn/index.htm").is_ok());
     }
 
     #[test]

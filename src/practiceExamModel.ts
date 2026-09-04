@@ -52,7 +52,7 @@ export function answerSheetMarkers(wordLimit: number): number[] {
   return markers;
 }
 
-export type ExamGridTokenKind = "text" | "enumerator" | "ascii" | "tab";
+export type ExamGridTokenKind = "text" | "enumerator" | "ascii" | "paired-punctuation" | "tab";
 
 export interface ExamGridToken {
   text: string;
@@ -86,6 +86,7 @@ function pushToken(
  * Rules intentionally remain conservative and are visual-only:
  * - Han characters and ordinary punctuation: one cell each;
  * - list enumerators such as `1.` / `1、` / `(1)` / `（1）`: one cell;
+ * - sentence punctuation followed by a closing quote/bracket, such as `。”`: one cell;
  * - consecutive ASCII letters or digits: two characters per cell;
  * - a newline advances to the next row;
  * - a tab reserves two cells.
@@ -131,6 +132,19 @@ export function buildExamGridLayout(text: string, columns = EXAM_GRID_COLUMNS): 
       cellIndex += 1;
       rowHasContent = true;
       index += enumerator.length;
+      continue;
+    }
+
+    // Chinese answer sheets conventionally place terminal punctuation and its
+    // closing quote/bracket in the same square (for example `一句话。”`).
+    // Keep the rule narrow so ordinary punctuation between words remains one
+    // character per square.
+    const pairedPunctuation = remainder.match(/^[。！？；：，、,:;!?][”’」』）》】〕〉］]/u)?.[0];
+    if (pairedPunctuation) {
+      pushToken(tokens, pairedPunctuation, index, index + pairedPunctuation.length, cellIndex, "paired-punctuation");
+      cellIndex += 1;
+      rowHasContent = true;
+      index += pairedPunctuation.length;
       continue;
     }
 

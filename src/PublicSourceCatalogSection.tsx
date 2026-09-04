@@ -43,7 +43,9 @@ function providerSupportsStructuredImport(candidate: PublicSourceCandidate): boo
   return getPublicSourceProvider(candidate.providerId)?.role === "primary-structured" && candidate.sourceKind === "public-web";
 }
 
-export default function PublicSourceCatalogSection() {
+export default function PublicSourceCatalogSection({ onQuestionsChanged }: {
+  onQuestionsChanged?: () => Promise<void> | void;
+}) {
   const desktop = isTauri();
   const yearRange = getPublicExamYearRange();
   const primaryProvider = PUBLIC_SOURCE_PROVIDERS.find(item => item.role === "primary-structured");
@@ -125,6 +127,7 @@ export default function PublicSourceCatalogSection() {
     try {
       const result = await importPublicExam(preview);
       await reload();
+      await onQuestionsChanged?.();
       setImportedCount(result.newlyImportedQuestionIds.length);
       setStatus(`整卷导入完成：新增 ${result.newlyImportedQuestionIds.length} 道题${result.reusedQuestionIds.length ? `，复用已存在 ${result.reusedQuestionIds.length} 道` : ""}。小题仅保留题干指定材料，文章写作保留整卷材料，并保留来源追溯。`);
     } catch (error) {
@@ -167,6 +170,7 @@ export default function PublicSourceCatalogSection() {
         }
       });
       await reload();
+      await onQuestionsChanged?.();
       setStatus(
         `题库初始化完成：本次扫描识别 ${result.discoveredThisRun} 个来源版本；新增校验通过 ${result.audit.ready} 套，`
         + `本次导入 ${result.import.imported} 套、形成/复用 ${result.import.questionCount} 道训练题；`
@@ -232,6 +236,7 @@ export default function PublicSourceCatalogSection() {
       });
       const summary = summarizePublicExamImport(results);
       await reload();
+      await onQuestionsChanged?.();
       setStatus(`批量导入完成：${summary.imported} 套成功，共形成/复用 ${summary.questionCount} 道训练题；${summary.error} 套失败，${summary.skipped} 套跳过。`);
     } catch (error) {
       console.error("Recent public exam batch import failed.", error);

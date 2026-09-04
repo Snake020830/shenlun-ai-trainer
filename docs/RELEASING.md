@@ -51,4 +51,6 @@ git push origin v0.1.1
 
 应用启动后会在后台检查 GitHub Releases。发现新版本时，右上角会显示更新提示；用户点击立即更新后下载并安装，Windows 会自动重启到新版本。
 
-更新签名依赖同一把私钥。私钥或密码丢失后，已经安装旧版本的用户将无法继续接收自动更新，因此必须单独备份。
+更新前会先对正式版 SQLite 数据库执行 WAL checkpoint，并在应用数据目录的 `backups/` 下创建数据库副本；备份失败时必须停止更新。任何版本都不得更改正式版 identifier `com.shenlun.trainer`，否则 Windows 会创建新的数据目录，表现为题库和记录“清空”。Preview 使用 `com.shenlun.trainer.preview`，与正式版数据严格分离，验收时必须确认界面明确显示“预览版 · 数据独立”。桌面版 SQLite 初始化失败时不得静默回退到空的 localStorage。
+
+每个正式版本的 Release body 必须同时包含“本次更新”和“软件介绍”两部分，不能只写安装包位置；可参考 `docs/RELEASE_NOTES_v0.1.6.md`。更新签名依赖同一把私钥。私钥或密码丢失后，已经安装旧版本的用户将无法继续接收自动更新，因此必须单独备份。

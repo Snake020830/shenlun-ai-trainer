@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { isTauri } from "@tauri-apps/api/core";
 import { check, type Update } from "@tauri-apps/plugin-updater";
+import { persistence } from "./storage";
 
 export interface AppUpdateState {
   available: Update | null;
@@ -46,10 +47,14 @@ export function useAppUpdater(): AppUpdateState {
     setInstalling(true);
     setError(null);
     try {
+      const backupPath = await persistence.backupBeforeUpdate();
+      if (backupPath) console.info("Created pre-update database backup.", backupPath);
       await available.downloadAndInstall();
     } catch (installError) {
       console.error("Failed to install app update.", installError);
-      setError("更新失败，请稍后重试");
+      setError(installError instanceof Error && installError.message.includes("数据库")
+        ? "更新已暂停：本地数据备份失败，未安装更新"
+        : "更新失败，请稍后重试");
       setInstalling(false);
     }
   }

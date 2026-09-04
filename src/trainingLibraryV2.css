@@ -449,6 +449,8 @@
 .question-kind-panel > span { max-width: 90px; font-size: 11px; font-weight: 750; line-height: 1.35; }
 .question-kind-panel > strong { margin-top: 10px; color: #153f28; font-family: Georgia, serif; font-size: 27px; line-height: 1; }
 .question-kind-panel > small { color: #466652; font-size: 9px; }
+.question-kind-panel.is-essay { background: linear-gradient(145deg, #dfe9dc, #f2ead7); }
+.question-kind-panel > em { margin-top: 9px; padding: 3px 6px; border: 1px solid rgba(47,104,75,.18); border-radius: 999px; color: #315c43; font-size: 8px; font-style: normal; font-weight: 750; white-space: nowrap; }
 
 .question-landscape-body {
   min-width: 0;

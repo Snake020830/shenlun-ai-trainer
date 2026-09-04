@@ -1,4 +1,4 @@
-import { isTauri } from "@tauri-apps/api/core";
+import { invoke, isTauri } from "@tauri-apps/api/core";
 import type Database from "@tauri-apps/plugin-sql";
 import { createBenchmarkDraft } from "./grading/benchmark/createDraft";
 import { validateReview } from "./grading/contracts";
@@ -26,7 +26,7 @@ const PUBLIC_PAPER_REPAIR_KEY = "public_paper_materials_repaired_v2";
 const PUBLIC_SETTING_PREFIX = "public:";
 
 let databasePromise: Promise<Database> | null = null;
-let sqliteUnavailable = false;
+let databaseFailure: Error | null = null;
 
 interface MetaRow {
   value: string;
@@ -190,19 +190,23 @@ function assertPublicSettingKey(key: string): void {
 }
 
 async function getDatabase(): Promise<Database | null> {
-  if (!isTauri() || sqliteUnavailable) return null;
+  if (!isTauri()) return null;
+  if (databaseFailure) throw databaseFailure;
   if (!databasePromise) {
     databasePromise = import("@tauri-apps/plugin-sql")
       .then(({ default: DatabaseApi }) => DatabaseApi.load(DATABASE_URL))
       .catch(error => {
-        sqliteUnavailable = true;
+        const detail = error instanceof Error ? error.message : String(error);
+        databaseFailure = new Error(
+          `本地数据库无法打开（${detail}）。为保护已有题库和训练记录，应用已停止加载，不会切换到空存储。`
+        );
         databasePromise = null;
-        console.error("SQLite initialization failed; falling back to localStorage.", error);
-        return null as unknown as Database;
+        console.error("SQLite initialization failed; localStorage fallback is disabled in the desktop app.", error);
+        throw databaseFailure;
       });
   }
   const database = await databasePromise;
-  return sqliteUnavailable ? null : database;
+  return database;
 }
 
 async function upsertQuestion(db: Database, question: Question) {
@@ -590,6 +594,31 @@ export const persistence = {
     return "sqlite";
   },
 
+  /**
+   * Retry the desktop database initialization after a transient startup
+   * failure. This never enables the empty localStorage fallback in Tauri;
+   * it only discards the failed connection promise and reruns idempotent
+   * migrations/repairs.
+   */
+  async retryInitialize(): Promise<"sqlite" | "localStorage"> {
+    if (isTauri()) {
+      databaseFailure = null;
+      databasePromise = null;
+    }
+    return this.initialize();
+  },
+
+  /**
+   * Flush the SQLite WAL and copy the current database before an in-place
+   * desktop update. The updater must never proceed if the backup fails.
+   */
+  async backupBeforeUpdate(): Promise<string | null> {
+    const db = await getDatabase();
+    if (!db) return null;
+    await db.execute("PRAGMA wal_checkpoint(FULL)");
+    return invoke<string | null>("backup_local_database");
+  },
+
   async getPublicSetting<T>(key: string, fallback: T): Promise<T> {
     assertPublicSettingKey(key);
     const db = await getDatabase();
@@ -651,6 +680,30 @@ export const persistence = {
        ON CONFLICT(question_id) DO UPDATE SET answer=excluded.answer, updated_at=excluded.updated_at`,
       [draft.questionId, draft.answer, draft.updatedAt]
     );
+  },
+
+  async listDrafts(): Promise<Draft[]> {
+    const db = await getDatabase();
+    if (!db) {
+      return Object.values(readJson<Record<string, Draft>>(DRAFT_KEY, {}))
+        .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+    }
+    const rows = await db.select<DraftRow[]>(
+      "SELECT question_id, answer, updated_at FROM drafts ORDER BY updated_at DESC"
+    );
+    return rows.map(row => ({ questionId: row.question_id, answer: row.answer, updatedAt: row.updated_at }));
+  },
+
+  async deleteDraft(questionId: string): Promise<void> {
+    const db = await getDatabase();
+    if (!db) {
+      const all = readJson<Record<string, Draft>>(DRAFT_KEY, {});
+      if (!(questionId in all)) return;
+      delete all[questionId];
+      writeJson(DRAFT_KEY, all);
+      return;
+    }
+    await db.execute("DELETE FROM drafts WHERE question_id = $1", [questionId]);
   },
 
   async listHistory(): Promise<TrainingRecord[]> {

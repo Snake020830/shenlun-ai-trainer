@@ -2,6 +2,7 @@ import { Check, ChevronDown, CircleAlert } from "lucide-react";
 import ReferenceCrossCheckPanel from "./ReferenceCrossCheckPanel";
 import ReviewProvenance from "./ReviewProvenance";
 import type { MockReview, ReviewPoint } from "./types";
+import EssayReviewPanel from "./EssayReviewPanel";
 
 const FOCUS_LIMIT = 3;
 
@@ -35,6 +36,7 @@ function PointDetail({ point }: { point: ReviewPoint }) {
 }
 
 export default function ReviewPanel({ review }: { review: MockReview }) {
+  if (review.essayReview) return <EssayReviewPanel review={review}/>;
   const total = review.points.length;
   const hitCount = review.points.filter(point => point.status === "hit").length;
   const issuePoints = review.points.filter(point => point.status !== "hit");

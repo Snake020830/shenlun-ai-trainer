@@ -1,4 +1,4 @@
-export type AppView = "today" | "library" | "materials" | "import" | "practice" | "review" | "history" | "record" | "settings";
+export type AppView = "today" | "inProgress" | "library" | "materials" | "import" | "practice" | "review" | "history" | "record" | "settings";
 
 export interface MaterialBlock {
   id: string;
@@ -64,6 +64,61 @@ export interface ReviewReferenceCrossCheck {
   notes: string[];
 }
 
+export type EssayDimensionId = "thesis" | "structure" | "argument" | "material" | "expression";
+
+export interface EssayEvidenceRef {
+  ruleId: string;
+  title: string;
+  source: string;
+  location: string;
+}
+
+export interface EssayDimensionReview {
+  id: EssayDimensionId;
+  label: string;
+  score: number;
+  maxScore: number;
+  status: "strong" | "developing" | "weak";
+  finding: string;
+  answerEvidence: string;
+  action: string;
+  evidenceRuleIds: string[];
+}
+
+export interface EssayTaskFrame {
+  themeType: "single" | "double" | "multi";
+  topicKeywords: string[];
+  proposedThesis: string;
+  subpointCandidates: Array<{
+    claim: string;
+    source: "prompt" | "prompt-material" | "full-material";
+    sourceEvidence: string;
+  }>;
+}
+
+export interface EssayReviewDetail {
+  schemaVersion: "1.0.0";
+  methodId: string;
+  diagnosticDisclaimer: string;
+  taskFrame: EssayTaskFrame;
+  dimensions: EssayDimensionReview[];
+  structureTrace: {
+    title: string;
+    centralThesis: string;
+    subpoints: string[];
+    paragraphCount: number;
+    introductionAssessment: string;
+    conclusionAssessment: string;
+  };
+  revisedOutline: {
+    title: string;
+    thesis: string;
+    subpoints: string[];
+    paragraphPlan: string[];
+  };
+  evidenceRefs: EssayEvidenceRef[];
+}
+
 export interface StructuredReview {
   score: number;
   maxScore: number;
@@ -84,6 +139,8 @@ export interface StructuredReview {
   skillVersion?: string;
   scoreInterpretation?: "mock-diagnostic" | "ai-diagnostic-uncalibrated" | "validated";
   skillWarnings?: string[];
+  /** Present only for the independent article-writing grading workflow. */
+  essayReview?: EssayReviewDetail;
 }
 
 // Backward-compatible alias for V0.1 files and historical review snapshots.

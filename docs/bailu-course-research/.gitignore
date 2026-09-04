@@ -1,0 +1,9 @@
+# Local research cache derived from user-provided course files.
+# Keep source-derived full text and converted documents out of version control.
+/corpus/
+/legacy-docx/
+/__pycache__/
+/inventory.csv
+/inventory-hashed.csv
+/corpus-manifest.csv
+/legacy-conversion-manifest.csv

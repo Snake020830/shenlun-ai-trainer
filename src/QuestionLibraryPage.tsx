@@ -1,6 +1,6 @@
 import { useDeferredValue, useEffect, useMemo, useState, type ReactNode } from "react";
 import { isTauri } from "@tauri-apps/api/core";
-import { BookOpen, ChevronRight, Download, ExternalLink, Eye, FileText, Globe2, Info, Plus, RefreshCw, Search, Sparkles } from "lucide-react";
+import { BookOpen, ChevronRight, Download, ExternalLink, Eye, FileText, Globe2, Info, Plus, RefreshCw, Search } from "lucide-react";
 import { errorMessage } from "./errorMessage";
 import { inferPaperLevel, isTownshipPaper, PAPER_LEVEL_OPTIONS, questionPaperId, questionPaperLevel } from "./examPaper";
 import { initializeRecentPublicExamLibrary, type PublicExamBootstrapProgress } from "./publicExamBootstrap";
@@ -160,13 +160,12 @@ function PublicExamBrowser({ onImported }: { onImported: () => Promise<void> | v
   </div>;
 }
 
-export default function QuestionLibraryPage({ allQuestions, history, onStart, onImport, onRefreshImported, onDeepRead }: {
+export default function QuestionLibraryPage({ allQuestions, history, onStart, onImport, onRefreshImported }: {
   allQuestions: Question[];
   history: TrainingRecord[];
   onStart: (question: Question) => void;
   onImport: () => void;
   onRefreshImported: () => Promise<void> | void;
-  onDeepRead: (question: Question) => void;
 }) {
   const [tab, setTab] = useState<LibraryTab>("ready");
   const [query, setQuery] = useState("");
@@ -289,7 +288,7 @@ export default function QuestionLibraryPage({ allQuestions, history, onStart, on
   function clearFilters() { setQuery(""); setTypeFilter("all"); setThemeFilter("all"); setYearFilter("all"); setRegionFilter("all"); setPaperLevelFilter("all"); setDifficultyFilter("all"); setStatusFilter("all"); }
 
   return <main className="page page-wide question-library-page training-library-v2">
-    <header className="page-header compact"><div><p className="eyebrow">题库</p><h1>从一个题型或主题开始训练</h1><p>像选文章一样筛选真题；进入任意一道题后，会自动打开所属整卷及全部题目。</p></div><div className="library-header-actions"><button className="secondary" disabled={!filtered.length} onClick={startRandomFilteredQuestion}>随机一题</button><button className="secondary" onClick={onImport}><Plus size={16}/>手工导入</button></div></header>
+    <header className="page-header compact"><div><p className="eyebrow">题库</p><h1>从一个题型或主题开始训练</h1><p>文章写作会进入独立的课程训练链与五维批改；其他题型继续使用材料得分点流程。</p></div><div className="library-header-actions"><button className="secondary" disabled={!filtered.length} onClick={startRandomFilteredQuestion}>随机一题</button><button className="secondary" onClick={onImport}><Plus size={16}/>手工导入</button></div></header>
     <div className="library-tabs"><button className={tab === "ready" ? "active" : ""} onClick={() => setTab("ready")}><BookOpen size={16}/>开始刷题 <span>{libraryQuestions.length}</span></button><button className={tab === "public" ? "active" : ""} onClick={() => setTab("public")}><Globe2 size={16}/>自动补全题库</button></div>
     {tab === "ready" ? <>
       <section className="library-horizontal-filter">
@@ -307,9 +306,9 @@ export default function QuestionLibraryPage({ allQuestions, history, onStart, on
         const publicQuestion = isPublicImportedQuestion(question); const detail = sourceDetail?.questionId === question.id ? sourceDetail : null; const hasNote = noteIds.has(question.id); const attemptCount = attemptCounts.get(question.id) ?? 0; const similar = (similarityMap.get(question.id) ?? []) as SimilarQuestion[]; const nearestSimilar = similar[0];
         const tags = question.tags.slice(0, 5); const paperCount = paperQuestionCounts.get(questionPaperId(question) ?? question.id) ?? 1;
         return <article className={`question-landscape-card ${attemptCount ? "is-completed" : "is-todo"}`} key={question.id}>
-          <div className="question-kind-panel"><span>{question.type}</span><strong>{question.score}</strong><small>分 · {question.wordLimit} 字</small></div>
+          <div className={`question-kind-panel ${question.type === "文章写作" ? "is-essay" : ""}`}><span>{question.type}</span><strong>{question.score}</strong><small>分 · {question.wordLimit} 字</small>{question.type === "文章写作" && <em>独立五维批改</em>}</div>
           <div className="question-landscape-body"><div className="question-landscape-meta"><span className={`question-status ${attemptCount ? "question-status-done" : "question-status-todo"}`}>{attemptCount ? `已做 ${attemptCount} 次` : "未做"}</span><span>{question.year}</span><span>{question.region}</span><span>{questionPaperLevel(question)}</span><span>{difficultyLabel(question)}</span>{paperCount > 1 && <em>整卷 {paperCount} 题 · {question.materials.length} 则材料</em>}{similar.length > 0 && paperCount === 1 && <em>同材料 {similar.length} 题</em>}</div><h2>{question.title}</h2><p>{question.prompt}</p>{nearestSimilar && paperCount === 1 && <div className="question-similarity-note"><strong>同组材料</strong><span>与“{questionTitleById.get(nearestSimilar.questionId) ?? "其他题目"}”使用相同材料，可按不同问法对比训练。</span></div>}<div className="question-landscape-tags">{tags.map(tag => <span key={tag}>#{tag}</span>)}{question.tags.length > tags.length && <span>+{question.tags.length - tags.length}</span>}</div></div>
-          <aside className="question-landscape-actions"><button className="primary" onClick={() => onStart(question)}>{attemptCount ? "再次训练" : "开始训练"}<ChevronRight size={15}/></button><button onClick={() => onDeepRead(question)}><Sparkles size={13}/>AI精读</button><button className={hasNote ? "has-note" : ""} onClick={() => void openNote(question)}><FileText size={13}/>{hasNote ? "查看笔记" : "写笔记"}</button>{publicQuestion && <button onClick={() => void toggleSource(question.id)} disabled={sourceLoadingId !== null}><Info size={13}/>{sourceLoadingId === question.id ? "读取来源…" : detail ? "收起来源" : "查看来源"}</button>}</aside>
+          <aside className="question-landscape-actions"><button className="primary" onClick={() => onStart(question)}>{question.type === "文章写作" ? attemptCount ? "再练大作文" : "进入大作文训练" : attemptCount ? "再次训练" : "开始训练"}<ChevronRight size={15}/></button><button className={hasNote ? "has-note" : ""} onClick={() => void openNote(question)}><FileText size={13}/>{hasNote ? "查看笔记" : "写笔记"}</button>{publicQuestion && <button onClick={() => void toggleSource(question.id)} disabled={sourceLoadingId !== null}><Info size={13}/>{sourceLoadingId === question.id ? "读取来源…" : detail ? "收起来源" : "查看来源"}</button>}</aside>
           {detail && <div className="question-source-detail question-landscape-source">{detail.source ? <><div><strong>{detail.source.sourceName ?? "公开来源"}</strong><span>{detail.source.sourceTitle ?? question.title}</span></div>{detail.source.sourceUrl ? <a href={detail.source.sourceUrl} target="_blank" rel="noreferrer"><ExternalLink size={13}/>查看原始整卷</a> : null}{detail.source.isRecallVersion && <small>该来源为网友/考生回忆版本。</small>}</> : <span>没有读取到这道题的来源记录。</span>}</div>}
         </article>;
       })}</section>

@@ -1,8 +1,10 @@
 import type { GradingRequest } from "./contracts";
 import { resolveGradingService } from "./serviceResolver";
 import { runShenlunGraderSkill } from "./shenlunGraderSkill";
+import { gradeEssayAnswer } from "./essay";
 
 export async function gradeAnswer(request: GradingRequest) {
+  if (request.question.type === "文章写作") return gradeEssayAnswer(request);
   const result = await runShenlunGraderSkill(request);
   return {
     ...result.review,
@@ -28,3 +30,4 @@ export const gradingService = {
 
 export * from "./contracts";
 export * from "./shenlunGraderSkill";
+export * from "./essay";

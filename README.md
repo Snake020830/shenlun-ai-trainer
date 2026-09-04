@@ -10,7 +10,9 @@
 
 ## 开发
 
-开发环境需要 Node.js 24。首次运行 npm ci，然后使用 npm run dev 预览前端，或使用 npm run app:dev 启动 Tauri 桌面版。
+开发环境需要 Node.js 24。完整的 Windows 环境准备、依赖安装和验证步骤见 [开发环境 Setup](docs/SETUP.md)。首次运行也可以直接双击仓库根目录的 `setup-dev.cmd`。
+
+安装依赖后，使用 `npm run dev` 预览前端，或使用 `npm run app:dev` 启动 Tauri 桌面版。
 
 ## 参与开发
 

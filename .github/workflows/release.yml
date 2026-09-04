@@ -35,7 +35,7 @@ jobs:
         run: npm test
 
       - name: Build and publish Tauri release
-        uses: tauri-apps/tauri-action@v0.6.2
+        uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -44,7 +44,22 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: "申论训练助手 ${{ github.ref_name }}"
           releaseBody: |
-            Windows 安装包见下方 setup.exe 安装文件。
+            ## 申论训练助手 ${{ github.ref_name }}
+
+            申论训练助手是一款本地优先的申论训练工作台，把题库、材料阅读、独立作答、AI 批改和错题复盘串成一个训练闭环。题库、草稿、训练记录和批改快照默认保存在本机。
+
+            ### 本次更新
+
+            - 修复公开题库导入完成后来源列表已更新、题库页却未同步的问题。
+            - 修复 SQLite 打开失败时误切换到空存储的问题，改为数据保护页面，避免误以为题库和记录被清空。
+            - 启动阶段遇到短暂 SQLite 或迁移时序异常时自动重试，只有连续失败才进入数据保护页面。
+            - 正式版与 Preview 显示明确身份并隔离数据目录。
+            - 自动更新安装前执行数据库 checkpoint 和备份；备份失败时停止更新。
+            - 大作文继续提供独立五步短练、整篇作答和五维度批改；其他题型保留材料得分点训练流程。
+
+            ### 安装与数据
+
+            Windows 安装包见下方 setup.exe 安装文件。请勿通过卸载或清空应用数据来“解决”题库问题；正式版数据目录为 `%APPDATA%\\com.shenlun.trainer`。
 
             本版本同时生成 Tauri 自动更新所需的签名更新包。
           releaseDraft: false
@@ -52,4 +67,3 @@ jobs:
           args: --bundles nsis
           uploadUpdaterJson: true
           updaterJsonPreferNsis: true
-          uploadUpdaterSignatures: true

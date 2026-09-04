@@ -51,3 +51,71 @@
   color: #7f9b86;
   font-weight: 500;
 }
+
+.runtime-badge {
+  display: block;
+  width: fit-content;
+  margin-top: 6px;
+  padding: 3px 6px;
+  border-radius: 5px;
+  color: #55725d !important;
+  background: #e4efe6;
+  font-size: 10px !important;
+  line-height: 1.2;
+}
+
+.runtime-badge.preview {
+  color: #765b2d !important;
+  background: #f8eedb;
+}
+
+.storage-gate {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 32px;
+  background: #f5f5f1;
+}
+
+.storage-gate-card {
+  width: min(560px, 100%);
+  padding: 34px 38px;
+  border: 1px solid #e2e3dc;
+  border-radius: 16px;
+  background: #fffefa;
+  box-shadow: 0 14px 40px rgba(35, 40, 34, .07);
+}
+
+.storage-gate-icon {
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 18px;
+  border-radius: 13px;
+  color: #946c2e;
+  background: #f8eedb;
+}
+
+.storage-gate-card h1 {
+  margin: 8px 0 12px;
+  font-family: Georgia, "Noto Serif SC", serif;
+  font-size: 26px;
+}
+
+.storage-gate-card > p:not(.eyebrow) {
+  color: #62665f;
+  line-height: 1.8;
+}
+
+.storage-gate-note {
+  padding: 12px 14px;
+  border-radius: 9px;
+  color: #765b2d !important;
+  background: #fbf4e7;
+  font-size: 12px;
+}
+
+.storage-gate-card .primary {
+  margin-top: 8px;
+}
